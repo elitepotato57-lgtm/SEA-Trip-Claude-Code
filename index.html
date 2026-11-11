@@ -832,10 +832,13 @@ const Places = {
     out.sort((a, b) => a.km - b.km);
     return {items:out.slice(0, Math.max(want, 400)).map(x => x.p), state: failed && !out.length ? "error" : "ok", more};
   },
-  async summary(g){
+  // The promise is stored straight away (before any await), so two early calls share one download.
+  summary(g){
     if (this.sums[g]) return this.sums[g];
-    const m = await this.ready(); if (!m) return null;
-    this.sums[g] = getJSON(`${PLACES_BASE}${this.cc}/sum-${g}.json`, {timeout:20000}).then(s => {
+    this.sums[g] = this.ready().then(m => {
+      if (!m) throw new Error("no index");
+      return getJSON(`${PLACES_BASE}${this.cc}/sum-${g}.json`, {timeout:20000});
+    }).then(s => {
       const z = s.z;
       return s.cells.map(c => {
         const counts = {}; let total = 0;
@@ -860,11 +863,9 @@ const Places = {
     const pick = toks.filter(t => !stop.has(t)).sort((a, b) => b.length - a.length)[0] || toks[0];
     let key = pick.slice(0, 2);
     if (m.search.split.includes(key)){ if (pick.length < 3) return []; key = pick.slice(0, 3); }
-    let rows = this.shards.get(key);
-    if (!rows){
-      try { rows = await getJSON(`${PLACES_BASE}${this.cc}/search/s-${key}.json`, {timeout:12000}); } catch(e){ rows = []; }
-      this.shards.set(key, rows);
-    }
+    // keep the promise, not the result, so typing fast doesn't download the same shard twice
+    if (!this.shards.has(key)) this.shards.set(key, getJSON(`${PLACES_BASE}${this.cc}/search/s-${key}.json`, {timeout:12000}).catch(() => { this.shards.delete(key); return []; }));
+    const rows = await this.shards.get(key);
     const hits = [];
     for (const r of rows){
       const words = foldText(r[0]).split(" ");
@@ -1497,7 +1498,7 @@ function onSavedChanged(){
 }
 
 /* ---------- discover: the optional landing screen ---------- */
-let coverage = null;
+let coverage = null, coverageWait = null;
 function renderDiscover(){
   const root = $("#pageview"), pt = focusPt();
   const b = S.budget, spent = budgetSpentGBP();
@@ -1521,7 +1522,8 @@ function renderDiscover(){
   root.innerHTML = html;
   root.querySelectorAll("[data-dest]").forEach(el => el.onclick = () => { const c = THAI_DESTS[+el.dataset.dest]; setFocus({n:c[0], lat:c[1], lng:c[2]}); if (map) flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
   const fill = () => { if (!coverage) return; root.querySelectorAll("[data-cov]").forEach(el => { const c = coverage.by_destination[el.dataset.cov]; if (c) el.textContent = `${(c.stay + c.food + c.do).toLocaleString("en-GB")} places to stay, eat and see`; }); };
-  if (coverage) fill(); else getJSON(`${PLACES_BASE}th/coverage.json`).then(c => { coverage = c; if (ui.view === "discover") fill(); }).catch(() => {});
+  if (coverage) fill();
+  else { coverageWait = coverageWait || getJSON(`${PLACES_BASE}th/coverage.json`).catch(() => null); coverageWait.then(c => { if (!c){ coverageWait = null; return; } coverage = c; if (ui.view === "discover") fill(); }); }
   if (typeof paintWeatherMini === "function") paintWeatherMini($("#d-wx"));
   if (!S.seenDiscover){ S.seenDiscover = true; persist(); }
 }
@@ -1724,7 +1726,12 @@ function refreshMapData(){
         const cells = {}; let est = 0, sumsReady = true;
         for (const g of groups){
           const s = Places._sumData && Places._sumData[g];
-          if (!s){ sumsReady = false; Places.summary(g).then(d => { (Places._sumData = Places._sumData || {})[g] = d || []; refreshMapData(); }); continue; }
+          if (!s){
+            sumsReady = false;
+            Places._sumWait = Places._sumWait || new Set();
+            if (!Places._sumWait.has(g)){ Places._sumWait.add(g); Places.summary(g).then(d => { Places._sumWait.delete(g); (Places._sumData = Places._sumData || {})[g] = d || []; refreshMapData(); }); }
+            continue;
+          }
           cells[g] = s.filter(c => c.lng >= bb[0] && c.lng <= bb[2] && c.lat >= bb[1] && c.lat <= bb[3]);
           for (const c of cells[g]) est += g === "ess" ? Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0) : c.total;
         }
@@ -2946,10 +2953,16 @@ function loadGoogle(){
   }).then(m => { if (!m) gReady = null; return m; });
   return gReady;
 }
-const gPlaceCache = {};
+const gPlaceCache = {}, gPlaceWait = {};
 const G_FULL = ["location", "photos", "rating", "userRatingCount", "googleMapsURI"];
-async function googlePlace(it, fields = G_FULL){
-  if (!it) return null;
+// one lookup at a time per place: a card and the details sheet asking together share the same request
+function googlePlace(it, fields = G_FULL){
+  if (!it) return Promise.resolve(null);
+  const k = it.id + "|" + fields.join(",");
+  if (!gPlaceWait[k]) gPlaceWait[k] = googlePlace_(it, fields).finally(() => { delete gPlaceWait[k]; });
+  return gPlaceWait[k];
+}
+async function googlePlace_(it, fields){
   const maps = await loadGoogle(); if (!maps) return null;
   let entry = gPlaceCache[it.id];
   if (entry){ const need = fields.filter(f => !entry.has.has(f)); if (need.length){ try { await entry.place.fetchFields({fields:need}); need.forEach(f => entry.has.add(f)); } catch(e){} } return entry.place; }
@@ -3007,9 +3020,13 @@ function showGooglePhoto(box, it, pl){
 
 /* ---------- free photos: Wikipedia and Wikidata (Wikimedia Commons) ---------- */
 const photoCache = {};
-async function loadPhoto(it){
-  if (!it.wp || typeof fetch === "undefined") return null;
-  if (it.wp in photoCache) return photoCache[it.wp];
+function loadPhoto(it){
+  if (!it.wp || typeof fetch === "undefined") return Promise.resolve(null);
+  if (!(it.wp in photoCache)) photoCache[it.wp] = loadPhoto_(it);
+  return Promise.resolve(photoCache[it.wp]);
+}
+async function loadPhoto_(it){
+  let out = null;
   try {
     const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${enc(it.wp)}`);
     if (!res.ok) throw new Error("no page");
@@ -3018,20 +3035,21 @@ async function loadPhoto(it){
     let src = null;
     if (orig && orig.width <= 1400) src = orig.source;
     else if (th && th.source) src = th.source.replace(/\/\d+px-/, "/800px-");
-    photoCache[it.wp] = src ? {src, page: (j.content_urls && j.content_urls.mobile && j.content_urls.mobile.page) || `https://en.wikipedia.org/wiki/${enc(it.wp)}`, by:"Photo via Wikipedia"} : null;
-  } catch(e){ photoCache[it.wp] = null; }
-  return photoCache[it.wp];
+    out = src ? {src, page: (j.content_urls && j.content_urls.mobile && j.content_urls.mobile.page) || `https://en.wikipedia.org/wiki/${enc(it.wp)}`, by:"Photo via Wikipedia"} : null;
+  } catch(e){ out = null; }
+  return out;
 }
-async function loadWdPhoto(it){
-  if (!it.wd || typeof fetch === "undefined") return null;
+function loadWdPhoto(it){
+  if (!it.wd || typeof fetch === "undefined") return Promise.resolve(null);
   const key = "wd:" + it.wd;
-  if (key in photoCache) return photoCache[key];
-  try {
-    const j = await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${enc(it.wd)}&property=P18&format=json&origin=*`, {timeout:9000});
-    const file = j.claims && j.claims.P18 && j.claims.P18[0] && j.claims.P18[0].mainsnak.datavalue.value;
-    photoCache[key] = file ? {src:`https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=640`, page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"} : null;
-  } catch(e){ photoCache[key] = null; }
-  return photoCache[key];
+  if (!(key in photoCache)) photoCache[key] = (async () => {
+    try {
+      const j = await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${enc(it.wd)}&property=P18&format=json&origin=*`, {timeout:9000});
+      const file = j.claims && j.claims.P18 && j.claims.P18[0] && j.claims.P18[0].mainsnak.datavalue.value;
+      return file ? {src:`https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=640`, page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"} : null;
+    } catch(e){ return null; }
+  })();
+  return Promise.resolve(photoCache[key]);
 }
 const freePhoto = async it => (it.wp && await loadPhoto(it)) || (it.wd && await loadWdPhoto(it)) || null;
 let photoObs = null;
