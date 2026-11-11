@@ -29,6 +29,7 @@
   --stay:#DA8667; --food:#8CC3A6; --do:#B9A4DC; --ess:#E3C47C; --move:#7FB2D2;
   --ok:#8CC3A6; --warn:#E8C6A5; --bad:#E58B78;
   --sea:#1E5263; --land:#27343A; --land-trip:#2F4046; --border-land:#44535A;
+  --on-cat:#1B2125; --cl-ring:rgba(27,33,37,.7); --halo:rgba(24,31,35,.9);   /* map: numbers on category circles, the ring round them, label halos */
   --r-s:6px; --r:8px; --r-l:10px;
   --shadow:0 2px 10px rgba(0,0,0,.28);
   --font:"Inter","SF Pro Text",-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -1594,8 +1595,15 @@ function addPinImages(){
     });
   });
 }
+/* Each category has its own clustered layer on the map, so a bunch of hostels is a coral circle and a bunch of cafés a green one,
+   matching the chip colours. Circles grow with the number of places inside: 4 is small, 300 is big. */
+const MAP_GROUPS = ["stay", "food", "do", "ess", "move"];
+const grpOfItem = it => (it.g && MAP_GROUPS.includes(it.g)) ? it.g : (CAT[it.c] ? CAT[it.c].grp : "do");
+const CL_RADIUS = ["interpolate", ["linear"], ["ln", ["max", ["get", "w"], 1]], 0, 12, 2.303, 15, 4.605, 21, 6.908, 28, 9.21, 36];   // 1 → 12 px, 10 → 15, 100 → 21, 1,000 → 28, 10,000 → 36
+// where several categories bunch up in one spot, nudge each a few pixels so every colour shows
+const CL_NUDGE = {stay:[-5, -3], food:[5, -3], do:[0, 5], ess:[-5, 4], move:[5, 4]};
 const featOf = it => it._f || (it._f = {type:"Feature", geometry:{type:"Point", coordinates:[it.lng, it.lat]},
-  properties:{id:it.id, n:it.unnamed ? "" : it.n, ic:`pin-${KIND[it.k] ? it.k : "attraction"}${it.cur_ ? "-r" : ""}`, w:1}});
+  properties:{id:it.id, g:grpOfItem(it), n:it.unnamed ? "" : it.n, ic:`pin-${KIND[it.k] ? it.k : "attraction"}${it.cur_ ? "-r" : ""}`, w:1}});
 
 /* ---------- build the map ---------- */
 function ensureMap(){
@@ -1648,37 +1656,40 @@ function onMapLoad(){
   const first = MAP_STYLE.layers.find(l => l.id !== "background");
   map.addSource("fb", {type:"geojson", data:geoFC()});
   map.addLayer({id:"fb-land", type:"fill", source:"fb", layout:{visibility:"none"}, paint:{"fill-color":["case", ["==", ["get", "cc"], ""], cssv("--land"), cssv("--land-trip")], "fill-outline-color":cssv("--border-land")}}, first && first.id);
-  map.addSource("pts", {type:"geojson", data:fc([]), cluster:true, clusterRadius:46, clusterMaxZoom:16, clusterProperties:{w:["+", ["get", "w"]]}});
   const isGroup = ["any", ["has", "point_count"], [">", ["get", "w"], 1]];
-  map.addLayer({id:"cl-circle", type:"circle", source:"pts", filter:isGroup, paint:{
-    "circle-color":cssv("--surface"), "circle-stroke-color":cssv("--accent"), "circle-stroke-width":2, "circle-opacity":.96,
-    "circle-radius":["step", ["get", "w"], 14, 10, 16, 100, 19, 1000, 23, 10000, 27]}});
-  map.addLayer({id:"cl-count", type:"symbol", source:"pts", filter:isGroup, layout:{
-    "text-field":["case", [">=", ["get", "w"], 10000], ["concat", ["to-string", ["round", ["/", ["get", "w"], 1000]]], "k"],
-      [">=", ["get", "w"], 1000], ["concat", ["to-string", ["/", ["round", ["/", ["get", "w"], 100]], 10]], "k"], ["to-string", ["get", "w"]]],
-    "text-font":["Noto Sans Bold"], "text-size":12, "text-allow-overlap":true, "text-ignore-placement":true}, paint:{"text-color":cssv("--ink")}});
+  MAP_GROUPS.forEach(g => {
+    map.addSource("pts-" + g, {type:"geojson", data:fc([]), cluster:true, clusterRadius:46, clusterMaxZoom:16, clusterProperties:{w:["+", ["get", "w"]]}});
+    map.addLayer({id:"cl-circle-" + g, type:"circle", source:"pts-" + g, filter:isGroup, paint:{
+      "circle-color":cssv("--" + g), "circle-stroke-color":cssv("--cl-ring"), "circle-stroke-width":2, "circle-opacity":.94, "circle-radius":CL_RADIUS, "circle-translate":CL_NUDGE[g]}});
+    map.addLayer({id:"cl-count-" + g, type:"symbol", source:"pts-" + g, filter:isGroup, layout:{
+      "text-field":["case", [">=", ["get", "w"], 10000], ["concat", ["to-string", ["round", ["/", ["get", "w"], 1000]]], "k"],
+        [">=", ["get", "w"], 1000], ["concat", ["to-string", ["/", ["round", ["/", ["get", "w"], 100]], 10]], "k"], ["to-string", ["get", "w"]]],
+      "text-font":["Noto Sans Bold"], "text-size":12, "text-allow-overlap":true, "text-ignore-placement":true}, paint:{"text-color":cssv("--on-cat"), "text-translate":CL_NUDGE[g]}});
+  });
   map.addSource("sel", {type:"geojson", data:fc([])});
   map.addLayer({id:"sel-ring", type:"circle", source:"sel", paint:{"circle-radius":21, "circle-color":"rgba(232,198,165,.18)", "circle-stroke-color":cssv("--accent-2"), "circle-stroke-width":2.5}});
-  map.addLayer({id:"pt-icon", type:"symbol", source:"pts", filter:["all", ["!", ["has", "point_count"]], ["==", ["get", "w"], 1]], layout:{
+  MAP_GROUPS.forEach(g => map.addLayer({id:"pt-icon-" + g, type:"symbol", source:"pts-" + g, filter:["all", ["!", ["has", "point_count"]], ["==", ["get", "w"], 1]], layout:{
     "icon-image":["get", "ic"], "icon-size":["interpolate", ["linear"], ["zoom"], 9, .62, 14, .86, 17, 1], "icon-allow-overlap":true, "icon-ignore-placement":true,
     "text-field":["step", ["zoom"], "", 15.5, ["get", "n"]], "text-font":["Noto Sans Regular"], "text-size":11, "text-offset":[0, 1.45], "text-anchor":"top",
-    "text-optional":true, "text-max-width":9}, paint:{"text-color":cssv("--ink"), "text-halo-color":"rgba(24,31,35,.9)", "text-halo-width":1.2}});
+    "text-optional":true, "text-max-width":9}, paint:{"text-color":cssv("--ink"), "text-halo-color":cssv("--halo"), "text-halo-width":1.2}}));
   // the chosen place gets its own pin on top, so it stays visible even when its neighbours are bunched into a count
   map.addLayer({id:"sel-icon", type:"symbol", source:"sel", layout:{"icon-image":["get", "ic"], "icon-size":1.08, "icon-allow-overlap":true, "icon-ignore-placement":true}});
   map.addSource("me", {type:"geojson", data:fc([])});
   map.addLayer({id:"me-halo", type:"circle", source:"me", paint:{"circle-radius":16, "circle-color":"rgba(127,178,210,.22)"}});
   map.addLayer({id:"me-dot", type:"circle", source:"me", paint:{"circle-radius":6.5, "circle-color":cssv("--move"), "circle-stroke-color":"#fff", "circle-stroke-width":2.5}});
 
-  map.on("click", "pt-icon", e => { const f = e.features && e.features[0]; if (f){ e.originalEvent && (e.originalEvent._hit = true); selectPlace(f.properties.id); } });
-  map.on("click", "cl-circle", async e => {
-    const f = e.features && e.features[0]; if (!f) return;
-    e.originalEvent && (e.originalEvent._hit = true);
-    let z = map.getZoom() + 2;
-    if (f.properties.cluster_id != null){ try { z = await map.getSource("pts").getClusterExpansionZoom(f.properties.cluster_id); } catch(err){} }
-    map.easeTo({center:f.geometry.coordinates, zoom:Math.min(18, Math.max(z, map.getZoom() + 1)), duration:reduceMotion ? 0 : 450});
+  MAP_GROUPS.forEach(g => {
+    map.on("click", "pt-icon-" + g, e => { const f = e.features && e.features[0]; if (f && !(e.originalEvent && e.originalEvent._hit)){ e.originalEvent && (e.originalEvent._hit = true); selectPlace(f.properties.id); } });
+    map.on("click", "cl-circle-" + g, async e => {
+      const f = e.features && e.features[0]; if (!f || (e.originalEvent && e.originalEvent._hit)) return;      // two colours overlapping: only the top one acts
+      e.originalEvent && (e.originalEvent._hit = true);
+      let z = map.getZoom() + 2;
+      if (f.properties.cluster_id != null){ try { z = await map.getSource("pts-" + g).getClusterExpansionZoom(f.properties.cluster_id); } catch(err){} }
+      map.easeTo({center:f.geometry.coordinates, zoom:Math.min(18, Math.max(z, map.getZoom() + 1)), duration:reduceMotion ? 0 : 450});
+    });
+    ["pt-icon-" + g, "cl-circle-" + g].forEach(l => { map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", l, () => map.getCanvas().style.cursor = ""); });
   });
   map.on("click", e => { if (!(e.originalEvent && e.originalEvent._hit) && ui.mapSel) selectPlace(null); });
-  ["pt-icon", "cl-circle"].forEach(l => { map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", l, () => map.getCanvas().style.cursor = ""); });
   const moved = debounce(() => { refreshMapData(); const c = map.getCenter(); S.mapView = {c:[+c.lng.toFixed(5), +c.lat.toFixed(5)], z:+map.getZoom().toFixed(2)}; persist(); }, 140);
   map.on("moveend", moved);
   map.on("sourcedata", e => { if (e.sourceId === "openmaptiles" && e.tile && !mapRun.tilesOk){ mapRun.tilesOk = true; setOfflineBase(false); } });
@@ -1760,15 +1771,19 @@ function refreshMapData(){
           // 2a. too many to draw one by one: show the counts
           // The further out you are, the coarser the grid the counts are added up on, so the whole country is a few hundred dots rather than 13,000.
           summaryMode = true;
-          const gz = Math.min(13, Math.floor(z) + 5), sums = new Map();
-          for (const g of groups) for (const c of cells[g]){
-            const w = g === "ess" ? Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0) : c.total;
-            if (w <= 0) continue;
-            const key = lng2tile(c.lng, gz) * 16384 + lat2tile(c.lat, gz);
-            let a = sums.get(key); if (!a){ a = {w:0, x:0, y:0}; sums.set(key, a); }
-            a.w += w; a.x += c.lng * w; a.y += c.lat * w;
+          // Each category is added up on its own, so the counts keep their colours.
+          const gz = Math.min(13, Math.floor(z) + 5);
+          for (const g of groups){
+            const sums = new Map();
+            for (const c of cells[g]){
+              const w = g === "ess" ? Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0) : c.total;
+              if (w <= 0) continue;
+              const key = lng2tile(c.lng, gz) * 16384 + lat2tile(c.lat, gz);
+              let a = sums.get(key); if (!a){ a = {w:0, x:0, y:0}; sums.set(key, a); }
+              a.w += w; a.x += c.lng * w; a.y += c.lat * w;
+            }
+            for (const a of sums.values()) feats.push({type:"Feature", geometry:{type:"Point", coordinates:[a.x / a.w, a.y / a.w]}, properties:{w:a.w, g}});
           }
-          for (const a of sums.values()) feats.push({type:"Feature", geometry:{type:"Point", coordinates:[a.x / a.w, a.y / a.w]}, properties:{w:a.w}});
         } else {
           // 2b. few enough: load just the tiles that cover the screen
           for (const g of groups) for (const leaf of Places.leavesIn(g, bb)){
@@ -1796,7 +1811,13 @@ function refreshMapData(){
   // the same place can arrive twice (a market is food and an activity; a researched place and its Wi-Fi twin)
   const seen = new Set(), uniq = [];
   for (const f of feats){ const id = f.properties.id; if (id){ if (seen.has(id)) continue; seen.add(id); } uniq.push(f); }
-  map.getSource("pts").setData(fc(uniq));
+  const byGrp = Object.fromEntries(MAP_GROUPS.map(g => [g, []]));
+  for (const f of uniq) (byGrp[f.properties.g] || byGrp.do).push(f);
+  mapRun.counts = mapRun.counts || {};
+  for (const g of MAP_GROUPS){
+    if (!byGrp[g].length && !mapRun.counts[g]) continue;              // was empty and still is: nothing to redraw
+    map.getSource("pts-" + g).setData(fc(byGrp[g])); mapRun.counts[g] = byGrp[g].length;
+  }
   const seenI = new Set();
   mapRun.items = items.filter(p => !seenI.has(p.id) && seenI.add(p.id));
   mapRun.mode = summaryMode ? "summary" : "detail"; mapRun.loading = loading; mapRun.total = total; mapRun.shown = uniq.length;
