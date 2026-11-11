@@ -229,6 +229,8 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .fact.wide{grid-column:1/-1}
 .fact .unk{color:var(--faint)}
 .fact a{word-break:break-all}
+.th-under{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:17px;line-height:1.35}
+.rom{font-size:12.5px;color:var(--muted);font-style:italic}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .srcs{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:8px}
 .srcs a{color:var(--muted)}
@@ -905,6 +907,165 @@ const Places = {
 function foldText(s){
   return String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9฀-๿]+/g, " ").trim();
 }
+/* ---------- Thai to Latin letters, worked out on the phone (no signal needed) ----------
+   A small rule-based romaniser written for this app. Two styles:
+   - "rtgs": close to the official Royal Thai General System, for addresses and names (Thanon Ratchadamri)
+   - "easy": a say-it-like-it-looks guide for English speakers, split into syllables (sa-wat-dee)
+   Thai is written without spaces and many vowels are silent, so this is a best effort, never an official spelling.
+   Well-known words and Bangkok street names come from a small list first, so the common ones are spelled the usual way. */
+const thaiRom = (() => {
+  // consonant: [sound at the start, sound at the end] (RTGS)
+  const C = {"ก":["k","k"],"ข":["kh","k"],"ฃ":["kh","k"],"ค":["kh","k"],"ฅ":["kh","k"],"ฆ":["kh","k"],"ง":["ng","ng"],"จ":["ch","t"],"ฉ":["ch","t"],"ช":["ch","t"],
+    "ซ":["s","t"],"ฌ":["ch","t"],"ญ":["y","n"],"ฎ":["d","t"],"ฏ":["t","t"],"ฐ":["th","t"],"ฑ":["th","t"],"ฒ":["th","t"],"ณ":["n","n"],"ด":["d","t"],"ต":["t","t"],
+    "ถ":["th","t"],"ท":["th","t"],"ธ":["th","t"],"น":["n","n"],"บ":["b","p"],"ป":["p","p"],"ผ":["ph","p"],"ฝ":["f","p"],"พ":["ph","p"],"ฟ":["f","p"],"ภ":["ph","p"],
+    "ม":["m","m"],"ย":["y","i"],"ร":["r","n"],"ล":["l","n"],"ว":["w","o"],"ศ":["s","t"],"ษ":["s","t"],"ส":["s","t"],"ห":["h",""],"ฬ":["l","n"],"อ":["",""],"ฮ":["h",""]};
+  // the easy style swaps a few letters that English speakers read wrongly (th as in "think", ph as in "phone")
+  const V = {   // vowel: [rtgs, easy when the syllable ends in a vowel, easy when a consonant follows]
+    a:["a","a","a"], aa:["a","a","a"], i:["i","i","i"], ii:["i","ee","ee"], ue:["ue","eu","eu"], u:["u","u","u"], uu:["u","oo","oo"],
+    e:["e","ay","e"], ae:["ae","ae","ae"], o:["o","oh","o"], aw:["o","aw","aw"], oe:["oe","er","er"], ia:["ia","ia","ia"], uea:["uea","eua","eua"],
+    ua:["ua","ua","ua"], ai:["ai","ai","ai"], ao:["ao","ao","ao"], am:["am","am","am"], io:["io","iu","iu"], oi:["oi","oi","oi"], ui:["ui","ui","ui"],
+    oei:["oei","oey","oey"], imp_o:["o","o","o"], imp_a:["a","a","a"], rue:["rue","reu","reu"], lue:["lue","leu","leu"]};
+  const DEP = "ะัาำิีึืุู", LEAD = "เแโใไ", CLUSTER1 = "กขคปพตบผฟด", CLUSTER2 = "รลว", SONOR = "งญนมยรลว";
+  // common words, so they come out spelled the usual way (RTGS, as on road signs)
+  const WORDS = [["กรุงเทพมหานคร","Bangkok"],["กรุงเทพฯ","Bangkok"],["กรุงเทพ","Bangkok"],["ถนน","Thanon"],["ซอย","Soi"],["หมู่บ้าน","Mu Ban"],["หมู่ที่","Mu"],["หมู่","Mu"],
+    ["แขวง","Khwaeng"],["เขต","Khet"],["ตำบล","Tambon"],["อำเภอ","Amphoe"],["จังหวัด","Changwat"],["ถ.","Th."],["ซ.","Soi"],["ม.","Mu"],["ต.","T."],["อ.","A."],["จ.","Ch."],
+    ["พระราม","Rama"],["สุขุมวิท","Sukhumvit"],["ราชดำริ","Ratchadamri"],["รัชดาภิเษก","Ratchadaphisek"],["พหลโยธิน","Phahonyothin"],["เพชรบุรี","Phetchaburi"],
+    ["สีลม","Silom"],["สาทร","Sathon"],["เจริญกรุง","Charoen Krung"],["ราชวิถี","Ratchawithi"],["วิภาวดีรังสิต","Vibhavadi Rangsit"],["พญาไท","Phaya Thai"],
+    ["ข้าวสาร","Khao San"],["จุฬาลงกรณ์","Chulalongkorn"],["ลุมพินี","Lumphini"],["วังใหม่","Wang Mai"],["ปทุมวัน","Pathum Wan"],["ห้วยขวาง","Huai Khwang"],
+    ["ดินแดง","Din Daeng"],["นิมมานเหมินท์","Nimmanhaemin"],["นิมมานเหมินทร์","Nimmanhaemin"],["เพลินจิต","Phloen Chit"],["วิทยุ","Witthayu"],["ราชประสงค์","Ratchaprasong"],
+    ["สยาม","Siam"],["ประตูน้ำ","Pratunam"],["เยาวราช","Yaowarat"],["บางรัก","Bang Rak"],["ทองหล่อ","Thong Lo"],["เอกมัย","Ekkamai"],["อโศก","Asok"],["พระนคร","Phra Nakhon"],
+    ["เชียงใหม่","Chiang Mai"],["เชียงราย","Chiang Rai"],["ภูเก็ต","Phuket"],["กระบี่","Krabi"],["ปาย","Pai"],["พัทยา","Pattaya"],["หัวหิน","Hua Hin"],["อยุธยา","Ayutthaya"],
+    ["กาญจนบุรี","Kanchanaburi"],["สุราษฎร์ธานี","Surat Thani"],["เกาะ","Ko"],["หาด","Hat"],["อ่าว","Ao"],["วัด","Wat"],["ตลาด","Talat"],["จตุจักร","Chatuchak"],["ตลาดนัด","Talat Nat"],["ร้านขายยา","Ran Khai Ya"],["บ้าน","Ban"],["ร้าน","Ran"],
+    ["โรงพยาบาล","Rong Phayaban"],["โรงแรม","Rong Raem"],["สถานี","Sathani"],["ท่าเรือ","Tha Ruea"],["ประเทศไทย","Prathet Thai"],["ไทย","Thai"],["อังกฤษ","Angkrit"],["มหาวิทยาลัย","Mahawitthayalai"],
+    ["ศูนย์การค้า","Sun Kan Kha"],["ห้าง","Hang"],["ประชา","Pracha"],["นคร","Nakhon"],["บุรี","Buri"],["ธานี","Thani"],["สมุทร","Samut"],["เมือง","Mueang"],["ศรี","Si"],
+    ["ราช","Rat"],["พระ","Phra"],["มิตร","Mit"],["สมเด็จ","Somdet"],["เจ้าพระยา","Chao Phraya"],["นานา","Nana"],["คลอง","Khlong"],["ทุ่ง","Thung"],["ดอย","Doi"],["ภู","Phu"],
+    ["น้ำตก","Nam Tok"],["ห้วย","Huai"],["หนอง","Nong"],["สวน","Suan"],["ใหม่","Mai"],["เก่า","Kao"],["ใต้","Tai"],["เหนือ","Nuea"],["กลาง","Klang"],["ตะวันออก","Tawan Ok"],["ตะวันตก","Tawan Tok"]]
+    .sort((a, b) => b[0].length - a[0].length);
+  const THAI = /[ก-๛]/;
+  const isC = c => !!c && C[c] !== undefined;
+  const inS = (set, c) => !!c && set.includes(c);
+  const dep = c => inS(DEP, c);
+
+  function syllables(w){
+    // tone marks and the short-vowel sign change the sound's pitch or length, not the letters; ์ marks silent letters
+    w = w.replace(/[่-๋็]/g, "").replace(/[ก-ฮ][ิุ]?์/g, "").replace(/ๆ/g, "");
+    const out = [], n = w.length, ch = j => w[j] || "";
+    // an "อ" straight after a consonant is the vowel "o" unless a vowel sign sits on it
+    const oVowel = j => ch(j) === "อ" && !dep(ch(j + 1));
+    const clusterAt = (j, afterLead) => isC(ch(j)) && inS(CLUSTER1, ch(j)) && inS(CLUSTER2, ch(j + 1)) &&
+      (dep(ch(j + 2)) || oVowel(j + 2) || (afterLead && isC(ch(j + 2))) || (ch(j + 1) !== "ว" && inS(LEAD, ch(j - 1)) && ch(j + 2) === ""));
+    function initial(j, afterLead){
+      if (ch(j) === "ห" && inS(SONOR, ch(j + 1))) return {c:C[ch(j + 1)][0], len:2};
+      if (ch(j) === "อ" && ch(j + 1) === "ย") return {c:"y", len:2};
+      if (clusterAt(j, afterLead)) return {c:C[ch(j)][0] + C[ch(j + 1)][0], len:2};
+      return {c:C[ch(j)][0], len:1};
+    }
+    // how many consonants in a row from j carry no vowel of their own
+    // ห before a soft letter, อย, and pairs like ตร or กล are said as one sound, so count them as one
+    const unitLen = j => (ch(j) === "ห" && inS(SONOR, ch(j + 1))) || (ch(j) === "อ" && ch(j + 1) === "ย") || (inS(CLUSTER1, ch(j)) && inS("รล", ch(j + 1))) ? 2 : 1;
+    const bareRun_ = j => { let r = 0; while (isC(ch(j))){ const u = unitLen(j); if (dep(ch(j + u)) || oVowel(j + u)) break; r++; j += u; } return {r, end:j}; };
+    const bareRun = j => bareRun_(j).r;
+    // can the consonant at j close the syllable before it? Bare consonants pair up (คน: khon), so an odd number left means the first one is a final.
+    const canFinal = j => isC(ch(j)) && (bareRun(j) % 2 === 1 || unitLen(j) === 2) && !dep(ch(j + 1)) && !oVowel(j + 1) && !clusterAt(j, false) && !inS(LEAD, ch(j)) &&
+      !(ch(j + 1) === "ว" && isC(ch(j + 2)) && !dep(ch(j + 2)));
+    const takeFinal = k => canFinal(k) ? {f:C[ch(k)][1], len:1} : {f:"", len:0};
+    let i = 0, prevClosed = true;
+    const push = (c, v, f, l) => { out.push({c, v, f, l}); prevClosed = !!f; };
+    while (i < n){
+      const x = ch(i);
+      if (/[๐-๙]/.test(x)){ out.push({raw:String("๐๑๒๓๔๕๖๗๘๙".indexOf(x))}); i++; continue; }
+      if (x === "ฤ" || x === "ฦ"){ push("", x === "ฤ" ? "rue" : "lue", ""); i += ch(i + 1) === "ๅ" ? 2 : 1; continue; }
+      if (inS(LEAD, x)){
+        const I = initial(i + 1, true); I.l = ch(i + 1); let k = i + 1 + I.len, v;
+        if (!isC(ch(i + 1))){ i++; continue; }
+        if (x === "เ"){
+          if (ch(k) === "ี" && ch(k + 1) === "ย"){ v = "ia"; k += 2; }
+          else if (ch(k) === "ื" && ch(k + 1) === "อ"){ v = "uea"; k += 2; }
+          else if (ch(k) === "า" && ch(k + 1) === "ะ"){ v = "aw"; k += 2; }
+          else if (ch(k) === "า"){ v = "ao"; k += 1; }
+          else if (ch(k) === "อ"){ v = "oe"; k += ch(k + 1) === "ะ" ? 2 : 1; }
+          else if (ch(k) === "ิ"){ v = "oe"; k += 1; }
+          else if (ch(k) === "ย" && !dep(ch(k + 1))){ v = "oei"; k += 1; }
+          else if (ch(k) === "ะ"){ v = "e"; k += 1; }
+          else v = "e";
+        } else if (x === "แ"){ v = "ae"; if (ch(k) === "ะ") k++; }
+        else if (x === "โ"){ v = "o"; if (ch(k) === "ะ") k++; }
+        else { v = "ai"; if (ch(k) === "ย" && !dep(ch(k + 1)) && !oVowel(k + 1)) k++; }       // ไทย: the ย is silent
+        const F = (v === "ao" || v === "ai" || v === "oei" || ch(k - 1) === "ะ") ? {f:"", len:0} : takeFinal(k);
+        push(I.c, v, F.f, I.l); i = k + F.len; continue;
+      }
+      if (!isC(x)){ i++; continue; }                                    // stray marks
+      const I = initial(i, false); I.l = x; let k = i + I.len, v = null;
+      const y = ch(k);
+      if (y === "ั"){ if (ch(k + 1) === "ว"){ v = "ua"; k += 2; } else if (ch(k + 1) === "ย" && !dep(ch(k + 2))){ v = "ai"; k += 2; push(I.c, v, "", I.l); i = k; continue; } else { v = "a"; k += 1; } }
+      else if (y === "ะ"){ push(I.c, "a", "", I.l); i = k + 1; continue; }
+      else if (y === "า"){ if (ch(k + 1) === "ย" && !dep(ch(k + 2)) && !oVowel(k + 2)){ push(I.c, "ai", "", I.l); i = k + 2; continue; } if (ch(k + 1) === "ว" && !dep(ch(k + 2))){ push(I.c, "ao", "", I.l); i = k + 2; continue; } v = "aa"; k += 1; }
+      else if (y === "ำ"){ push(I.c, "am", "", I.l); i = k + 1; continue; }
+      else if (y === "ิ"){ if (ch(k + 1) === "ว" && !dep(ch(k + 2))){ push(I.c, "io", "", I.l); i = k + 2; continue; } v = "i"; k += 1; }
+      else if (y === "ี"){ v = "ii"; k += 1; }
+      else if (y === "ึ"){ v = "ue"; k += 1; }
+      else if (y === "ื"){ v = "ue"; k += ch(k + 1) === "อ" ? 2 : 1; }
+      else if (y === "ุ"){ if (ch(k + 1) === "ย" && !dep(ch(k + 2))){ push(I.c, "ui", "", I.l); i = k + 2; continue; } v = "u"; k += 1; }
+      else if (y === "ู"){ v = "uu"; k += 1; }
+      else if (oVowel(k)){ if (ch(k + 1) === "ย" && !dep(ch(k + 2))){ push(I.c, "oi", "", I.l); i = k + 2; continue; } v = "aw"; k += 1; }
+      else if (y === "ว" && isC(ch(k + 1)) && !dep(ch(k + 1))){ v = "ua"; k += 1; }
+      if (v){ const F = takeFinal(k); push(I.c, v, F.f, I.l); i = k + F.len; continue; }
+      // no written vowel: count the bare consonants in a row and share out the hidden "a" and "o" sounds.
+      // Pairs say "o" (คน: khon). An odd number left over says "a": first at the end of a word (ถนน: tha-non), last before another syllable (ปงสนุก: pong-sa-nuk).
+      const U = unitLen(i), ic = U === 2 ? (x === "ห" ? C[ch(i + 1)][0] : x === "อ" ? "y" : C[x][0] + C[ch(i + 1)][0]) : C[x][0];
+      const {r:run, end} = bareRun_(i);
+      if (run === 1){
+        if (!prevClosed && out.length && !ch(i + U) && U === 1){ out[out.length - 1].f = C[x][1]; i++; continue; }
+        push(ic, "imp_a", "", x); i += U; continue;
+      }
+      if (run % 2 === 0 || isC(ch(end))){ push(ic, "imp_o", C[ch(i + U)][1], x); i += U + 1; continue; }
+      push(ic, "imp_a", "", x); i += U;
+    }
+    return out;
+  }
+  function render(syls, style){
+    const easy = style === "easy";
+    return syls.map(s => {
+      if (s.raw) return s.raw;
+      let c = s.c, f = s.f;
+      const vv = V[s.v] || ["a", "a", "a"];
+      let v = easy ? (f ? vv[2] : vv[1]) : vv[0];
+      if (easy){ c = s.l === "จ" ? "j" : c.replace(/^([ktp])h/, "$1"); }
+      return c + v + f;
+    });
+  }
+  // romanise one run of Thai letters (no spaces inside)
+  function word(w, style){
+    const parts = []; let buf = "";
+    const flush = () => { if (buf){ parts.push({syl:render(syllables(buf), style)}); buf = ""; } };
+    for (let i = 0; i < w.length;){
+      const hit = style === "easy" ? null : WORDS.find(([th]) => w.startsWith(th, i));
+      if (hit){ flush(); parts.push({fixed:hit[1]}); i += hit[0].length; }
+      else { buf += w[i]; i++; }
+    }
+    flush();
+    if (style === "easy") return parts.map(p => p.syl.join("-")).join(" ");
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    return parts.map(p => p.fixed || cap(p.syl.join(""))).join(" ");
+  }
+  return {
+    has: s => THAI.test(String(s || "")),
+    /* romanise any text, leaving the non-Thai parts (numbers, English, punctuation) as they are */
+    text(s, style = "rtgs"){
+      return String(s || "").replace(/​/g, "").replace(/[ก-๛.]+/g, m => THAI.test(m) ? (m.endsWith(".") && !WORDS.some(([th]) => th === m) ? word(m.slice(0, -1), style) + "." : word(m, style)) : m)
+        .replace(/(\d)([A-Za-z])/g, "$1 $2").replace(/\s+/g, " ").trim();
+    }
+  };
+})();
+
+/* An address or name for the details sheet: English letters first (worked out on the phone when it's only in Thai), the Thai underneath for a driver */
+function thaiPair(s, sayId){
+  if (!thaiRom.has(s)) return esc(s);
+  return `<b>${esc(thaiRom.text(s))}</b><div class="note">Approximate English spelling, worked out on your phone</div>
+    <div class="th-under"><span lang="th">${esc(s)}</span>${sayId ? `<button class="btn small" type="button" id="${sayId}">${icon("speaker","i s")}Say it</button>` : ""}</div>`;
+}
+const romName = it => thaiRom.has(it.n) ? thaiRom.text(it.n) : "";
+
 function findPlace(id){
   return CUR_BY_ID[id] || Places.byId.get(id) || (S.saved[id] && S.saved[id].snap) || null;
 }
@@ -1332,7 +1493,7 @@ function placeCard(it, pt){
   }
   return `<article class="card ${photo ? "" : "nophoto"}" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
     <div class="ph" ${photo ? `data-ph="${esc(it.id)}"` : ""}>${icon(kindIcon(it))}</div>
-    <div class="body"><h3>${esc(it.n)}</h3>
+    <div class="body"><h3>${esc(it.n)}</h3>${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>
       ${line.length ? `<div class="line">${line.join("")}</div>` : ""}
       ${blurb ? `<div class="blurb">${esc(blurb)}</div>` : ""}
@@ -3185,7 +3346,7 @@ function openDetail(id){
   }
   if (it.best) facts.push(fact("Best time", esc(it.best)));
   if (it.busy) facts.push(fact("How busy", esc(it.busy)));
-  if (it.ad) facts.push(fact("Address", esc(it.ad), true));
+  if (it.ad) facts.push(fact("Address", thaiPair(it.ad, "sayAddr"), true));
   if (it.ph) facts.push(fact("Phone", `<a href="tel:${esc(it.ph.replace(/[^+\d]/g, ""))}">${esc(it.ph)}</a>`));
   if (it.web) facts.push(fact("Website", `<a href="${esc(it.web)}" target="_blank" rel="noopener">${esc(it.web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 40))}</a>`));
   const soc = [it.fb && `<a href="${esc(socialLink(it.fb, "https://www.facebook.com/"))}" target="_blank" rel="noopener">Facebook</a>`, it.ig && `<a href="${esc(socialLink(it.ig, "https://www.instagram.com/"))}" target="_blank" rel="noopener">Instagram</a>`, it.ln && `Line: ${esc(it.ln)}`].filter(Boolean);
@@ -3207,7 +3368,7 @@ function openDetail(id){
   if (it.wc) facts.push(fact("Wheelchair access", {yes:"Yes", limited:"Limited", no:"No"}[it.wc]));
   if (it.rel) facts.push(fact("Faith", esc(it.rel.replace(/_/g, " "))));
   if (km) facts.push(fact("Distance", km));
-  if (it.nt) facts.push(fact("Name in Thai (show a driver)", `<span lang="th" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button>`, true));
+  if (it.nt) facts.push(fact("Name in Thai (show a driver)", `<span lang="th" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button><div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>`, true));
   body += `<div class="facts">${facts.join("")}</div>`;
   if (it.desc) body += `<p style="margin:8px 0">${esc(it.desc)}</p>`;
   if (it.k === "water") body += `<div class="callout">${icon("alert")}<div><b>Check before you drink.</b> A refill point on the map is not proof the water is safe. Look for a filtered or reverse-osmosis machine${it.paid ? " (usually ฿1–2 a litre)" : ""}, and ask locally if unsure.</div></div>`;
@@ -3233,10 +3394,11 @@ function openDetail(id){
   else body += `<div class="srcs">From OpenStreetMap${it.ts ? `, last edited ${esc(monthName(it.ts))}` : ""}${it.cd ? `, checked on site ${esc(it.cd)}` : ""}. © OpenStreetMap contributors. ${L_osm(it) ? `<a href="${esc(L_osm(it))}" target="_blank" rel="noopener">See or fix this listing</a>` : ""}</div>`;
 
   openSheet(`<div class="sheet-head"><div><span class="kind"><span class="dot"></span>${esc(kindLabel(it))}${it.cur_ && it.c === "cool" && it.t.length > 1 ? `, ${esc(it.t.slice(1).join(", ").toLowerCase())}` : ""}</span>
-      <h2 id="sheet-title">${esc(it.n)}</h2><div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}</div></div>
+      <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}</div></div>
       <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>${body}`, "sheet-title", `--c:${col}`);
   highlightPin(it);
   const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, "th");
+  const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   const box0 = $("#photoBox");
