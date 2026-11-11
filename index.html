@@ -29,7 +29,7 @@
   --stay:#DA8667; --food:#8CC3A6; --do:#B9A4DC; --ess:#E3C47C; --move:#7FB2D2;
   --ok:#8CC3A6; --warn:#E8C6A5; --bad:#E58B78;
   --sea:#1E5263; --land:#27343A; --land-trip:#2F4046; --border-land:#44535A;
-  --on-cat:#1B2125; --cl-ring:rgba(27,33,37,.7); --halo:rgba(24,31,35,.9);   /* map: numbers on category circles, the ring round them, label halos */
+  --art-bg:#20262B; --on-cat:#1B2125; --cl-ring:rgba(27,33,37,.7); --halo:rgba(24,31,35,.9);   /* map: numbers on category circles, the ring round them, label halos */
   --r-s:6px; --r:8px; --r-l:10px;
   --shadow:0 2px 10px rgba(0,0,0,.28);
   --font:"Inter","SF Pro Text",-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -161,21 +161,24 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .stay input,.stay select{padding:8px;font-size:15px}
 
 /* ---------- place cards ---------- */
-.cards{margin-top:10px;display:grid;gap:8px}
-.card{position:relative;display:grid;grid-template-columns:88px 1fr;gap:11px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:9px;min-height:106px}
-.card.nophoto{grid-template-columns:44px 1fr;min-height:0}
+.cards{margin-top:10px;display:grid;gap:12px}
+/* photo-first place cards: a wide picture on top (a real photo when there is one, otherwise an illustration for the category), details below */
+.card{position:relative;display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);overflow:hidden;padding:0}
 .card:hover{border-color:var(--faint)}
-.card .ph{width:88px;height:88px;border-radius:var(--r);background:var(--raised);overflow:hidden;display:grid;place-items:center;color:var(--c,var(--muted));align-self:start}
-.card.nophoto .ph{width:44px;height:44px;background:color-mix(in srgb,var(--c,#888) 16%,transparent)}
-.card .ph img{width:100%;height:100%;object-fit:cover;display:block}
-.card .body{min-width:0;display:grid;gap:3px;align-content:start;padding-right:30px}
-.card h3{font-size:15px;line-height:1.25;font-weight:700;letter-spacing:-.005em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card .ph{position:relative;width:100%;aspect-ratio:16/7.5;background:var(--raised) center/cover no-repeat;overflow:hidden;color:var(--c,var(--muted))}
+.card .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;animation:fadein .25s ease-out}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.card .ph img{animation:none}}
+.ph-badge{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 7px;border-radius:14px;background:rgba(20,25,28,.72);color:#F2F1ED;font-size:12px;font-weight:600;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.ph-badge .i{width:16px;height:16px;color:var(--c)}
+.card .body{display:grid;gap:4px;padding:10px 12px 12px}
+.card h3{font-size:16.5px;line-height:1.25;font-weight:700;letter-spacing:-.01em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .card .where2{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card .line{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;font-size:12.5px;color:var(--muted)}
+.card .line{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;font-size:13px;color:var(--muted)}
 .card .line b{color:var(--ink);font-weight:700}
 .card .price{color:var(--accent-2);font-weight:700}
 .card .price small{color:var(--muted);font-weight:500}
-.card .blurb{font-size:12.5px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card .blurb{font-size:13px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .card .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
 .card .open{color:var(--ok);font-weight:600}
 .card .shut{color:var(--faint)}
@@ -184,11 +187,12 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .tag.good{color:var(--ok)}
 .tag.pick{background:var(--accent-soft);color:var(--accent-2)}
 .save{position:absolute;top:6px;right:6px;width:34px;height:34px;display:grid;place-items:center;border:0;background:none;color:var(--muted);border-radius:var(--r-s)}
+.card .save{top:8px;right:8px;width:38px;height:38px;border-radius:50%;background:rgba(20,25,28,.66);color:#F2F1ED;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .save[aria-pressed="true"]{color:var(--accent)}
 .save[aria-pressed="true"] svg{fill:var(--accent)}
 .empty{border:1px dashed var(--line);border-radius:var(--r-l);padding:16px;color:var(--muted);margin-top:10px}
 .empty b{color:var(--ink);display:block;margin-bottom:4px;font-size:15px}
-.skel{height:106px;border-radius:var(--r-l);background:linear-gradient(90deg,var(--surface),var(--raised),var(--surface));background-size:200% 100%;animation:sk 1.2s linear infinite}
+.skel{height:230px;border-radius:var(--r-l);background:linear-gradient(90deg,var(--surface),var(--raised),var(--surface));background-size:200% 100%;animation:sk 1.2s linear infinite}
 @keyframes sk{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.skel{animation:none}}
 .stars{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-weight:700}
@@ -212,6 +216,9 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .sheet h4{font-size:14px;font-weight:700;margin:14px 0 4px}
 .photo{min-height:96px;border-radius:var(--r-l);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);margin:12px 0;padding:12px;text-align:center;font-size:13px}
 .photo.has-img{padding:0;overflow:hidden;position:relative;display:block}
+.photo.art{padding:0;overflow:hidden;position:relative;display:block;min-height:0;aspect-ratio:16/7.5;background:center/cover no-repeat}
+.photo.art .ph-badge{left:12px;bottom:12px}
+.photo-links{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--muted);margin:-4px 0 10px}
 .photo img{display:block;width:100%;height:210px;object-fit:cover}
 .photo .credit{position:absolute;left:8px;right:auto;bottom:8px;max-width:calc(100% - 16px);font-size:11.5px;background:rgba(20,25,28,.82);color:var(--ink);padding:3px 8px;border-radius:var(--r-s);text-decoration:none}
 .photo .credit a{color:inherit}
@@ -1464,11 +1471,60 @@ function starsHTML(r){
   const row = STAR.repeat(5);
   return `<span class="stars"><span class="st5" aria-hidden="true"><span class="off">${row}</span><span class="on" style="width:${pct}%">${row}</span></span>${five.toFixed(1)}<span class="vis-hidden"> out of 5</span></span>`;
 }
-const cardHasPhoto = it => it.cur_ ? !!((googleKey() || it.wp) && it.c !== "move") : !!(it.wp || it.wd);
+/* Category illustrations for cards and details with no photo. Drawn here as SVG (no photos, no figures, no religious images),
+   one per group, in the group's colour. Made once per theme and shared by every card through a CSS variable. */
+function hexMix(a, b, t){
+  const p = h => { h = h.replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+  const x = p(a), y = p(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+function artSVG(g){
+  const col = cssv("--" + g) || "#888888", bg = cssv("--art-bg") || "#20262B";
+  const top = hexMix(col, bg, .62), bot = hexMix(col, bg, .28), ink = hexMix(col, bg, .82), lite = hexMix(col, "#ffffff", .35);
+  const scenes = {
+    // a bungalow and a palm under a moon
+    stay:`<circle cx="262" cy="38" r="17" fill="${lite}" opacity=".9"/><circle cx="270" cy="33" r="15" fill="${top}"/>
+      <g fill="${lite}" opacity=".7"><circle cx="40" cy="30" r="1.6"/><circle cx="95" cy="18" r="1.2"/><circle cx="160" cy="40" r="1.4"/><circle cx="210" cy="16" r="1.1"/></g>
+      <path d="M0 122 Q80 96 160 112 T320 104 V150 H0Z" fill="${ink}" opacity=".55"/>
+      <path d="M118 128 V96 H186 V128Z" fill="${ink}"/><path d="M108 98 L152 70 L196 98Z" fill="${ink}"/><rect x="144" y="106" width="16" height="22" rx="2" fill="${lite}" opacity=".85"/>
+      <path d="M232 130 C236 108 238 92 246 74" stroke="${ink}" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <path d="M246 74 C232 64 214 66 204 76 M246 74 C256 60 272 58 284 64 M246 74 C240 58 242 48 250 40 M246 74 C262 72 276 80 282 92 M246 74 C232 76 222 86 218 98" stroke="${ink}" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M0 130 H320 V150 H0Z" fill="${ink}"/>`,
+    // a steaming bowl and chopsticks
+    food:`<g fill="${lite}" opacity=".18"><circle cx="30" cy="30" r="10"/><circle cx="290" cy="120" r="14"/><circle cx="60" cy="118" r="6"/><circle cx="268" cy="28" r="7"/></g>
+      <path d="M134 44 c-8 -10 8 -16 0 -26 M160 40 c-8 -10 8 -16 0 -26 M186 44 c-8 -10 8 -16 0 -26" stroke="${lite}" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/>
+      <path d="M200 30 L250 76 M212 24 L258 70" stroke="${ink}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M96 66 H224 C224 104 196 126 160 126 C124 126 96 104 96 66Z" fill="${ink}"/>
+      <path d="M96 66 H224" stroke="${lite}" stroke-width="4" stroke-linecap="round" opacity=".7"/><path d="M140 126 H180 L176 134 H144Z" fill="${ink}"/>`,
+    // mountains, sun and sea
+    do:`<circle cx="232" cy="46" r="20" fill="${lite}" opacity=".9"/>
+      <path d="M0 116 L62 54 L104 92 L150 40 L214 108 L248 84 L320 124 V150 H0Z" fill="${ink}" opacity=".85"/>
+      <path d="M138 54 L150 40 L162 54 L154 52 L150 58 L146 52Z" fill="${lite}" opacity=".8"/>
+      <path d="M0 126 q20 -8 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V150 H0Z" fill="${top}"/>
+      <path d="M20 138 q20 -6 40 0 t40 0 M180 140 q20 -6 40 0 t40 0" stroke="${lite}" stroke-width="3" fill="none" stroke-linecap="round" opacity=".5"/>`,
+    // a little shop with a striped awning
+    ess:`<rect x="92" y="54" width="136" height="80" rx="4" fill="${ink}"/>
+      <path d="M84 54 H236 L228 34 H92Z" fill="${lite}" opacity=".85"/>
+      <path d="M100 34 L96 54 M124 34 L122 54 M148 34 L148 54 M172 34 L172 54 M196 34 L198 54 M220 34 L224 54" stroke="${ink}" stroke-width="7" opacity=".55"/>
+      <rect x="108" y="72" width="44" height="32" rx="3" fill="${lite}" opacity=".5"/><rect x="170" y="74" width="40" height="60" rx="3" fill="${top}"/>
+      <path d="M0 134 H320 V150 H0Z" fill="${ink}" opacity=".7"/>`,
+    // a long-tail boat on the water
+    move:`<circle cx="70" cy="44" r="18" fill="${lite}" opacity=".85"/>
+      <path d="M86 104 C120 120 214 120 250 96 L258 84 L246 88 C220 100 130 104 86 104Z" fill="${ink}"/>
+      <path d="M178 98 V62 M178 62 L212 92" stroke="${ink}" stroke-width="4" stroke-linecap="round"/>
+      <path d="M0 118 q20 -8 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V150 H0Z" fill="${top}"/>
+      <path d="M30 132 q20 -6 40 0 t40 0 M190 134 q20 -6 40 0 t40 0" stroke="${lite}" stroke-width="3" fill="none" stroke-linecap="round" opacity=".5"/>`
+  };
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bot}"/></linearGradient></defs><rect width="320" height="150" fill="url(#g)"/>${scenes[g] || scenes.do}</svg>`;
+}
+function makeArt(){
+  const root = document.documentElement;
+  ["stay", "food", "do", "ess", "move"].forEach(g => root.style.setProperty("--art-" + g, `url("data:image/svg+xml;charset=utf-8,${enc(artSVG(g))}")`));
+}
+const artOf = it => `var(--art-${grpOfItem(it)})`;
+const artBadge = it => `<span class="ph-badge">${icon(kindIcon(it))}${esc(kindLabel(it))}</span>`;
 function placeCard(it, pt){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v);
   const km = pt && !pt.none ? dist(pt, it) : null;
-  const photo = cardHasPhoto(it);
   const oh = isOpenNow(it);
   const line = [];
   if (it.r != null) line.push(starsHTML(it.r));
@@ -1493,8 +1549,8 @@ function placeCard(it, pt){
     if (it.ac && it.c === "gaff") tags.push('<span class="tag">Air con</span>');
     if (it.x || it.wd) tags.push('<span class="tag pick">Notable</span>');
   }
-  return `<article class="card ${photo ? "" : "nophoto"}" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
-    <div class="ph" ${photo ? `data-ph="${esc(it.id)}"` : ""}>${icon(kindIcon(it))}</div>
+  return `<article class="card" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
+    <div class="ph" data-ph="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
     <div class="body"><h3>${esc(it.n)}</h3>${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>
       ${line.length ? `<div class="line">${line.join("")}</div>` : ""}
@@ -3168,6 +3224,12 @@ function loadGoogle(){
   }).then(m => { if (!m) gReady = null; return m; });
   return gReady;
 }
+/* A daily allowance on this phone, so a long scroll can never run up a Google bill.
+   The real cap is the per-day quota set in Google Cloud (see CLAUDE.md); this just stops one phone using it all. */
+const G_DAILY = {photo:40, details:25};
+function gUse(){ const u = lsGet("g-usage", null); return u && u.d === todayISO() ? u : {d:todayISO(), photo:0, details:0}; }
+const gAllow = kind => gUse()[kind] < G_DAILY[kind];
+function gSpend(kind){ const u = gUse(); u[kind]++; lsSet("g-usage", u); }
 const gPlaceCache = {}, gPlaceWait = {};
 const G_FULL = ["location", "photos", "rating", "userRatingCount", "googleMapsURI"];
 // one lookup at a time per place: a card and the details sheet asking together share the same request
@@ -3250,6 +3312,7 @@ async function loadPhoto_(it){
     let src = null;
     if (orig && orig.width <= 1400) src = orig.source;
     else if (th && th.source) src = th.source.replace(/\/\d+px-/, "/800px-");
+    if (src && !/\/wikipedia\/commons\//.test(src)) src = null;     // pictures kept only on English Wikipedia can be non-free: skip them
     out = src ? {src, page: (j.content_urls && j.content_urls.mobile && j.content_urls.mobile.page) || `https://en.wikipedia.org/wiki/${enc(it.wp)}`, by:"Photo via Wikipedia"} : null;
   } catch(e){ out = null; }
   return out;
@@ -3267,23 +3330,63 @@ function loadWdPhoto(it){
   return Promise.resolve(photoCache[key]);
 }
 const freePhoto = async it => (it.wp && await loadPhoto(it)) || (it.wd && await loadWdPhoto(it)) || null;
+/* Card photos load only when the card scrolls into view. Order: Google (only with a key, within today's allowance),
+   then a free Wikipedia / Wikimedia Commons photo, otherwise the card keeps its illustration.
+   Answers are remembered on the phone (cardPhotoCache) so scrolling back never asks again. */
+const CPH_KEY = "card-photos-v1", CPH_MAX = 500;
+let cph = lsGet(CPH_KEY, {}) || {};
+const cphSave = debounce(() => {
+  const ks = Object.keys(cph);
+  if (ks.length > CPH_MAX) ks.sort((a, b) => cph[a].at - cph[b].at).slice(0, ks.length - CPH_MAX).forEach(k => delete cph[k]);
+  lsSet(CPH_KEY, cph);
+}, 800);
+const googleFor = it => !!googleKey() && it.c !== "move" && it.c !== "ess";     // Google only for stays, food and things to do
+async function cardPhoto(it){
+  const hit = cph[it.id], now = Date.now();
+  // free photos are kept for 30 days; Google photo links only for a day (they expire and Google asks apps not to keep them)
+  if (hit && now - hit.at < (hit.g ? 864e5 : 30 * 864e5) && (hit.src || !googleFor(it) || hit.gTried)) return hit.src;
+  let src = null, g = false, gTried = false;
+  if (googleFor(it) && gAllow("photo")){
+    gTried = true;
+    const pl = await googlePlace(it, ["photos"]);
+    if (pl && pl.photos && pl.photos.length){ src = pl.photos[0].getURI({maxWidth: 640}); g = true; gSpend("photo"); }
+  }
+  if (!src){ const ph = await freePhoto(it); if (ph) src = ph.src; }
+  if (src || navigator.onLine !== false){ cph[it.id] = {src, at:now, g, gTried}; cphSave(); }
+  return src;
+}
 let photoObs = null;
 function watchCardPhotos(root){
   const slots = root.querySelectorAll("[data-ph]:not([data-done])"); if (!slots.length) return;
   const fill = async slot => {
     const it = findPlace(slot.dataset.ph); if (!it || slot.dataset.done) return;
     slot.dataset.done = "1";
-    const put = src => { const img = new Image(); img.alt = ""; img.loading = "lazy"; img.onerror = () => img.remove(); img.onload = () => { slot.textContent = ""; slot.appendChild(img); }; img.src = src; };
-    if (it.cur_ && googleKey()){
-      // only the "photos" field for cards: a cheaper lookup than the full one used when you open a place
-      const pl = await googlePlace(it, ["photos"]);
-      if (pl && pl.photos && pl.photos.length){ put(pl.photos[0].getURI({maxWidth: 320})); return; }
-    }
-    const ph = await freePhoto(it); if (ph) put(ph.src);
+    const src = await cardPhoto(it); if (!src || !slot.isConnected) return;
+    const img = new Image(); img.alt = ""; img.decoding = "async";
+    img.onerror = () => { img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); } };
+    img.onload = () => slot.insertBefore(img, slot.firstChild);
+    img.src = src;
   };
   if (!("IntersectionObserver" in window)){ slots.forEach(fill); return; }
-  if (!photoObs) photoObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ photoObs.unobserve(e.target); fill(e.target); } }), {rootMargin:"0px 0px 160px 0px", threshold:.2});
+  if (!photoObs) photoObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ photoObs.unobserve(e.target); fill(e.target); } }), {rootMargin:"0px 0px 200px 0px", threshold:.1});
   slots.forEach(s => photoObs.observe(s));
+}
+/* Author and licence of a Wikimedia Commons file, for the credit line in the details sheet */
+const creditCache = {};
+function commonsFile(src){
+  const m = /\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/?]+)/.exec(src || "") || /Special:FilePath\/([^?]+)/.exec(src || "");
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function commonsCredit(src){
+  const file = commonsFile(src); if (!file) return Promise.resolve(null);
+  if (!creditCache[file]) creditCache[file] = getJSON(`https://commons.wikimedia.org/w/api.php?action=query&titles=${enc("File:" + file)}&prop=imageinfo&iiprop=extmetadata&format=json&origin=*`, {timeout:8000}).then(j => {
+    const pg = j.query && Object.values(j.query.pages || {})[0], md = pg && pg.imageinfo && pg.imageinfo[0] && pg.imageinfo[0].extmetadata;
+    if (!md) return null;
+    const txt = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return d.textContent.trim(); };
+    return {by: txt(md.Artist && md.Artist.value).slice(0, 60) || "Unknown author", lic: txt(md.LicenseShortName && md.LicenseShortName.value) || "see file page",
+      page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`};
+  }).catch(() => null);
+  return creditCache[file];
 }
 function wikiInto(box, it){
   if (!it.wp && !it.wd){ box.innerHTML = photoFallback(it, "none"); return; }
@@ -3291,18 +3394,21 @@ function wikiInto(box, it){
     if (!box.isConnected || box.dataset.id !== it.id) return;
     if (!ph){ box.innerHTML = photoFallback(it, "none"); return; }
     box.classList.add("has-img");
+    box.classList.remove("art"); box.style.backgroundImage = "";
     box.innerHTML = `<img alt="${esc(it.n)}" src="${esc(ph.src)}"><div class="credit"><a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.by)}</a></div>`;
     box.querySelector("img").onerror = () => { box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none"); };
+    // name the photographer and the licence, as Commons licences ask
+    commonsCredit(ph.src).then(c => { const cr = box.querySelector(".credit"); if (c && cr && box.dataset.id === it.id) cr.innerHTML = `Photo: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.by)}</a>, ${esc(c.lic)}, Wikimedia Commons`; });
   });
 }
 (function applyCachedLocations(){
   try { const now = Date.now(); D.places.forEach(p => { const v = localStorage.getItem("gloc:" + p.id); if (!v) return; const [lat, lng, ts] = JSON.parse(v); if (now - ts < 30 * 864e5){ p.lat = lat; p.lng = lng; p.ap = false; } }); } catch(e){}
 })();
-function photoFallback(it, why){
-  const btns = [ext(L_maps(it), "Google Maps photos " + icon("ext","i s"))];
-  if (it.osm && googleKey()) btns.unshift(`<button class="btn small" type="button" id="gLoad">${icon("image","i s")}Load Google photos and rating</button>`);
-  const msg = it.c === "gaff" ? "Room photos belong to the booking sites, so they open there." : "No free photo for this place.";
-  return `${icon("image")}<span>${msg}</span><div class="row" style="justify-content:center">${btns.join("")}</div>`;
+// no photo: the category illustration fills the space (the links to more photos sit just below it)
+function photoFallback(it){
+  const box = $("#photoBox");
+  if (box && box.dataset.id === it.id){ box.classList.remove("has-img"); box.classList.add("art"); box.style.backgroundImage = artOf(it); }
+  return artBadge(it);
 }
 
 /* ---------- booking hand-off (no live availability in the app; the sites confirm prices) ---------- */
@@ -3334,7 +3440,8 @@ function openDetail(id){
   const unk = '<span class="unk">Not checked yet</span>';
   const fact = (l, v, wide) => `<div class="fact ${wide ? "wide" : ""}"><span class="l">${l}</span>${v}</div>`;
   let body = "";
-  body += `<div class="photo" id="photoBox" data-id="${esc(it.id)}">${it.wp || it.wd || (it.cur_ && googleKey()) ? `${icon("image")}<span>Loading photo…</span>` : photoFallback(it, "none")}</div>`;
+  body += `<div class="photo art" id="photoBox" data-id="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
+    <div class="photo-links">${it.c === "gaff" ? "Room photos are on the booking sites. " : ""}<a href="${esc(L_maps(it))}" target="_blank" rel="noopener">More photos on Google Maps</a></div>`;
   const facts = [];
   const pr = itemLocal(it);
   const converted = it.p && dispCur(it.cc, it.cur) !== it.cur;
@@ -3408,20 +3515,21 @@ function openDetail(id){
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   const box0 = $("#photoBox");
+  // the photo loads by itself: Google first when there's a key (within today's allowance), then a free Wikimedia photo
   const viaGoogle = () => googlePlace(it).then(pl => {
     const box = $("#photoBox"); if (!box || box.dataset.id !== it.id) return;
-    if (pl){ applyGoogleExtras(it, pl); if (pl.photos && pl.photos.length){ showGooglePhoto(box, it, pl); return; } }
+    if (pl){ gSpend("details"); applyGoogleExtras(it, pl); if (pl.photos && pl.photos.length){ gSpend("photo"); box.classList.remove("art"); box.style.backgroundImage = ""; showGooglePhoto(box, it, pl); return; } }
     wikiInto(box, it);
   });
-  if (it.cur_ && googleKey()) viaGoogle();
+  if (googleFor(it) && gAllow("details")) viaGoogle();
   else if (it.wp || it.wd) wikiInto(box0, it);
-  const gl = $("#gLoad"); if (gl) gl.onclick = () => { box0.innerHTML = `${icon("image")}<span>Loading from Google…</span>`; viaGoogle(); };
 }
 
 /* ============================================================
    90-boot: start the app
    ============================================================ */
 (function boot(){
+  makeArt();
   const tested = applyTestLocation();
   show();
   if (tested){ updateMe(); }
