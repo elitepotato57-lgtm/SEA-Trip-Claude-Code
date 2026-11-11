@@ -138,6 +138,10 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 /* chips */
 .scroller{display:flex;gap:6px;overflow-x:auto;margin:0 -16px;padding:2px 16px;scrollbar-width:none}
 .scroller::-webkit-scrollbar{display:none}
+/* rows that scroll sideways fade out on the side that has more, so it's obvious there is more to swipe to */
+.fade-r{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 44px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 44px),transparent)}
+.fade-l{-webkit-mask-image:linear-gradient(90deg,transparent,#000 44px);mask-image:linear-gradient(90deg,transparent,#000 44px)}
+.fade-l.fade-r{-webkit-mask-image:linear-gradient(90deg,transparent,#000 44px,#000 calc(100% - 44px),transparent);mask-image:linear-gradient(90deg,transparent,#000 44px,#000 calc(100% - 44px),transparent)}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--surface);color:var(--muted);font-weight:600;font-size:13px;white-space:nowrap}
 .chip .i{width:15px;height:15px}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
@@ -671,6 +675,21 @@ const L_apple = it => it.osm || !it.ap ? `https://maps.apple.com/?daddr=${coord(
 const L_google = s => `https://www.google.com/search?q=${enc(s)}`;
 const L_osm = it => { const m = /^o:([nwr])(\d+)$/.exec(it.id || ""); return m ? `https://www.openstreetmap.org/${{n:"node", w:"way", r:"relation"}[m[1]]}/${m[2]}` : null; };
 const ext = (href, label, cls = "btn small") => `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener">${label}</a>`;
+
+/* ---------- sideways rows: fade the edge that has more to see ---------- */
+const FADE_ROWS = ".scroller, .map-chips, .near-row";
+function updateFade(el){
+  const max = el.scrollWidth - el.clientWidth;
+  el.classList.toggle("fade-l", max > 2 && el.scrollLeft > 2);
+  el.classList.toggle("fade-r", max > 2 && el.scrollLeft < max - 2);
+}
+const updateFades = () => $$(FADE_ROWS).forEach(updateFade);
+document.addEventListener("scroll", e => { const t = e.target; if (t && t.matches && t.matches(FADE_ROWS)) updateFade(t); }, {capture:true, passive:true});
+window.addEventListener("resize", debounce(updateFades, 100));
+// rows are redrawn all the time, so check again after any change to the page (at most once a frame)
+let fadeFrame = 0;
+new MutationObserver(() => { if (!fadeFrame) fadeFrame = requestAnimationFrame(() => { fadeFrame = 0; updateFades(); }); }).observe(document.documentElement, {childList:true, subtree:true});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateFades);
 
 /* ---------- toast ---------- */
 let toastTimer;
