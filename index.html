@@ -640,6 +640,9 @@ function localRange(p, from, to){
   return vals.length > 1 && vals[1] !== vals[0] ? `${money(vals[0], to)}–${fmtNum(vals[1])}` : money(vals[0], to);
 }
 const itemLocal = it => localRange(it.p, it.cur, dispCur(it.cc, it.cur));
+// "฿120–150 (£2.70–3.40)": local money first, pounds after. Used wherever a transport price shows.
+const withGBP = (local, p, cur) => local && p ? `${local} (${gbpRange(p, cur)})` : local;
+const thbGBP = (a, b) => `${money(a, "THB")}${b != null && b !== a ? "–" + fmtNum(b) : ""} (${gbpRange(b != null && b !== a ? [a, b] : [a], "THB")})`;
 const routeLocal = r => localRange(r.p, r.cur, dispCur(r.cc[0], r.cur));
 
 /* ---------- distance ---------- */
@@ -1931,7 +1934,7 @@ function previewCard(it){
   const bits = [esc(it.area || it.city)];
   if (pt) bits.push(distShort(dist(pt, it)));
   if (it.r != null) bits.push(`${(it.r / 2).toFixed(1)} stars`);
-  if (loc) bits.push(esc(loc));
+  if (loc) bits.push(esc(withGBP(loc, it.p, it.cur)));
   return `<div class="preview" style="--c:${col}" id="preview">
     <div class="ph">${icon(kindIcon(it))}</div>
     <div class="body"><div class="eyebrow">${esc(kindLabel(it))}</div><h3>${esc(it.n)}</h3><div class="m">${bits.join(" · ")}</div>
@@ -2186,7 +2189,7 @@ function getThere(stn){
   const inBkk = dist(userLoc, HUB.bkk) < 40;
   if (inBkk){
     const m = meterFare(km);
-    return `<div class="getthere">${esc(stn.n)} is about ${km.toFixed(1)} km from you. Taxi about ${money(Math.round(m * 1.05), "THB")}–${fmtNum(Math.round(m * 1.4))} on the meter, Grab or Bolt about ${money(Math.round(Math.max(100, m * 1.2)), "THB")}–${fmtNum(Math.round(Math.max(150, m * 1.8)))}. Estimates from Bangkok’s official meter rates.</div>`;
+    return `<div class="getthere">${esc(stn.n)} is about ${km.toFixed(1)} km from you. Taxi about ${thbGBP(Math.round(m * 1.05), Math.round(m * 1.4))} on the meter, Grab or Bolt about ${thbGBP(Math.round(Math.max(100, m * 1.2)), Math.round(Math.max(150, m * 1.8)))}. Estimates from Bangkok’s official meter rates.</div>`;
   }
   return `<div class="getthere">${esc(stn.n)} is about ${km.toFixed(1)} km from you. Outside Bangkok taxis rarely use meters, so check Grab or Bolt for the price.</div>`;
 }
@@ -2195,7 +2198,7 @@ function tripCard(t, idx){
   const price = allUnpriced ? `<small>Price: check live</small>` : `${thb(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(niceRound(t.pmax * rate("THB"), "THB")) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
   const legs = t.legs.map(L => {
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
-    const lp = o.p ? localRange(o.p, o.cur, "THB") : "price not saved";
+    const lp = o.p ? withGBP(localRange(o.p, o.cur, "THB"), o.p, o.cur) : "price not saved";
     return `<div class="leg"><span class="li" style="color:${cssv(MODE_COL[o.mode] || "--move")}">${icon(MODE_IC[o.mode] || "bus")}</span><div>
       <b>${esc(NODE[L.from].n)} → ${esc(NODE[L.to].n)}</b>
       <div class="m">${esc(o.mode)}${o.op ? ", " + esc(o.op) : ""}</div>
@@ -3213,7 +3216,7 @@ function openDetail(id){
   if (it.tips && it.tips.length) body += `<h4>Good to know</h4><ul class="known">${it.tips.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
   if (it.cur_ && it.c === "move"){
     const rel = D.routes.filter(r => r.a.includes(it.city) || r.b.includes(it.city));
-    if (rel.length) body += `<h4>Saved routes</h4><ul class="known">${rel.map(r => `<li>${esc(r.a)} → ${esc(r.b)}, ${esc(r.mode.toLowerCase())}${r.p ? `, ${esc(routeLocal(r))}` : ""}</li>`).join("")}</ul>`;
+    if (rel.length) body += `<h4>Saved routes</h4><ul class="known">${rel.map(r => `<li>${esc(r.a)} → ${esc(r.b)}, ${esc(r.mode.toLowerCase())}${r.p ? `, ${esc(withGBP(routeLocal(r), r.p, r.cur))}` : ""}</li>`).join("")}</ul>`;
   }
   if (it.c === "gaff") body += bookingBlock(it);
   body += `<div class="actions">
