@@ -440,6 +440,36 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:13px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:3000;background:var(--ink);color:var(--bg);padding:9px 13px;border-radius:var(--r);font-weight:600;font-size:13.5px;display:flex;gap:12px;align-items:center;max-width:92%;box-shadow:var(--shadow)}
 .toast button{background:none;border:0;color:var(--bg);text-decoration:underline;font-weight:700}
 
+
+/* ============================================================
+   Paper Atlas look (Settings > Look). Off by default; the night look above is untouched.
+   Everything is the same tokens with paper colours, plus a serif for headings.
+   Orange is the only accent and only marks selected things and the main button.
+   ============================================================ */
+:root[data-look="paper"]{
+  --bg:#F3EAD7; --surface:#FBF5E8; --raised:#EFE4CC; --line:#D8C7A4; --ink:#2E2418; --muted:#665640; --faint:#857459; --placeholder:#978666;
+  --accent:#C8642F; --accent-2:#8F4E24; --on-accent:#FFF8EE; --accent-soft:rgba(200,100,47,.14); --link:#A44C1E;
+  --stay:#B4505E; --food:#4C8A5A; --do:#7A60A6; --ess:#B98F1E; --move:#3C7DA6;
+  --ok:#4C8A5A; --warn:#9A6A1E; --bad:#B23F35;
+  --sea:#B9D3DC; --land:#F1E6CF; --land-trip:#E9D9B8; --border-land:#BBA781;
+  --art-bg:#F6EEDC; --on-cat:#FFFDF7; --cl-ring:rgba(255,250,240,.9); --halo:rgba(251,245,232,.92);
+  --shadow:0 2px 10px rgba(90,64,30,.16);
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  color-scheme:light;
+}
+:root[data-look="paper"] h1,:root[data-look="paper"] h2,:root[data-look="paper"] .sheet h2,:root[data-look="paper"] .card h3,:root[data-look="paper"] .sheet h3{font-family:var(--serif);font-weight:600;letter-spacing:-.005em}
+:root[data-look="paper"] .chip{border-radius:999px}
+:root[data-look="paper"] .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+:root[data-look="paper"] .hero::after{background:linear-gradient(180deg,rgba(243,234,215,.62) 0%,rgba(243,234,215,.86) 55%,var(--bg) 100%)}
+:root[data-look="paper"] .where,:root[data-look="paper"] .hbtn,:root[data-look="paper"] .crumb{background:rgba(251,245,232,.85);border-color:var(--line)}
+:root[data-look="paper"] .maplibregl-ctrl-attrib{background:rgba(251,245,232,.85)!important}
+:root[data-look="paper"] .map-top .sbar,:root[data-look="paper"] .map-chips .chip,:root[data-look="paper"] .map-side .icon-btn,
+:root[data-look="paper"] .map-mode .seg,:root[data-look="paper"] #mapModeRow .seg,:root[data-look="paper"] .near-title,:root[data-look="paper"] .map-status{background:rgba(251,245,232,.97)!important;box-shadow:0 1px 4px rgba(90,64,30,.2)}
+:root[data-look="paper"] .map-chips .chip[aria-pressed="true"]{background:var(--accent)!important;border-color:var(--accent);box-shadow:0 1px 4px rgba(90,64,30,.25);color:var(--on-accent)}
+:root[data-look="paper"] .map-chips .chip[aria-pressed="true"] .dot{box-shadow:0 0 0 2px var(--on-accent)}
+:root[data-look="paper"] .dcard.pic::after{background:linear-gradient(180deg,rgba(46,36,24,0) 25%,rgba(46,36,24,.55) 62%,rgba(46,36,24,.85))}
+:root[data-look="paper"] .dcard.pic{color:#FFF8EE}
+:root[data-look="paper"] input[type=date]::-webkit-calendar-picker-indicator{filter:none}
 </style>
 </head>
 <body>
@@ -588,16 +618,56 @@ const SYM = {GBP:"£",THB:"฿",USD:"$",EUR:"€",AUD:"A$",VND:"₫",LAK:"₭",M
 const CUR_NAME = {GBP:"Pounds",THB:"Thai baht",USD:"US dollars",EUR:"Euros",AUD:"Australian dollars",VND:"Vietnamese dong",LAK:"Lao kip",MYR:"Malaysian ringgit",SGD:"Singapore dollars",IDR:"Indonesian rupiah",KHR:"Cambodian riel"};
 const NOTES = {THB:[20,100,500,1000],USD:[1,5,10,20],EUR:[5,10,20,50],AUD:[5,10,20,50],VND:[10000,50000,100000,500000],KHR:[1000,10000,20000,50000],LAK:[10000,50000,100000,200000],MYR:[5,10,50,100],SGD:[2,5,10,50],IDR:[10000,50000,100000,500000]};
 
+/* ---------- Paper Atlas look (Settings > Look) ----------
+   Same map data, warmer colours: cream land, soft blue water, muted green parks, terracotta roads.
+   OpenFreeMap's font server only has Noto Sans, so map labels stay Noto (italic for water names). */
+function applyLook(){
+  const paper = S.look === "paper", root = document.documentElement;
+  if (paper) root.dataset.look = "paper"; else delete root.dataset.look;
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = paper ? "#F3EAD7" : "#20262B";
+  if (paper && !document.getElementById("serifFont")){
+    const l = document.createElement("link"); l.id = "serifFont"; l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap"; document.head.appendChild(l);
+  }
+}
+const PAPER_HALO = "rgba(251,245,232,0.92)";
+const PAPER_MAP = {
+  background:{"background-color":"#F1E6CF"}, water:{"fill-color":"#B9D3DC"}, waterway:{"line-color":"#A6C6D2"},
+  water_name:{"text-color":"#4A7686", "text-halo-color":"rgba(241,230,207,0.9)"},
+  landuse_residential:{"fill-color":"#EBDCBF"}, landcover_wood:{"fill-color":"#CCDAB0"}, landuse_park:{"fill-color":"#CCDAB0"},
+  building:{"fill-color":"#E5D4B4", "fill-outline-color":"#D5C09A"},
+  "aeroway-taxiway":{"line-color":"#E2D1B0"}, "aeroway-runway-casing":{"line-color":"#CDB894"}, "aeroway-area":{"fill-color":"#E9DCC2"}, "aeroway-runway":{"line-color":"#F8F0E0"},
+  road_area_pier:{"fill-color":"#E9DCC2"}, road_pier:{"line-color":"#E9DCC2"},
+  highway_path:{"line-color":"#B78C68"}, highway_minor:{"line-color":"#FBF5E8"},
+  highway_major_casing:{"line-color":"#C99B73"}, highway_major_inner:{"line-color":"#F7E6C8"}, highway_major_subtle:{"line-color":"#D8B18A"},
+  highway_motorway_casing:{"line-color":"#A65E3A"}, highway_motorway_inner:{"line-color":"#D88A5E"}, highway_motorway_subtle:{"line-color":"#C98058"},
+  railway_transit:{"line-color":"#9C8B74"}, railway_transit_dashline:{"line-color":"#F1E6CF"}, railway_minor:{"line-color":"#9C8B74"},
+  railway_minor_dashline:{"line-color":"#F1E6CF"}, railway:{"line-color":"#9C8B74"}, railway_dashline:{"line-color":"#F1E6CF"},
+  highway_name_other:{"text-color":"#6B5340", "text-halo-color":PAPER_HALO}, highway_name_motorway:{"text-color":"#7A4A2C"},
+  boundary_state:{"line-color":"#B9A27E"}, "boundary_country_z0-4":{"line-color":"#8F6F4E"}, "boundary_country_z5-":{"line-color":"#8F6F4E"}
+};
+function mapStyle(){
+  if (S.look !== "paper") return MAP_STYLE;
+  const st = JSON.parse(JSON.stringify(MAP_STYLE)); st.name = "SEA Trip, Paper Atlas";
+  st.layers.forEach(l => {
+    if (PAPER_MAP[l.id]) Object.assign(l.paint = l.paint || {}, PAPER_MAP[l.id]);
+    else if (/^place_/.test(l.id)) Object.assign(l.paint = l.paint || {}, {"text-color":/city|state|country/.test(l.id) ? "#3A2E22" : "#5E4D3A", "text-halo-color":PAPER_HALO});
+    if (l.id === "water_name" && l.layout) l.layout["text-font"] = ["Noto Sans Italic"];
+  });
+  return st;
+}
+
 /* ---------- saved state ---------- */
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false, fillBottom:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night"};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
 if (!S.budget || !Array.isArray(S.budget.items)) S.budget = {total:"", cur:"GBP", days:"", items:[]};
 if (!S.stay) S.stay = {cin:"", cout:"", guests:2};
+applyLook();
 delete S.stay.rooms;                                    // rooms were dropped in 2.1: the booking sites pick rooms themselves
 function persist(){
   try { const o = {}; Object.keys(S_DEFAULTS).forEach(k => o[k] = S[k]); localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; }
@@ -1857,7 +1927,7 @@ function ensureMap(){
   const cc = D.countries[S.country];
   const start = S.mapView && isFinite(S.mapView.z) ? {c:S.mapView.c, z:S.mapView.z} : userLoc ? {c:[userLoc.lng, userLoc.lat], z:14} : {c:[cc.c[1], cc.c[0]], z:cc.z};
   try {
-    map = new maplibregl.Map({container:"map", style:MAP_STYLE, center:start.c, zoom:start.z, minZoom:4, maxZoom:19, maxBounds:[[82, -16], [132, 33]],
+    map = new maplibregl.Map({container:"map", style:mapStyle(), center:start.c, zoom:start.z, minZoom:4, maxZoom:19, maxBounds:[[82, -16], [132, 33]],
       attributionControl:false, dragRotate:false, pitchWithRotate:false, touchPitch:false, renderWorldCopies:false, fadeDuration:120});
   } catch(e){
     map = null; $("#mapLoading").remove();
@@ -2537,7 +2607,7 @@ function initTransportMap(){
     tmap.addSource("hubs", {type:"geojson", data:fc([])});
     tmap.addLayer({id:"hub-dot", type:"circle", source:"hubs", paint:{"circle-radius":["case", ["get", "big"], 8, 5.5], "circle-color":["get", "col"], "circle-stroke-color":cssv("--bg"), "circle-stroke-width":2}});
     tmap.addLayer({id:"hub-name", type:"symbol", source:"hubs", minzoom:5.4, layout:{"text-field":["get", "n"], "text-font":["Noto Sans Regular"], "text-size":10.5, "text-offset":[0, .9], "text-anchor":"top", "text-optional":true},
-      paint:{"text-color":cssv("--muted"), "text-halo-color":"rgba(24,31,35,.9)", "text-halo-width":1.1}});
+      paint:{"text-color":cssv("--muted"), "text-halo-color":cssv("--halo"), "text-halo-width":1.1}});
     tmap.addSource("ends", {type:"geojson", data:fc([])});
     tmap.addLayer({id:"end-dot", type:"circle", source:"ends", paint:{"circle-radius":8, "circle-color":["get", "col"], "circle-stroke-color":cssv("--bg"), "circle-stroke-width":2}});
     tmap.on("click", "hub-dot", e => { const f = e.features && e.features[0]; if (f && f.properties.id && !f.properties.isF){ ui.tp.to = hubNode(f.properties.id); ui.tp.sel = 0; renderPage(); } });
@@ -2840,6 +2910,10 @@ function setupPage(){
     <div class="row" style="margin-top:10px"><button class="btn small primary" id="gkeySave" type="button">Save key</button><button class="btn small" id="gkeyTest" type="button">Test it</button></div>
     <p class="note" style="margin-top:10px">Photos only load with signal; Google doesn’t allow saving them for offline use.</p>
   </section>
+  <section class="block"><h2>Look</h2>
+    <p class="note">Night is the standard dark look. Paper Atlas is a lighter, old-map style that is easier to read in bright sun. The app reloads to switch.</p>
+    <div class="seg" role="group" aria-label="Look" style="margin-top:8px"><button data-look="night" aria-pressed="${S.look !== "paper"}">Night</button><button data-look="paper" aria-pressed="${S.look === "paper"}">Paper Atlas</button></div>
+  </section>
   <section class="block"><h2>Screen fit</h2>
     <p class="note">On iPhone home-screen apps, iOS keeps a strip at the very bottom. This tries to draw the tab bar into it. If the tabs get cut off, switch it back off.</p>
     <div class="seg" role="group" aria-label="Fill the bottom strip" style="margin-top:8px"><button data-fill="0" aria-pressed="${!S.fillBottom}">Standard</button><button data-fill="1" aria-pressed="${!!S.fillBottom}">Fill bottom strip (experimental)</button></div>
@@ -2869,6 +2943,7 @@ function bindSetup(){
     else { applyTestLocation(); updateMe(); if (map) flyTo(userLoc, 12); toast(`Test location: ${S.testLoc}`); }
     rerender();
   };
+  root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { if (S.look === b.dataset.look) return; S.look = b.dataset.look; persist(); location.reload(); });
   root.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => { S.fillBottom = b.dataset.fill === "1"; persist(); fitStandalone(); renderPage(); toast(S.fillBottom ? "Trying the full-height layout" : "Back to the standard layout"); });
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
