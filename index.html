@@ -337,8 +337,10 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .phrase:first-child{border-top:0}
 .phrase .en{font-size:13px;color:var(--muted)}
 .phrase .th{font-size:19px;line-height:1.3}
-.phrase .ro{font-size:13px;color:var(--accent-2)}
-.phrase .icon-btn{grid-row:1/4;grid-column:2;width:38px;height:38px}
+.phrase .say{font-size:15px;font-weight:600;color:var(--accent-2)}
+.phrase .ro{font-size:12px;color:var(--faint)}
+.phrase .icon-btn{grid-row:1/5;grid-column:2;width:38px;height:38px}
+.tr-say{font-size:15px;font-weight:600;color:var(--accent-2);margin-top:6px}
 .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
 .totals div{background:var(--raised);border-radius:var(--r);padding:9px 10px;min-width:0}
 .totals b{display:block;font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2652,7 +2654,9 @@ function paintTranslation(){
   if (trState.status === "limit"){ el.innerHTML = `<p class="note">The free translation service has reached today’s limit. The phrasebook below still works, or add a Google key in <a href="#tools/settings">Settings</a>.</p>`; return; }
   if (!trState.out){ el.innerHTML = trState.status === "busy" ? `<p class="note">Translating…</p>` : ""; return; }
   const outLang = trState.rev ? "en" : trLang();
-  el.innerHTML = `<div class="tr-res"><div class="tr-text" lang="${esc(outLang)}">${esc(trState.out)}</div><button class="icon-btn" id="tr-say" type="button" aria-label="Read it out loud">${icon("speaker")}</button></div>
+  const sayIt = outLang === "th" && thaiRom.has(trState.out) ? `<div class="tr-say">Say (approximate): ${esc(thaiRom.text(trState.out, "easy"))}</div><p class="note">Worked out on your phone from the Thai letters, so it’s only a rough guide. Tap the speaker to hear it.</p>`
+    : !trState.rev && ["km", "lo", "zh-CN"].includes(outLang) ? `<p class="note">No pronunciation guide for this language yet. Tap the speaker to hear it.</p>` : "";
+  el.innerHTML = `<div class="tr-res"><div class="tr-text" lang="${esc(outLang)}">${esc(trState.out)}${sayIt}</div><button class="icon-btn" id="tr-say" type="button" aria-label="Read it out loud">${icon("speaker")}</button></div>
     <p class="note" style="margin-top:6px">${trState.via === "google" ? "Translated by Google." : "Translated by MyMemory (free service). Machine translation can be wrong, so keep it simple."}</p>`;
   $("#tr-say").onclick = () => speak(trState.out, outLang);
 }
@@ -2696,33 +2700,35 @@ function speak(text, lang){
   speechSynthesis.cancel(); speechSynthesis.speak(u);
 }
 /* Thai phrasebook: works with no signal. Romanisation is a pronunciation guide, not an official spelling. */
+/* Thai phrasebook: works with no signal. Each phrase: English, Thai, the tone-marked romanisation, and an easy say-it-like-it-looks version
+   written by hand for English speakers (krap if you're a man, ka if you're a woman). Neither is an official spelling. */
 const PHRASES = [
   {t:"Basics", p:[
-    ["Hello", "สวัสดี", "sà-wàt-dee"], ["Thank you", "ขอบคุณ", "khàwp khun"], ["Yes", "ใช่", "châi"], ["No", "ไม่ใช่", "mâi châi"],
-    ["Sorry / excuse me", "ขอโทษ", "khǎw thôht"], ["No problem", "ไม่เป็นไร", "mâi pen rai"], ["I don’t understand", "ไม่เข้าใจ", "mâi khâo jai"],
-    ["Do you speak English?", "พูดภาษาอังกฤษได้ไหม", "phûut phaa-sǎa ang-grìt dâi mái"], ["How are you?", "สบายดีไหม", "sà-baai dee mái"]]},
+    ["Hello", "สวัสดี", "sà-wàt-dee", "sa-wat-dee krap / ka"], ["Thank you", "ขอบคุณ", "khàwp khun", "kop-koon krap / ka"], ["Yes", "ใช่", "châi", "chai"], ["No", "ไม่ใช่", "mâi châi", "mai chai"],
+    ["Sorry / excuse me", "ขอโทษ", "khǎw thôht", "kor-toht"], ["No problem", "ไม่เป็นไร", "mâi pen rai", "mai pen rai"], ["I don’t understand", "ไม่เข้าใจ", "mâi khâo jai", "mai kao jai"],
+    ["Do you speak English?", "พูดภาษาอังกฤษได้ไหม", "phûut phaa-sǎa ang-grìt dâi mái", "poot paa-saa ang-grit dai mai"], ["How are you?", "สบายดีไหม", "sà-baai dee mái", "sa-bai dee mai"]]},
   {t:"Money and shopping", p:[
-    ["How much is this?", "อันนี้เท่าไหร่", "an née thâo rài"], ["Too expensive", "แพงไป", "phaeng pai"], ["Can you lower the price?", "ลดหน่อยได้ไหม", "lót nòi dâi mái"],
-    ["I’ll take this one", "เอาอันนี้", "ao an née"], ["Do you take cards?", "รับบัตรไหม", "ráp bàt mái"], ["Where is an ATM?", "ตู้เอทีเอ็มอยู่ที่ไหน", "tûu ay-thee-em yùu thêe nǎi"]]},
+    ["How much is this?", "อันนี้เท่าไหร่", "an née thâo rài", "an nee tao-rai"], ["Too expensive", "แพงไป", "phaeng pai", "paeng pai"], ["Can you lower the price?", "ลดหน่อยได้ไหม", "lót nòi dâi mái", "lot noi dai mai"],
+    ["I’ll take this one", "เอาอันนี้", "ao an née", "ow an nee"], ["Do you take cards?", "รับบัตรไหม", "ráp bàt mái", "rap bat mai"], ["Where is an ATM?", "ตู้เอทีเอ็มอยู่ที่ไหน", "tûu ay-thee-em yùu thêe nǎi", "too ay-tee-em yoo tee-nai"]]},
   {t:"Food", p:[
-    ["Not spicy", "ไม่เผ็ด", "mâi phèt"], ["A little spicy", "เผ็ดนิดหน่อย", "phèt nít nòi"], ["I don’t eat meat", "ไม่กินเนื้อสัตว์", "mâi gin néua sàt"],
-    ["No fish sauce", "ไม่ใส่น้ำปลา", "mâi sài nám plaa"], ["I’m allergic to peanuts", "แพ้ถั่วลิสง", "pháe thùa lí-sǒng"], ["Water, please", "ขอน้ำเปล่า", "khǎw nám plào"],
-    ["The bill, please", "เช็คบิลด้วย", "chék bin dûai"], ["Delicious", "อร่อย", "à-ròi"], ["Takeaway", "ใส่ถุงกลับบ้าน", "sài thǔng glàp bâan"]]},
+    ["Not spicy", "ไม่เผ็ด", "mâi phèt", "mai pet"], ["A little spicy", "เผ็ดนิดหน่อย", "phèt nít nòi", "pet nit-noy"], ["I don’t eat meat", "ไม่กินเนื้อสัตว์", "mâi gin néua sàt", "mai gin neua sat"],
+    ["No fish sauce", "ไม่ใส่น้ำปลา", "mâi sài nám plaa", "mai sai nam plaa"], ["I’m allergic to peanuts", "แพ้ถั่วลิสง", "pháe thùa lí-sǒng", "pae tua li-song"], ["Water, please", "ขอน้ำเปล่า", "khǎw nám plào", "kor nam plao"],
+    ["The bill, please", "เช็คบิลด้วย", "chék bin dûai", "check bin duay"], ["Delicious", "อร่อย", "à-ròi", "a-roy"], ["Takeaway", "ใส่ถุงกลับบ้าน", "sài thǔng glàp bâan", "sai toong glap baan"]]},
   {t:"Getting around", p:[
-    ["Where is …?", "…อยู่ที่ไหน", "… yùu thêe nǎi"], ["How much to go to …?", "ไป…เท่าไหร่", "pai … thâo rài"], ["Please use the meter", "เปิดมิเตอร์ด้วย", "pèrt mí-têr dûai"],
-    ["Stop here", "จอดตรงนี้", "jàwt trong née"], ["Turn left", "เลี้ยวซ้าย", "líao sáai"], ["Turn right", "เลี้ยวขวา", "líao khwǎa"], ["Straight on", "ตรงไป", "trong pai"],
-    ["Bus station", "สถานีขนส่ง", "sà-thǎa-nee khǒn sòng"], ["Train station", "สถานีรถไฟ", "sà-thǎa-nee rót fai"], ["Pier", "ท่าเรือ", "thâa reua"], ["Airport", "สนามบิน", "sà-nǎam bin"],
-    ["What time does it leave?", "ออกกี่โมง", "àwk gèe mohng"], ["One ticket to …", "ตั๋วไป…หนึ่งใบ", "tǔa pai … nèung bai"]]},
+    ["Where is …?", "…อยู่ที่ไหน", "… yùu thêe nǎi", "… yoo tee-nai"], ["How much to go to …?", "ไป…เท่าไหร่", "pai … thâo rài", "pai … tao-rai"], ["Please use the meter", "เปิดมิเตอร์ด้วย", "pèrt mí-têr dûai", "perd mee-ter duay"],
+    ["Stop here", "จอดตรงนี้", "jàwt trong née", "jot trong nee"], ["Turn left", "เลี้ยวซ้าย", "líao sáai", "lee-ow sai"], ["Turn right", "เลี้ยวขวา", "líao khwǎa", "lee-ow kwaa"], ["Straight on", "ตรงไป", "trong pai", "trong pai"],
+    ["Bus station", "สถานีขนส่ง", "sà-thǎa-nee khǒn sòng", "sa-taa-nee kon-song"], ["Train station", "สถานีรถไฟ", "sà-thǎa-nee rót fai", "sa-taa-nee rot fai"], ["Pier", "ท่าเรือ", "thâa reua", "taa reua"], ["Airport", "สนามบิน", "sà-nǎam bin", "sa-naam bin"],
+    ["What time does it leave?", "ออกกี่โมง", "àwk gèe mohng", "ork gee mong"], ["One ticket to …", "ตั๋วไป…หนึ่งใบ", "tǔa pai … nèung bai", "tua pai … neung bai"]]},
   {t:"Staying", p:[
-    ["Do you have a room?", "มีห้องว่างไหม", "mee hâwng wâang mái"], ["How much per night?", "คืนละเท่าไหร่", "kheun lá thâo rài"], ["Can I see the room?", "ขอดูห้องได้ไหม", "khǎw duu hâwng dâi mái"],
-    ["Is there Wi-Fi?", "มีไวไฟไหม", "mee wai-fai mái"], ["Where is the toilet?", "ห้องน้ำอยู่ที่ไหน", "hâwng nám yùu thêe nǎi"], ["Where can I do laundry?", "ซักผ้าได้ที่ไหน", "sák phâa dâi thêe nǎi"]]},
+    ["Do you have a room?", "มีห้องว่างไหม", "mee hâwng wâang mái", "mee hong waang mai"], ["How much per night?", "คืนละเท่าไหร่", "kheun lá thâo rài", "keun la tao-rai"], ["Can I see the room?", "ขอดูห้องได้ไหม", "khǎw duu hâwng dâi mái", "kor doo hong dai mai"],
+    ["Is there Wi-Fi?", "มีไวไฟไหม", "mee wai-fai mái", "mee wai-fai mai"], ["Where is the toilet?", "ห้องน้ำอยู่ที่ไหน", "hâwng nám yùu thêe nǎi", "hong naam yoo tee-nai"], ["Where can I do laundry?", "ซักผ้าได้ที่ไหน", "sák phâa dâi thêe nǎi", "sak paa dai tee-nai"]]},
   {t:"Help and health", p:[
-    ["Help!", "ช่วยด้วย", "chûai dûai"], ["Call the police", "เรียกตำรวจ", "rîak tam-rùat"], ["I need a doctor", "ต้องการหมอ", "tâwng gaan mǎw"],
-    ["Take me to a hospital", "พาไปโรงพยาบาล", "phaa pai rohng phá-yaa-baan"], ["I’m lost", "หลงทาง", "lǒng thaang"], ["I lost my passport", "หนังสือเดินทางหาย", "nǎng-sěu dern thaang hǎai"],
-    ["It hurts here", "เจ็บตรงนี้", "jèp trong née"], ["Pharmacy", "ร้านขายยา", "ráan khǎai yaa"]]},
+    ["Help!", "ช่วยด้วย", "chûai dûai", "chuay duay"], ["Call the police", "เรียกตำรวจ", "rîak tam-rùat", "riak tam-ruat"], ["I need a doctor", "ต้องการหมอ", "tâwng gaan mǎw", "tong-gaan mor"],
+    ["Take me to a hospital", "พาไปโรงพยาบาล", "phaa pai rohng phá-yaa-baan", "paa pai rong pa-yaa-baan"], ["I’m lost", "หลงทาง", "lǒng thaang", "long taang"], ["I lost my passport", "หนังสือเดินทางหาย", "nǎng-sěu dern thaang hǎai", "nang-seu dern taang hai"],
+    ["It hurts here", "เจ็บตรงนี้", "jèp trong née", "jep trong nee"], ["Pharmacy", "ร้านขายยา", "ráan khǎai yaa", "raan kai yaa"]]},
   {t:"Numbers", p:[
-    ["1", "หนึ่ง", "nèung"], ["2", "สอง", "sǎwng"], ["3", "สาม", "sǎam"], ["4", "สี่", "sèe"], ["5", "ห้า", "hâa"], ["6", "หก", "hòk"], ["7", "เจ็ด", "jèt"],
-    ["8", "แปด", "pàet"], ["9", "เก้า", "gâo"], ["10", "สิบ", "sìp"], ["20", "ยี่สิบ", "yêe sìp"], ["100", "หนึ่งร้อย", "nèung rói"], ["1,000", "หนึ่งพัน", "nèung phan"]]}
+    ["1", "หนึ่ง", "nèung", "neung"], ["2", "สอง", "sǎwng", "song"], ["3", "สาม", "sǎam", "saam"], ["4", "สี่", "sèe", "see"], ["5", "ห้า", "hâa", "haa"], ["6", "หก", "hòk", "hok"], ["7", "เจ็ด", "jèt", "jet"],
+    ["8", "แปด", "pàet", "paet"], ["9", "เก้า", "gâo", "gao"], ["10", "สิบ", "sìp", "sip"], ["20", "ยี่สิบ", "yêe sìp", "yee-sip"], ["100", "หนึ่งร้อย", "nèung rói", "neung roy"], ["1,000", "หนึ่งพัน", "nèung phan", "neung pan"]]}
 ];
 let phraseTab = 0;
 TOOL_PAGES.translate = root => {
@@ -2739,9 +2745,9 @@ TOOL_PAGES.translate = root => {
   </section>
   <section class="block" aria-labelledby="h-pb">
     <h2 id="h-pb">Thai phrasebook</h2>
-    <p class="note">Works offline. To be polite, end a sentence with <b>khráp</b> if you’re a man or <b>khâ</b> if you’re a woman. Tap the speaker to hear it.</p>
+    <p class="note">Works offline. To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
     <div class="scroller" style="margin-top:8px">${PHRASES.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
-    <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in Thai">${icon("speaker")}</button><span class="th" lang="th">${esc(p[1])}</span><span class="ro">${esc(p[2])}</span></div>`).join("")}</div>
+    <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in Thai">${icon("speaker")}</button><span class="th" lang="th">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span><span class="ro">With tone marks: ${esc(p[2])}</span></div>`).join("")}</div>
   </section></div>`;
   const tt = $("#tr-text"), tl = $("#tr-lang");
   let timer = null;
