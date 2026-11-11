@@ -2878,7 +2878,7 @@ function bindSetup(){
     const k = $("#gkey").value.trim(); if (k && k !== S.gkey){ S.gkey = k; persist(); gReady = null; }
     if (!googleKey()){ toast("Paste a key first"); return; }
     toast("Testing…");
-    const pl = await googlePlace(D.places.find(p => p.id === "c-grandpalace"));
+    const pl = await googlePlace(D.places.find(p => p.id === "c-grandpalace"), ["photos"]);
     toast(pl && pl.photos && pl.photos.length ? "Working: Google found the Grand Palace with photos" : "Didn’t work here. Check the key and its website restriction, and test on your own web address.");
   };
   root.querySelectorAll("[data-rate]").forEach(inp => inp.onchange = () => { const v = parseFloat(inp.value); const k = inp.dataset.rate; if (v > 0 && Math.abs(v - (liveRate(k) || D.rates[k].v)) > 1e-9) S.rates[k] = v; else delete S.rates[k]; persist(); renderPage(); toast("Rate saved"); });
@@ -3231,7 +3231,8 @@ function gUse(){ const u = lsGet("g-usage", null); return u && u.d === todayISO(
 const gAllow = kind => gUse()[kind] < G_DAILY[kind];
 function gSpend(kind){ const u = gUse(); u[kind]++; lsSet("g-usage", u); }
 const gPlaceCache = {}, gPlaceWait = {};
-const G_FULL = ["location", "photos", "rating", "userRatingCount", "googleMapsURI"];
+// Google bills each lookup at the price of its dearest field, so photos (cheap) and ratings (dearer) are asked for separately
+const G_FULL = ["photos"];
 // one lookup at a time per place: a card and the details sheet asking together share the same request
 function googlePlace(it, fields = G_FULL){
   if (!it) return Promise.resolve(null);
@@ -3258,9 +3259,26 @@ async function googlePlace_(it, fields){
     return place;
   } catch(e){ return null; }
 }
+const G_PRICE = {PRICE_LEVEL_FREE:"Free", PRICE_LEVEL_INEXPENSIVE:"฿ (cheap)", PRICE_LEVEL_MODERATE:"฿฿ (mid-range)", PRICE_LEVEL_EXPENSIVE:"฿฿฿ (pricey)", PRICE_LEVEL_VERY_EXPENSIVE:"฿฿฿฿ (very pricey)"};
+function showGoogleFacts(it, g){
+  const el = $("#gFacts"); if (!el || !g || (!g.r && !g.pl)) return;
+  if ($("#photoBox") && $("#photoBox").dataset.id !== it.id) return;
+  el.hidden = false;
+  el.innerHTML = `<span class="l">On Google Maps</span>${g.r ? `${starsHTML(g.r * 2)} <span class="note">${g.n ? g.n.toLocaleString("en-GB") + " reviews" : ""}</span>` : ""}${g.pl && G_PRICE[g.pl] ? `<div class="note">Price level: ${esc(G_PRICE[g.pl])}</div>` : ""}`;
+}
+/* rating, review count and price level: one small Google lookup per place, then kept on the phone for a week */
+async function googleFacts(it){
+  const key = "gfacts:" + it.id, hit = lsGet(key);
+  if (hit && Date.now() - hit.at < 7 * 864e5){ showGoogleFacts(it, hit); return; }
+  if (!gAllow("details")) return;
+  const fields = ["rating", "userRatingCount", "priceLevel"].concat(it.cur_ ? ["location"] : []);
+  const pl = await googlePlace(it, fields); if (!pl) return;
+  gSpend("details");
+  const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, at:Date.now()};
+  lsSet(key, g); showGoogleFacts(it, g);
+  applyGoogleExtras(it, pl);
+}
 function applyGoogleExtras(it, pl){
-  const el = $("#gRating");
-  if (el && pl.rating) el.innerHTML = `<div class="note">Google: ${starsHTML(pl.rating * 2)} ${pl.userRatingCount ? `${pl.userRatingCount.toLocaleString("en-GB")} reviews` : ""}${pl.googleMapsURI ? `, <a href="${esc(pl.googleMapsURI)}" target="_blank" rel="noopener">open</a>` : ""}</div>`;
   if (pl.location && it.cur_){
     const lat = typeof pl.location.lat === "function" ? pl.location.lat() : pl.location.lat;
     const lng = typeof pl.location.lng === "function" ? pl.location.lng() : pl.location.lng;
@@ -3437,7 +3455,6 @@ function openDetail(id){
   const ref = userLoc || (S.focus ? focusPt() : null);
   const km = ref ? distText(dist(ref, it)) : null;
   const d = it.d || {};
-  const unk = '<span class="unk">Not checked yet</span>';
   const fact = (l, v, wide) => `<div class="fact ${wide ? "wide" : ""}"><span class="l">${l}</span>${v}</div>`;
   let body = "";
   body += `<div class="photo art" id="photoBox" data-id="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
@@ -3445,17 +3462,14 @@ function openDetail(id){
   const facts = [];
   const pr = itemLocal(it);
   const converted = it.p && dispCur(it.cc, it.cur) !== it.cur;
-  if (it.cur_ && it.c !== "move") facts.push(fact(`${it.c === "cool" ? "Cost" : "Price"}${it.pu && pr ? ", " + esc(it.pu) : ""}`, pr ? `<b>${esc(pr)}</b> <span class="note">${esc(gbpRange(it.p, it.cur))}</span>${converted ? `<div class="note">Listed as ${esc(rangeText(it.p, it.cur))}, converted at your saved rate</div>` : ""}${it.cost ? `<div class="note">${esc(it.cost)}</div>` : ""}` : it.cost ? esc(it.cost) : '<span class="unk">Check live</span>'));
-  if (it.cur_) facts.push(fact("Reviews", `${it.r != null ? `${starsHTML(it.r)}<div class="note">${esc(it.rs)}${it.rc ? `, ${it.rc.toLocaleString("en-GB")} reviews` : ""}</div>` : '<span class="unk">Not saved yet</span>'}<div id="gRating"></div>`));
-  else if (["gaff","munch","cool"].includes(it.c)) facts.push(fact("Price and reviews", `<span class="unk">Not in OpenStreetMap.</span> <div id="gRating"></div>`));
+  // only what we actually know: unknown prices and reviews are left out rather than shown as empty boxes
+  if (it.cur_ && it.c !== "move" && (pr || it.cost)) facts.push(fact(`${it.c === "cool" ? "Cost" : "Price"}${it.pu && pr ? ", " + esc(it.pu) : ""}`, pr ? `<b>${esc(pr)}</b> <span class="note">${esc(gbpRange(it.p, it.cur))}</span>${converted ? `<div class="note">Listed as ${esc(rangeText(it.p, it.cur))}, converted at your saved rate</div>` : ""}${it.cost ? `<div class="note">${esc(it.cost)}</div>` : ""}` : esc(it.cost)));
+  if (it.cur_ && it.r != null) facts.push(fact("Reviews", `${starsHTML(it.r)}<div class="note">${esc(it.rs)}${it.rc ? `, ${it.rc.toLocaleString("en-GB")} reviews` : ""}</div>`));
   const oh = isOpenNow(it);
   if (it.oh) facts.push(fact("Opening hours", `${oh ? `<b style="color:${oh.open ? "var(--ok)" : "var(--muted)"}">${esc(oh.text)}</b><div class="note">` : '<div>'}${esc(it.oh.replace(/;\s*/g, "; "))}</div>`, true));
-  if (it.cur_ && it.c === "gaff"){
-    facts.push(fact("Breakfast", d.breakfast ? esc(d.breakfast) : unk));
-    facts.push(fact("Shared or private", d.privacy ? esc(d.privacy) : unk));
-    facts.push(fact("Beds", d.beds ? esc(d.beds) : unk));
-    facts.push(fact("Toilet", d.toilet ? esc(d.toilet) : unk));
-    facts.push(fact("Rooms", d.room ? esc(d.room) : unk, true));
+  let roomGaps = false;
+  if (it.c === "gaff"){
+    [["breakfast", "Breakfast"], ["privacy", "Shared or private"], ["beds", "Beds"], ["toilet", "Toilet"], ["room", "Rooms", true]].forEach(([k, l, w]) => { if (d[k]) facts.push(fact(l, esc(d[k]), w)); else roomGaps = true; });
   }
   if (it.best) facts.push(fact("Best time", esc(it.best)));
   if (it.busy) facts.push(fact("How busy", esc(it.busy)));
@@ -3482,7 +3496,8 @@ function openDetail(id){
   if (it.rel) facts.push(fact("Faith", esc(it.rel.replace(/_/g, " "))));
   if (km) facts.push(fact("Distance", km));
   if (it.nt) facts.push(fact("Name in Thai (show a driver)", `<span lang="th" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button><div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>`, true));
-  body += `<div class="facts">${facts.join("")}</div>`;
+  body += `<div class="facts">${facts.join("")}<div class="fact wide" id="gFacts" hidden></div></div>`;
+  if (roomGaps) body += `<p class="note" style="margin:-2px 0 8px">More details (breakfast, beds, bathrooms, room types) on the booking site: <a href="${esc(L_booking(it.n + " " + it.city))}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(L_agoda(it.n + " " + it.city))}" target="_blank" rel="noopener">Agoda</a></p>`;
   if (it.desc) body += `<p style="margin:8px 0">${esc(it.desc)}</p>`;
   if (it.k === "water") body += `<div class="callout">${icon("alert")}<div><b>Check before you drink.</b> A refill point on the map is not proof the water is safe. Look for a filtered or reverse-osmosis machine${it.paid ? " (usually ฿1–2 a litre)" : ""}, and ask locally if unsure.</div></div>`;
   if (isBiz(it) && it.osm) body += `<div class="callout">${icon("info")}<div><b>This is a business, not a public sight.</b> Prices and availability are theirs to confirm. Contact them or check their website before you go.</div></div>`;
@@ -3516,13 +3531,14 @@ function openDetail(id){
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   const box0 = $("#photoBox");
   // the photo loads by itself: Google first when there's a key (within today's allowance), then a free Wikimedia photo
-  const viaGoogle = () => googlePlace(it).then(pl => {
+  const viaGoogle = () => googlePlace(it, ["photos"]).then(pl => {
     const box = $("#photoBox"); if (!box || box.dataset.id !== it.id) return;
-    if (pl){ gSpend("details"); applyGoogleExtras(it, pl); if (pl.photos && pl.photos.length){ gSpend("photo"); box.classList.remove("art"); box.style.backgroundImage = ""; showGooglePhoto(box, it, pl); return; } }
+    if (pl && pl.photos && pl.photos.length){ gSpend("photo"); box.classList.remove("art"); box.style.backgroundImage = ""; showGooglePhoto(box, it, pl); return; }
     wikiInto(box, it);
   });
-  if (googleFor(it) && gAllow("details")) viaGoogle();
+  if (googleFor(it) && gAllow("photo")) viaGoogle();
   else if (it.wp || it.wd) wikiInto(box0, it);
+  if (googleFor(it)) googleFacts(it);
 }
 
 /* ============================================================
