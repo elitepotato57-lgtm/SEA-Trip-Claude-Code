@@ -156,7 +156,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .fpanel .flags{display:flex;gap:6px;flex-wrap:wrap}
 
 /* booking strip (Gaffs) */
-.stay{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}   /* dates on one row, guests and rooms on the next: date boxes need the width */
+.stay{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}   /* dates on one row, guests on the next: date boxes need the width */
 .stay .field{min-width:0}
 .stay input,.stay select{padding:8px;font-size:15px}
 
@@ -581,12 +581,13 @@ const NOTES = {THB:[20,100,500,1000],USD:[1,5,10,20],EUR:[5,10,20,50],AUD:[5,10,
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false, fillBottom:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2, rooms:1}, focus:null, live:null, mapView:null, seenDiscover:false};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
 if (!S.budget || !Array.isArray(S.budget.items)) S.budget = {total:"", cur:"GBP", days:"", items:[]};
-if (!S.stay) S.stay = {cin:"", cout:"", guests:2, rooms:1};
+if (!S.stay) S.stay = {cin:"", cout:"", guests:2};
+delete S.stay.rooms;                                    // rooms were dropped in 2.1: the booking sites pick rooms themselves
 function persist(){
   try { const o = {}; Object.keys(S_DEFAULTS).forEach(k => o[k] = S[k]); localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; }
   catch(e){ return false; }
@@ -1423,15 +1424,16 @@ function paintListBody(cat){
   const clr = body.querySelector("[data-clear]"); if (clr) clr.onclick = () => { ui.lists[cat] = newList(cat); renderPage(); };
   watchCardPhotos(body);
 }
+const MAX_GUESTS = 30;
 function stayStrip(){
   const s = S.stay, t = todayISO();
   return `<div class="stay">
     <label class="field">Check-in<input type="date" id="st-in" min="${t}" value="${esc(s.cin)}"></label>
     <label class="field">Check-out<input type="date" id="st-out" min="${esc(s.cin ? addDays(s.cin, 1) : t)}" value="${esc(s.cout)}"></label>
-    <label class="field">Guests<select id="st-g">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${+s.guests === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
-    <label class="field">Rooms<select id="st-r">${[1,2,3,4].map(n => `<option value="${n}" ${(+s.rooms || 1) === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <label class="field">Guests<select id="st-g">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${+s.guests === n ? "selected" : ""}>${n}</option>`).join("")}<option value="more" ${+s.guests > 8 ? "selected" : ""}>8+</option></select></label>
+    <label class="field" ${+s.guests > 8 ? "" : "hidden"} id="st-gn-wrap">How many?<input type="number" id="st-gn" inputmode="numeric" min="9" max="${MAX_GUESTS}" value="${+s.guests > 8 ? +s.guests : 9}"></label>
   </div>
-  <p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${s.guests} guest${+s.guests === 1 ? "" : "s"}${(+s.rooms || 1) > 1 ? `, ${s.rooms} rooms` : ""}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`;
+  <p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`;
 }
 function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");
@@ -1484,16 +1486,19 @@ function bindList(cat){
   const mr = root.querySelector("[data-minr]"); if (mr) mr.onchange = () => { st.minR = +mr.value; renderPage(); };
   const pk = root.querySelector("[data-picks]"); if (pk) pk.onclick = () => { st.picks = !st.picks; renderPage(); };
   if (cat === "gaff"){
-    const ci = $("#st-in"), co = $("#st-out"), sg = $("#st-g"), sr = $("#st-r");
-    sr.onchange = () => { S.stay.rooms = Math.min(+sr.value, +S.stay.guests || 1); persist(); renderPage(); };
+    const ci = $("#st-in"), co = $("#st-out"), sg = $("#st-g"), gn = $("#st-gn");
     ci.onchange = () => { S.stay.cin = ci.value; if (S.stay.cin && (!S.stay.cout || S.stay.cout <= S.stay.cin)) S.stay.cout = addDays(S.stay.cin, 1); persist(); renderPage(); };
     co.onchange = () => { S.stay.cout = co.value; persist(); renderPage(); };
-    sg.onchange = () => { S.stay.guests = +sg.value; if ((+S.stay.rooms || 1) > S.stay.guests) S.stay.rooms = S.stay.guests; persist(); renderPage(); };
+    sg.onchange = () => {
+      if (sg.value === "more"){ S.stay.guests = Math.max(9, +gn.value || 9); persist(); renderPage(); const n = $("#st-gn"); if (n){ n.focus(); n.select(); } return; }
+      S.stay.guests = +sg.value; persist(); renderPage();
+    };
+    gn.onchange = () => { S.stay.guests = clamp(Math.round(+gn.value) || 9, 9, MAX_GUESTS); persist(); renderPage(); };
   }
 }
 function stayParams(){
   const s = S.stay, ok = !!(s.cin && s.cout && s.cout > s.cin && s.cin >= todayISO());
-  return {ok, cin:s.cin, cout:s.cout, guests:+s.guests || 2, rooms:+s.rooms || 1, nights: ok ? Math.round((new Date(s.cout + "T12:00:00") - new Date(s.cin + "T12:00:00")) / 864e5) : 0};
+  return {ok, cin:s.cin, cout:s.cout, guests:clamp(Math.round(+s.guests) || 2, 1, MAX_GUESTS), nights: ok ? Math.round((new Date(s.cout + "T12:00:00") - new Date(s.cin + "T12:00:00")) / 864e5) : 0};
 }
 
 /* ---------- saved places ---------- */
@@ -3131,8 +3136,8 @@ function photoFallback(it, why){
 }
 
 /* ---------- booking hand-off (no live availability in the app; the sites confirm prices) ---------- */
-function L_booking(text){ const p = stayParams(); return `https://www.booking.com/searchresults.html?ss=${enc(text)}${p.ok ? `&checkin=${p.cin}&checkout=${p.cout}` : ""}&group_adults=${p.guests}&no_rooms=${p.rooms}&group_children=0`; }
-function L_agoda(text){ const p = stayParams(); return `https://www.agoda.com/search?textToSearch=${enc(text)}${p.ok ? `&checkIn=${p.cin}&los=${p.nights}` : ""}&rooms=${p.rooms}&adults=${p.guests}`; }
+function L_booking(text){ const p = stayParams(); return `https://www.booking.com/searchresults.html?ss=${enc(text)}${p.ok ? `&checkin=${p.cin}&checkout=${p.cout}` : ""}&group_adults=${p.guests}&no_rooms=1&group_children=0`; }
+function L_agoda(text){ const p = stayParams(); return `https://www.agoda.com/search?textToSearch=${enc(text)}${p.ok ? `&checkIn=${p.cin}&los=${p.nights}` : ""}&rooms=1&adults=${p.guests}`; }
 function L_hostelworld(text){ return L_google(`${text} hostelworld`); }
 function bookingBlock(it){
   const p = stayParams(), name = `${it.n} ${it.city}`;
