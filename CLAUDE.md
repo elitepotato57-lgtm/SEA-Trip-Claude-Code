@@ -5,41 +5,66 @@ Dylan is not a developer: write anything addressed to him in plain English. He m
 
 ## Structure
 
-- The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.github.io/SEA-Trip-Claude-Code/). There is no build step and no separate source.
-- `index.html`: all HTML, CSS and JS, hand-edited and readable (~3,600 lines).
-  - CSS tokens are at the top (`:root{...}`). The optional Paper Atlas look is a block of overrides under `:root[data-look="paper"]` at the end of the `<style>`.
-  - One line, `const D = {...}` (~line 490), is ~290 KB of embedded trip data. **Don't rewrite it by hand.** Edit it with a script (parse, change, re-serialise) if you must.
-  - `const MAP_STYLE` is the night map style. `mapStyle()` returns it, or the Paper Atlas variant (`PAPER_MAP` overrides by layer id).
-  - `const VERSION`: bump it on every release.
-- `sw.js`: service worker (offline). If you change it, bump the `APP` cache name at the top.
-- `manifest.webmanifest`, `icon-*.png`, `img/` (header photos).
-- `places/th/`: the map's places database. `meta.json`, `coverage.json`, `sum-stay/food/do.json` (summaries for zoomed-out clusters) and per-tile JSON.
-- `vendor/`: MapLibre GL (the map engine).
-- `tests/smoke.js`: headless phone-size check (see below).
+The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.github.io/SEA-Trip-Claude-Code/). No build step.
+
+- `index.html`: just the page shell. It loads `css/app.css` and the files in `js/` **in order** as classic scripts.
+  They share one global scope (top-level `const`/`function` in one file are visible in the next), so order matters:
+  a file's top-level code may only use things from files loaded before it.
+- `js/data.js`: `GEO`, `D` (~290 KB trip data, one line) and `MAP_STYLE`. Edit with a script, never by hand.
+- `js/core.js`: helpers, icons (`IC`), saved state `S` (+ `S_DEFAULTS`: only keys listed there are saved), money, `VERSION`.
+- `js/design.js`: the Design Lab (floating panel, palette tab on the left edge). Applies `S.design` as CSS custom
+  properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
+- `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
+- `js/estimate.js`: food types and typical-price **estimates** (`foodType`, `estPrice`, `priceBand`), known ratings.
+- `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
+- `js/map.js`: the MapLibre map, per-category clusters, the filter row (stars, price, transport type).
+- `js/transport.js`: journey planner. `js/tools.js`: Tools hub, currency, translator, Settings.
+- `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
+- `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). `js/docs.js`: Tools › Documents.
+- `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). `js/boot.js`: starts the app.
+- `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs
+  (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
+- `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
+  network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
+- `places/th/`: the places database. `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
+- `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`.
 
 ## Rules
 
 - Keep the tab names: **Map, Gaffs, Munch, Activities, Tools** (Settings behind the cog).
-- Prices: local currency first, GBP underneath or alongside (use the existing `rate`/`gbp`/`withGBP` helpers).
+- Prices: local currency first, GBP alongside. **Estimates** are allowed only from the rules in `js/estimate.js`,
+  always shown as "est." and never instead of a researched price. Never invent researched prices, hours, ratings or places.
 - **No Buddha imagery anywhere** (deliberate choice). No temple drawings in themes either.
-- Never invent prices, hours, ratings, deals or places. Researched facts need a source link in the data.
 - Must work offline after first load, and on a 393 px wide iPhone screen (no sideways scrolling).
-- Colour rule: the accent colour is only for **selected** things (chips, active tab, segmented buttons, toggles) and the **one** main button on a screen. Everything else is neutral. Category colours (`--stay --food --do --ess --move`) must match between chips and map clusters in every look.
-- Google: never add, invent or commit an API key. `config.js` is not in the repo (404 on the live site) and `GOOGLE_KEY_IN_FILE` is empty, so Google photos/ratings only work if someone pastes a key into Settings. Every Google feature must work gracefully with no key.
-- Google spend cap is GBP 2/month: cache results in localStorage, only request for cards actually on screen (IntersectionObserver), request minimal fields.
+- Colour rule: the accent is only for **selected** things and the **one** main button on a screen.
+  Category colours (`--stay --food --do --ess --move`) must match between chips, pins and map clusters in every look.
+- Google: never add, invent or commit an API key. Dylan adds `config.js` himself on GitHub
+  (`window.SEA_GOOGLE_KEY = "…";`). **Never delete or overwrite `config.js`.** Every Google feature must work without a key.
+  Spend cap GBP 2/month: cache results, only fetch for cards on screen, minimal fields, per-phone daily allowance
+  (`G_DAILY`: photo 40, details 25, vision 15).
+- Documents stay on the phone (IndexedDB) and are read on the phone. Never send them to a server.
 - Work on a branch and open a PR. Don't push to `main` unless Dylan asks.
+
+## Design Lab look codes
+
+When Dylan pastes a `SEALOOK:{...}` code, make it the default look: put its colours into the `:root` tokens in
+`css/app.css` (section colours, accent, app colours), its map colours into `MAP_STYLE` (via a script) and its sizes
+into the CSS defaults, then check the night and Paper Atlas looks still read well. `labImport()` shows which keys exist.
 
 ## How to test
 
 ```bash
-python3 -m http.server 8765 &            # from the repo root
-NODE_PATH=$(npm root -g) node tests/smoke.js
+npm install          # once: playwright-core (drives the Edge/Chrome already installed)
+npm test             # unit tests, then the phone-size browser run (starts its own server)
+PORT=8766 npm run test:smoke   # if port 8765 is busy
 ```
 
-It loads every tab at 393x852, checks there are no JavaScript errors and no sideways scrolling, checks the map and its clusters draw, that each place summary downloads once, that a place opens, that the look switch works, and that the app opens offline.
-Errors from blocked hosts (map tiles, Wikidata, exchange rates) and the missing `config.js` are ignored, because cloud sandboxes often can't reach those. Real map tiles therefore need checking on a phone.
+The browser run checks every tab at 393 px, the map and clusters, filters, a place opening, both looks, the Design Lab,
+Documents (a real PDF and a picture read on the device), the camera translator (Google replies faked),
+saving Bangkok for offline and using it with no signal, and that there are no JavaScript errors.
+Errors from blocked hosts and the missing `config.js` are ignored.
 
 ## How to publish
 
 1. Merge the PR into `main` on GitHub. GitHub Pages redeploys by itself in a minute or two.
-2. On the phone, **close the home-screen app fully and reopen it, twice**: the first open downloads the new version in the background, the second shows it.
+2. On the phone, **close the home-screen app fully and reopen it, twice**: the first open downloads the new version, the second shows it.

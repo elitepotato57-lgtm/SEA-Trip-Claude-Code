@@ -139,7 +139,7 @@ TOOL_PAGES.offline = root => {
     return `<div class="pack" data-city="${esc(c[0])}"><div><b>${esc(c[0])}</b><small>${busy ? `Saving… ${packState.done} of ${packState.total}` : p ? `Saved ${agoText(p.at)} · ${fmtBytes(p.bytes)}` : "Not saved"}</small>
       ${busy ? `<div class="bar"><i style="width:${packState.total ? Math.round(100 * packState.done / packState.total) : 0}%"></i></div>` : ""}</div>
       <div class="row" style="gap:6px;flex-wrap:nowrap">${p && !busy ? `<button class="btn small" type="button" data-unpack aria-label="Remove ${esc(c[0])}">${icon("trash", "i s")}</button>` : ""}
-      <button class="btn small ${p ? "" : "primary"}" type="button" data-pack ${packState.busy ? "disabled" : ""}>${icon("download", "i s")}${p ? "Update" : "Save"}</button></div></div>`;
+      <button class="btn small" type="button" data-pack ${packState.busy ? "disabled" : ""}>${icon("download", "i s")}${p ? "Update" : "Save"}</button></div></div>`;
   };
   root.innerHTML = toolHero("Offline & backup", "Keep the app working with no signal") + `<div class="page">
     <div class="sect"><h2>Save cities for offline</h2></div>
