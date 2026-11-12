@@ -127,6 +127,11 @@ function onMapLoad(){
   map.addLayer({id:"sel-icon", type:"symbol", source:"sel", layout:{"icon-image":["get", "ic"], "icon-size":1.08, "icon-allow-overlap":true, "icon-ignore-placement":true}});
   map.addSource("me", {type:"geojson", data:fc([])});
   map.addLayer({id:"me-halo", type:"circle", source:"me", paint:{"circle-radius":16, "circle-color":"rgba(127,178,210,.22)"}});
+  addHeadingImages();
+  // which way the phone points (a beam) or which way you are moving (an arrow): drawn under the dot, turned with the map's north
+  map.addLayer({id:"me-head", type:"symbol", source:"me", filter:[">=", ["get", "hd"], 0], layout:{"icon-image":["case", ["==", ["get", "mode"], "travel"], "me-arrow", "me-beam"],
+    "icon-rotate":["get", "hd"], "icon-rotation-alignment":"map", "icon-allow-overlap":true, "icon-ignore-placement":true},
+    paint:{"icon-opacity":["case", ["get", "rough"], .45, .95]}});
   map.addLayer({id:"me-dot", type:"circle", source:"me", paint:{"circle-radius":6.5, "circle-color":cssv("--move"), "circle-stroke-color":"#fff", "circle-stroke-width":2.5}});
 
   MAP_GROUPS.forEach(g => {
@@ -167,9 +172,106 @@ function flyTo(pt, z){
 }
 function updateMe(){
   if (!map || !mapLoaded) return;
-  map.getSource("me").setData(fc(userLoc ? [{type:"Feature", geometry:{type:"Point", coordinates:[userLoc.lng, userLoc.lat]}, properties:{}}] : []));
+  const h = Heading.now();
+  map.getSource("me").setData(fc(userLoc ? [{type:"Feature", geometry:{type:"Point", coordinates:[userLoc.lng, userLoc.lat]}, properties:{hd:h ? h.deg : -1, mode:h ? h.mode : "", rough:!!(h && h.rough)}}] : []));
+}
+
+/* ---------- live location and heading ----------
+   While the map is on screen (and the app is in front), the blue dot follows the phone, and shows:
+   - a beam for the direction the phone is pointing (the compass), when the phone has a real compass reading;
+   - an arrow for the direction you are moving (from GPS), once you're moving faster than a walk, because that beats a shaky compass.
+   iPhone only lets a page read the compass after a tap and a yes, so it's asked for when the locate button is tapped, never on its own.
+   Readings are smoothed as a direction (so 359° to 1° is a small turn, not a spin), corrected for the screen being turned sideways,
+   and dropped when stale. Everything stops when the map is hidden or the app goes to the background, to save battery. */
+const Heading = {
+  compass:null, compassAt:0, rough:false, travel:null, travelAt:0, watchId:null, listening:false, asked:false, lastDraw:0, drawn:null, sm:null,
+  // smoothing on the unit circle: average the sine and cosine, never the raw angles
+  smooth(deg){
+    const r = deg * Math.PI / 180, k = .25;
+    if (!this.sm) this.sm = {s:Math.sin(r), c:Math.cos(r)};
+    else { this.sm.s += (Math.sin(r) - this.sm.s) * k; this.sm.c += (Math.cos(r) - this.sm.c) * k; }
+    return (Math.atan2(this.sm.s, this.sm.c) * 180 / Math.PI + 360) % 360;
+  },
+  screenAngle(){ const o = screen.orientation; return o && typeof o.angle === "number" ? o.angle : typeof window.orientation === "number" ? window.orientation : 0; },
+  onOrient(e){
+    let deg = null, rough = false;
+    if (typeof e.webkitCompassHeading === "number" && !isNaN(e.webkitCompassHeading)){      // iPhone: degrees from north, already a compass
+      deg = e.webkitCompassHeading; rough = !(e.webkitCompassAccuracy >= 0 && e.webkitCompassAccuracy <= 25);
+    } else if (e.absolute && typeof e.alpha === "number"){                                // Android: the absolute event, alpha turns anticlockwise
+      deg = 360 - e.alpha;
+    } else return;                                                                         // a relative reading isn't a compass: show nothing rather than guess
+    deg = (deg + Heading.screenAngle() + 360) % 360;
+    Heading.compass = Heading.smooth(deg); Heading.compassAt = Date.now(); Heading.rough = rough;
+    if (rough && !Heading.hinted){ Heading.hinted = true; toast("The compass reading is rough, so the beam is faint. Move the phone in a figure of eight to calibrate it."); }
+    Heading.draw();
+  },
+  // which reading to show right now: {deg, mode:"compass"|"travel", rough} or null
+  now(){
+    const t = Date.now();
+    if (this.travel != null && t - this.travelAt < 8000) return {deg:this.travel, mode:"travel", rough:false};
+    if (this.compass != null && t - this.compassAt < 3000) return {deg:this.compass, mode:"compass", rough:this.rough};
+    return null;
+  },
+  draw(){
+    const t = Date.now(); if (t - this.lastDraw < 120) return;         // at most about 8 updates a second
+    const h = this.now(), key = h ? Math.round(h.deg / 2) + h.mode + h.rough : "none";
+    if (key === this.drawn) return;
+    this.lastDraw = t; this.drawn = key; updateMe();
+    const b = $("#locBtn"); if (b) b.dataset.heading = h ? h.mode : "";
+  },
+  startCompass(){
+    if (this.listening) return;
+    const ev = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
+    this.evName = ev; this.handler = e => this.onOrient(e);
+    window.addEventListener(ev, this.handler, true); this.listening = true;
+  },
+  stopCompass(){ if (this.listening){ window.removeEventListener(this.evName, this.handler, true); this.listening = false; } this.sm = null; this.compass = null; },
+  // asked only from a tap: iPhone shows its "Motion & Orientation" question; elsewhere there's nothing to ask
+  async askCompass(){
+    const DOE = window.DeviceOrientationEvent;
+    if (DOE && typeof DOE.requestPermission === "function"){
+      if (this.asked === "denied") return;
+      try { const r = await DOE.requestPermission(); this.asked = r; if (r !== "granted"){ toast("Compass is off, so the dot can't show which way you face. Location and directions still work."); return; } }
+      catch(e){ return; }
+    }
+    this.startCompass();
+  },
+  startWatch(high){
+    if (!("geolocation" in navigator) || locStatus === "test" || locStatus === "denied") return;
+    if (this.watchId != null && (!high || this.high)) return;
+    this.stopWatch(); this.high = !!high;
+    this.watchId = navigator.geolocation.watchPosition(pos => {
+      const c = pos.coords;
+      userLoc = {lat:c.latitude, lng:c.longitude, acc:c.accuracy};
+      if (locStatus !== "ok" && locStatus !== "outside"){ const cc = countryAt(userLoc.lat, userLoc.lng); locStatus = cc ? "ok" : "outside"; }
+      // the direction of travel only means something when actually moving (faster than about 5 km/h)
+      if (typeof c.heading === "number" && !isNaN(c.heading) && c.speed > 1.4){ this.travel = c.heading; this.travelAt = Date.now(); } else this.travel = null;
+      this.drawn = null; this.draw(); updateMe();
+    }, err => { if (err && err.code === 1){ locStatus = "denied"; this.stopWatch(); } }, {enableHighAccuracy:!!high, maximumAge:high ? 2000 : 15000, timeout:30000});
+  },
+  stopWatch(){ if (this.watchId != null){ navigator.geolocation.clearWatch(this.watchId); this.watchId = null; } this.travel = null; },
+  // run only while the map is on screen and the app is in front
+  sync(){
+    const on = ui.view === "map" && document.visibilityState !== "hidden";
+    if (on){ if (locStatus === "ok" || locStatus === "outside") this.startWatch(this.high); if (this.asked === "granted" || (this.asked !== "denied" && !(window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission))) this.startCompass(); }
+    else { this.stopWatch(); this.stopCompass(); this.drawn = null; }
+  }
+};
+document.addEventListener("visibilitychange", () => Heading.sync());
+window.addEventListener("hashchange", () => setTimeout(() => Heading.sync(), 0));
+function addHeadingImages(){
+  const col = cssv("--move") || "#7FB2D2";
+  // the beam: a soft wedge pointing up (north), centred on the dot; the arrow: a navigation arrow for the direction of travel
+  const beam = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><defs><radialGradient id="g" cx="60" cy="60" r="56" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="${col}" stop-opacity=".75"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs><path d="M60 60 L37 8 A56 56 0 0 1 83 8 Z" fill="url(#g)"/></svg>`;
+  const arrow = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><path d="M60 22 L76 56 L60 49 L44 56 Z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`;
+  [["me-beam", beam], ["me-arrow", arrow]].forEach(([name, svg]) => {
+    const img = new Image(120, 120);
+    img.onload = () => { try { if (map.hasImage(name)) map.updateImage(name, img); else map.addImage(name, img, {pixelRatio:2}); } catch(e){} };
+    img.src = "data:image/svg+xml;charset=utf-8," + enc(svg);
+  });
 }
 function highlightPin(it){
+  mapRun.hl = it ? it.id : null;                 // which pin is ringed (read by tests)
   if (!map || !mapLoaded) return;
   map.getSource("sel").setData(fc(it ? [{type:"Feature", geometry:{type:"Point", coordinates:[it.lng, it.lat]}, properties:{ic:`pin-${KIND[it.k] ? it.k : "attraction"}-r`}}] : []));
 }
@@ -194,37 +296,46 @@ function soloCat(){
   if (ui.mapSaved || ui.essKinds.size) return null;
   const c = [...ui.mapCats]; return c.length === 1 ? c[0] : null;
 }
-function mapFilterOn(){
-  const c = soloCat(); if (!c) return false;
-  const f = ui.mf[c]; return c === "move" ? f.t !== "all" : f.b != null;
-}
+// filters set for the sections on the map: a maximum price (shared with the lists) and the transport type
+const shownFilterCats = () => ui.mapSaved ? [] : [...ui.mapCats].filter(c => c === "move" ? ui.mf.move.t !== "all" : pfOn(c));
+function mapFilterOn(){ return shownFilterCats().length > 0; }
+// the same rules as the Gaffs, Munch and Activities lists (passPF in js/estimate.js), so the map and the lists always agree
 function passMapFilter(it){
-  const c = soloCat(); if (!c || it.c !== c) return true;
-  const f = ui.mf[c];
-  if (c === "move") return f.t === "all" || MOVE_KIND_TYPE[it.k] === f.t;
-  if (f.b != null && priceBand(it) !== f.b) return false;
+  if (ui.mapSaved) return true;
+  if (it.c === "move") return ui.mf.move.t === "all" || MOVE_KIND_TYPE[it.k] === ui.mf.move.t;
+  if (PF_GRP[it.c]) return passPF(it, it.c);
   return true;
 }
+// does a summary-grid kind count under the transport filter? (zoomed out, the counts come from the grid, not the places)
+const moveKindOk = k => ui.mf.move.t === "all" || MOVE_KIND_TYPE[k] === ui.mf.move.t;
 function renderMapFilt(){
   const el = $("#mapFilt"); if (!el) return;
   const c = soloCat();
-  if (!c || !ui.mf[c]){ el.hidden = true; el.innerHTML = ""; return; }
-  const f = ui.mf[c];
-  const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
-  if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, f.t === id)).join("");
-  else {
-    const here = map && mapLoaded ? ccAt(map.getCenter().lat, map.getCenter().lng) : null;
-    const labels = bandLabels(CAT[c].grp, here || S.country);
-    // price bands, shown with what they mean (e.g. "£ under ฿150")
-    el.innerHTML = `<span class="mf-lab">Price</span>` + b('data-mb=""', "Any", f.b == null, "Any price")
-      + labels.map((l, i) => l ? b(`data-mb="${i}"`, esc(l), f.b === i, l) : "").join("");
+  if (!c || (c !== "move" && !PF_GRP[c])){
+    // several sections showing: list the filters still in force, each with a way to clear it, so none is invisible
+    const on = shownFilterCats();
+    if (!on.length){ el.hidden = true; el.innerHTML = ""; return; }
+    el.innerHTML = `<span class="mf-lab">Filters on</span>` + on.map(k => `<button class="chip" type="button" data-unf="${k}" aria-pressed="true" aria-label="Clear the ${esc(CAT[k].label)} filter">${esc(CAT[k].label)}: ${esc(k === "move" ? MOVE_TYPES.find(t => t[0] === ui.mf.move.t)[1] : pfSummary(k))} ${icon("x","i xs")}</button>`).join("");
+    el.hidden = false;
+    el.querySelectorAll("[data-unf]").forEach(x => x.onclick = () => { const k = x.dataset.unf; if (k === "move") ui.mf.move.t = "all"; else setPF(k, null); renderMapFilt(); refreshMapData(); });
+    return;
   }
+  const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
+  const here = map && mapLoaded ? ccAt(map.getCenter().lat, map.getCenter().lng) : null;
+  if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, ui.mf.move.t === id)).join("");
+  else el.innerHTML = pfControls(c, here || S.country);
   el.hidden = false;
-  el.querySelectorAll("[data-mb]").forEach(x => x.onclick = () => { f.b = x.dataset.mb === "" ? null : +x.dataset.mb; renderMapFilt(); refreshMapData(); });
-  el.querySelectorAll("[data-mt]").forEach(x => x.onclick = () => { f.t = x.dataset.mt; renderMapFilt(); refreshMapData(); });
+  bindPF(el, c, () => { renderMapFilt(); refreshMapData(); });
+  el.querySelectorAll("[data-mt]").forEach(x => x.onclick = () => { ui.mf.move.t = x.dataset.mt; renderMapFilt(); refreshMapData(); });
   if (typeof updateFade === "function") updateFade(el);
 }
 function mapItems(){ return mapRun.items; }
+// how many places of a summary cell count: only the essentials picked, only the transport type picked
+function cellWeight(g, c, ek){
+  if (g === "ess") return Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0);
+  if (g === "move" && ui.mf.move.t !== "all") return Object.entries(c.counts).reduce((a, [k, n]) => a + (moveKindOk(k) ? n : 0), 0);
+  return c.total;
+}
 function refreshMapData(){
   if (!map || !mapLoaded) return;
   const t0 = performance.now();
@@ -232,7 +343,7 @@ function refreshMapData(){
   const padLng = (b.getEast() - b.getWest()) * .25, padLat = (b.getNorth() - b.getSouth()) * .25;
   const bb = [b.getWest() - padLng, b.getSouth() - padLat, b.getEast() + padLng, b.getNorth() + padLat];
   const inBB = p => p.lng >= bb[0] && p.lng <= bb[2] && p.lat >= bb[1] && p.lat <= bb[3];
-  const feats = [], items = [];
+  const feats = [], items = [], hidden = {};
   let loading = false, summaryMode = false, total = 0;
   if (ui.mapSaved){
     savedPlaces().forEach(p => { feats.push(featOf(p)); if (inBB(p)) items.push(p); });
@@ -253,7 +364,7 @@ function refreshMapData(){
             continue;
           }
           cells[g] = s.filter(c => c.lng >= bb[0] && c.lng <= bb[2] && c.lat >= bb[1] && c.lat <= bb[3]);
-          for (const c of cells[g]) est += g === "ess" ? Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0) : c.total;
+          for (const c of cells[g]) est += cellWeight(g, c, ek);
         }
         total = est;
         if (!sumsReady) loading = true;
@@ -266,7 +377,7 @@ function refreshMapData(){
           for (const g of groups){
             const sums = new Map();
             for (const c of cells[g]){
-              const w = g === "ess" ? Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0) : c.total;
+              const w = cellWeight(g, c, ek);
               if (w <= 0) continue;
               const key = lng2tile(c.lng, gz) * 16384 + lat2tile(c.lat, gz);
               let a = sums.get(key); if (!a){ a = {w:0, x:0, y:0}; sums.set(key, a); }
@@ -279,7 +390,7 @@ function refreshMapData(){
           for (const g of groups) for (const leaf of Places.leavesIn(g, bb)){
             needed.add(leaf.key);
             const got = Places.loaded(leaf);
-            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k)) && passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } }
+            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k))){ if (passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } else if (PF_GRP[p.c]){ const r = pfReason(p, p.c); if (r) hidden[r] = (hidden[r] || 0) + 1; } } }
             else {
               loading = true;
               if (!mapRun.pending.has(leaf.key)){
@@ -310,7 +421,7 @@ function refreshMapData(){
   }
   const seenI = new Set();
   mapRun.items = items.filter(p => !seenI.has(p.id) && seenI.add(p.id));
-  mapRun.mode = summaryMode ? "summary" : "detail"; mapRun.loading = loading; mapRun.total = total; mapRun.shown = uniq.length;
+  mapRun.mode = summaryMode ? "summary" : "detail"; mapRun.loading = loading; mapRun.total = total; mapRun.shown = uniq.length; mapRun.hidden = hidden;
   if (!loading) mapRun.failed = false;             // everything this view needs is here, so any earlier failure is behind us
   window.__mapStats.setData++; window.__mapStats.features = uniq.length; window.__mapStats.lastMs = Math.round(performance.now() - t0);
   renderMapStatus(); renderMapBottom();
@@ -323,10 +434,15 @@ function renderMapStatus(){
   if (Places.state === "off" && activeGroups().length && !ui.mapSaved) txt = "Showing researched places only (the full list needs signal once)";
   else if (mapRun.failed && !ui.mapSaved && activeGroups().length) txt = "Some places couldn’t load. Check your signal, then move the map";
   else if (mapRun.loading) txt = "Loading places…";
-  else if (mapRun.mode === "summary" && mapRun.total) txt = mapFilterOn() ? "Zoom in to use the filters" : `${mapRun.total.toLocaleString("en-GB")} places here. Zoom in to see them`;
+  else if (mapRun.mode === "summary" && mapRun.total){
+    const priced = shownFilterCats().some(k => k !== "move");
+    const what = ui.mapCats.size === 1 && ui.mapCats.has("move") && ui.mf.move.t !== "all" ? MOVE_TYPES.find(t => t[0] === ui.mf.move.t)[1].toLowerCase() : "places";
+    txt = `${mapRun.total.toLocaleString("en-GB")} ${what} here. ${priced ? "Counts are before the price filter: zoom in to filter" : "Zoom in to see them"}`;
+  }
   else if (mapFilterOn()){
-    const c = soloCat(), f = ui.mf[c], n = mapRun.items.length;
-    txt = n ? `${n.toLocaleString("en-GB")} match${n === 1 ? "es" : ""}${f.b != null ? " · prices estimated where unknown" : ""}` : "Nothing here matches. Try another price or zoom out";
+    const n = mapRun.items.length, h = mapRun.hidden || {};
+    const why = [h.unknown ? `${h.unknown} with no known price hidden` : "", h.basis ? `${h.basis} priced per ${ui.pf.gaff.basis === "bed" ? "room" : "bed"} hidden` : ""].filter(Boolean).join(", ");
+    txt = n ? `${n.toLocaleString("en-GB")} ${n === 1 ? "match" : "matches"}${why ? " · " + why : ""}` : `Nothing here matches${why ? " (" + why + ")" : ""}. Try another price or zoom out`;
   }
   else if (ui.mapSaved) txt = `${Object.keys(S.saved).length} saved`;
   const el = $("#mapStatusTxt"); if (el){ el.textContent = txt; el.hidden = !txt; }
@@ -369,7 +485,8 @@ function renderMapUI(){
     <button class="icon-btn zoomb" id="zinBtn" type="button" aria-label="Zoom in">${icon("plus")}</button>
     <button class="icon-btn zoomb" id="zoutBtn" type="button" aria-label="Zoom out">${icon("minus")}</button>`;
   $("#satBtn").onclick = () => setBasemap(ui.basemap === "sat" ? "map" : "sat");
-  $("#locBtn").onclick = () => { if (userLoc && map) flyTo(userLoc, Math.max(13, map.getZoom())); locate(true); };
+  // a tap on locate is the one place the compass is asked for (iPhone needs a tap), and it turns on precise GPS while the map is open
+  $("#locBtn").onclick = () => { if (userLoc && map) flyTo(userLoc, Math.max(13, map.getZoom())); Heading.askCompass(); locate(true, st => { if (st === "ok" || st === "outside") Heading.startWatch(true); }); };
   $("#fitBtn").onclick = () => { const c = D.countries[S.country]; flyTo({lat:c.c[0], lng:c.c[1]}, c.z); };
   $("#zinBtn").onclick = () => map && map.zoomIn(); $("#zoutBtn").onclick = () => map && map.zoomOut();
 
@@ -390,10 +507,14 @@ function toggleEssential(id, solo){
   renderMapUI();
 }
 /* open the map on one essential, for example Laundry, near where you are looking */
-function showEssentialOnMap(id){
+// nearMe: centre on the phone's position when it's known (the Wi-Fi finder), rather than the place being looked around
+function showEssentialOnMap(id, {nearMe = false} = {}){
   ui.essKinds.clear(); mapRun.stash = mapRun.stash || new Set(ui.mapCats.size ? ui.mapCats : ["gaff","munch","cool"]); ui.mapCats.clear();
-  ui.essKinds.add(id); ui.essOpen = true; ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = null;
-  const p = focusPt(); if (!p.none) flyTo(p, 14);
+  ui.essKinds.add(id); ui.essOpen = true; ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = null; highlightPin(null);
+  const real = userLoc && (locStatus === "ok" || locStatus === "test");
+  if (nearMe && real) flyTo(userLoc, 15);
+  else if (nearMe && !userLoc && locStatus !== "denied") locate(true, st => { if (userLoc && (st === "ok" || st === "test")) flyTo(userLoc, 15); }, true);
+  else { const p = focusPt(); if (!p.none) flyTo(p, 14); }
   go("#map");
 }
 async function setBasemap(mode){
@@ -421,7 +542,13 @@ function selectPlace(id, fly){
   if (it && fly && map) flyTo(it, Math.max(map.getZoom(), 15));
   renderMapBottom();
 }
-function previewCard(it){
+// a selected place keeps its preview when a filter hides its pin, and the preview says why
+function selFilterNote(it){
+  if (ui.mapSaved || !ui.mapCats.has(it.c) || passMapFilter(it)) return "";
+  if (it.c === "move") return "The transport filter hides this kind of place";
+  return pfReason(it, it.c) === "unknown" ? "No known price, so the price filter hides its pin" : "Outside the current price filter, so its pin is hidden";
+}
+function previewCard(it, filterNote = ""){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v), pt = userLoc || (S.focus ? focusPt() : null);
   const oh = isOpenNow(it), loc = itemLocal(it);
   const bits = [esc(it.area || it.city)];
@@ -429,9 +556,9 @@ function previewCard(it){
   if (it.r != null) bits.push(`${(it.r / 2).toFixed(1)} stars`);
   if (loc) bits.push(esc(withGBP(loc, it.p, it.cur)));
   return `<div class="preview" style="--c:${col}" id="preview">
-    <div class="ph">${icon(kindIcon(it))}</div>
+    <div class="ph" data-ph="${esc(it.id)}">${icon(kindIcon(it))}</div>
     <div class="body"><div class="eyebrow">${esc(kindLabel(it))}</div><h3>${esc(it.n)}</h3><div class="m">${bits.join(" · ")}</div>
-      ${oh ? `<div class="m" style="color:${oh.open ? "var(--ok)" : "var(--faint)"}">${esc(oh.text)}</div>` : ""}</div>
+      ${oh ? `<div class="m" style="color:${oh.open ? "var(--ok)" : "var(--faint)"}">${esc(oh.text)}</div>` : ""}${filterNote ? `<div class="m pv-filt">${icon("info","i xs")} ${esc(filterNote)}</div>` : ""}</div>
     ${saveBtn(it)}<button class="close" type="button" id="pvClose" aria-label="Close preview">${icon("x","i s")}</button>
     <div class="acts"><button class="btn small primary" type="button" data-open="${esc(it.id)}">View details</button><a class="btn small" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav","i s")}Directions</a></div></div>`;
 }
@@ -448,8 +575,9 @@ function renderMapBottom(){
     placeSide(el.offsetHeight); return;
   }
   if (sel){
-    el.innerHTML = previewCard(sel);
+    el.innerHTML = previewCard(sel, selFilterNote(sel));
     $("#pvClose").onclick = () => selectPlace(null);
+    watchCardPhotos(el);
     placeSide(el.offsetHeight); return;
   }
   let items = mapRun.items.slice();
@@ -525,7 +653,7 @@ function bindMapSearch(){
     const local = localMatches(text), names = new Set(local.map(s => s.n.toLowerCase()));
     const rem = remote.filter(s => !names.has(s.n.toLowerCase()));
     const offer = typeof askOffer === "function" ? askOffer(text) : null;
-    const askRow = offer ? `<button type="button" data-ask class="ask-sug">${icon("spark","i s")}<span>${esc(askTitle(offer.a))}<small>Answer from the app's places${userLoc ? ", nearest to you" : ""}</small></span></button>` : "";
+    const askRow = offer ? `<button type="button" data-ask class="ask-sug">${icon(offer.nearest ? "nav" : "spark","i s")}<span>${esc(askTitle(offer.a))}<small>${offer.nearest ? `Shows it on the map${userLoc ? ", nearest to you" : ", using your location"}` : `Answer from the app's places${userLoc ? ", nearest to you" : ""}`}</small></span></button>` : "";
     let h = (offer && offer.first ? askRow : "") + local.map((s, i) => `<button type="button" data-l="${i}">${icon(s.dest ? "pin" : "star","i s")}<span>${esc(s.n)}<small>${esc(s.sub)}</small></span></button>`).join("");
     if (offer && !offer.first) h += askRow;
     if (rem.length) h += `<div class="hd">More places in Thailand</div>` + rem.map((s, i) => `<button type="button" data-r="${i}">${icon((KIND[s.k] || {ic:"pin"}).ic,"i s")}<span>${esc(s.n)}<small>${esc((KIND[s.k] || {l:"Place"}).l)} · ${esc(s.area)}</small></span></button>`).join("");
@@ -534,7 +662,7 @@ function bindMapSearch(){
     if (!local.length && !rem.length && !online.length && text.length < 3) h = `<div class="hd">Keep typing…</div>`;
     box.innerHTML = h; box.hidden = !h;
     box.querySelectorAll("[data-l]").forEach(b => b.onclick = () => choose(local[+b.dataset.l]));
-    const ab = box.querySelector("[data-ask]"); if (ab) ab.onclick = () => { close(); inp.blur(); showAnswer(text); };
+    const ab = box.querySelector("[data-ask]"); if (ab) ab.onclick = () => { close(); inp.blur(); if (offer.nearest) goNearest(text, offer.a); else showAnswer(text); };
     box.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const s = rem[+b.dataset.r]; choose({id:s.id, g:s.g, node:{n:s.n, lat:s.lat, lng:s.lng}}); });
     box.querySelectorAll("[data-o]").forEach(b => b.onclick = () => choose(online[+b.dataset.o]));
     const wb = box.querySelector("[data-web]"); if (wb) wb.onclick = async () => { busy = true; paint(); const r = await osmSearch(text); busy = false; online = r || []; if (!r) toast("Search needs signal"); else if (!r.length) toast("Nothing found. Try another spelling."); paint(); };
@@ -560,7 +688,9 @@ function bindMapSearch(){
       if (err === "no-speech"){ toast("Didn't catch that. Tap the mic and try again"); return; }
       if (!final) return;
       inp.value = final;
-      if (typeof parseAsk === "function" && parseAsk(final)){ close(); inp.blur(); showAnswer(final); }
+      // the same intents as typing: "nearest pharmacy" goes straight to it, other questions get the list of answers
+      if (nearestIntent(final)){ close(); inp.blur(); goNearest(final); }
+      else if (typeof parseAsk === "function" && parseAsk(final)){ close(); inp.blur(); showAnswer(final); }
       else { online = []; paint(); runRemote(); }
     });
     if (rec){ mic.setAttribute("aria-pressed", "true"); mic.classList.add("on"); inp.value = ""; inp.placeholder = "Listening…"; setTimeout(() => inp.placeholder = "Search places or ask a question", 6000); }

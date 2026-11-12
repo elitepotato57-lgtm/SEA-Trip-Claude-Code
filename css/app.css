@@ -553,3 +553,23 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:calc(13px * var
 .ask-txt small{display:block;color:var(--muted);font-size:calc(12.5px * var(--ts,1))}
 .ask-txt .open{color:var(--ok);font-weight:600}
 .ask-row .btn{flex:none;height:44px;width:44px;padding:0;justify-content:center}
+
+/* the maximum-price filter (map filter row and the list filter panels share the same controls) */
+.pf{display:flex;gap:6px;align-items:center;flex:none}
+.pf .mf-lab{white-space:nowrap}
+.pf-custom{display:inline-flex;align-items:center;gap:4px;flex:none;border:1px solid var(--line);border-radius:var(--r-s);padding:2px 3px 2px 6px;background:var(--surface)}
+.pf-custom.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pf-custom input{width:5.2em;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:calc(13px * var(--ts,1));padding:4px 2px}
+.pf-custom input[aria-invalid="true"]{color:var(--bad,#e86a5a)}
+.pf-custom select{border:0;background:transparent;color:var(--muted);font:inherit;font-size:calc(12.5px * var(--ts,1));padding:0 2px}
+.pf-custom .chip{height:calc(26px * var(--chip,1))}
+.pf-sep{width:1px;height:20px;background:var(--line);flex:none;margin:0 2px}
+.pf-row{margin:4px 0 0;padding-bottom:4px}
+.pf-row .chip{background:var(--surface);box-shadow:none}
+.pf-note .linkish,.linkish{background:none;border:0;padding:0;color:var(--accent-2,var(--accent));font:inherit;text-decoration:underline;cursor:pointer}
+.price small.basis{opacity:.8}
+.pv-filt{color:var(--faint)}
+
+/* the map preview's photo, when the place has one (falls back to its icon) */
+.preview .ph{position:relative;overflow:hidden}
+.preview .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

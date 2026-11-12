@@ -109,50 +109,137 @@ function showGooglePhoto(box, it, pl){
   }, {passive:true});
 }
 
-/* ---------- free photos: Wikipedia and Wikidata (Wikimedia Commons) ---------- */
+/* ---------- free photos: Wikipedia and Wikidata (Wikimedia Commons) ----------
+   Lookups are batched: every card that scrolls into view within a moment shares one Wikipedia request (up to 40 titles)
+   and one Wikidata request, instead of one or two requests each. Cards get a 640 px picture (not the original, which can
+   be several megabytes); the details sheet asks for 960 px. Both are Wikimedia's standard sizes (it rounds other widths up,
+   so 640 used to arrive as 960). Wikidata pictures are asked for straight from upload.wikimedia.org (the address is worked out
+   from the file name, as MediaWiki does), which saves two redirects per picture. A lookup that fails (no signal) answers
+   {err:true}, so it is tried again later rather than remembered as "no photo". Only pictures on Wikimedia Commons are used. */
+const PH_CARD = 500, PH_BIG = 960;
+// MD5 of a UTF-8 string, hex: Commons keeps file "Ab_c.jpg" under /thumb/x/xy/ where xy starts the MD5 of its name
+const md5 = (() => {
+  const K = [], R = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+  for (let i = 0; i < 64; i++) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0;
+  return str => {
+    const b = new TextEncoder().encode(str), n = ((b.length + 8) >> 6) + 1, w = new Uint32Array(n * 16);
+    for (let i = 0; i < b.length; i++) w[i >> 2] |= b[i] << ((i % 4) * 8);
+    w[b.length >> 2] |= 0x80 << ((b.length % 4) * 8);
+    w[n * 16 - 2] = (b.length * 8) >>> 0; w[n * 16 - 1] = Math.floor(b.length / 2 ** 29);
+    let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476;
+    for (let j = 0; j < w.length; j += 16){
+      let a = h0, bb = h1, c = h2, d = h3;
+      for (let i = 0; i < 64; i++){
+        let f, g;
+        if (i < 16){ f = (bb & c) | (~bb & d); g = i; }
+        else if (i < 32){ f = (d & bb) | (~d & c); g = (5 * i + 1) % 16; }
+        else if (i < 48){ f = bb ^ c ^ d; g = (3 * i + 5) % 16; }
+        else { f = c ^ (bb | ~d); g = (7 * i) % 16; }
+        f = (f + a + K[i] + w[j + g]) >>> 0;
+        const r = R[(i >> 4) * 4 + (i % 4)];
+        a = d; d = c; c = bb; bb = (bb + ((f << r) | (f >>> (32 - r)))) >>> 0;
+      }
+      h0 = (h0 + a) >>> 0; h1 = (h1 + bb) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
+    }
+    return [h0, h1, h2, h3].map(x => [0, 8, 16, 24].map(s => ((x >>> s) & 255).toString(16).padStart(2, "0")).join("")).join("");
+  };
+})();
+// a Commons picture at a standard width, straight from the image server (null for kinds that need the slow way round)
+function commonsThumb(file, width){
+  let n = phName(file).replace(/ /g, "_"); if (!n) return null;
+  n = n.charAt(0).toUpperCase() + n.slice(1);
+  const ext = (/\.(\w+)$/.exec(n) || [])[1] || "";
+  if (!/^(jpe?g|png|gif|webp|svg)$/i.test(ext)) return null;
+  const h = md5(n), e = enc(n);
+  return `https://upload.wikimedia.org/wikipedia/commons/thumb/${h[0]}/${h.slice(0, 2)}/${e}/${width}px-${e}${/^svg$/i.test(ext) ? ".png" : ""}`;
+}
+// if a worked-out address fails (a picture narrower than the size asked for has no thumbnail), Commons' own redirect finds it
+function thumbFallback(src){
+  const m = /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/thumb\/[0-9a-f]\/[0-9a-f]{2}\/([^/]+)\/(\d+)px-/.exec(src || "");
+  return m ? `https://commons.wikimedia.org/wiki/Special:FilePath/${m[1]}?width=${m[2]}` : null;
+}
 const photoCache = {};
-function loadPhoto(it){
-  if (!it.wp || typeof fetch === "undefined") return Promise.resolve(null);
-  if (!(it.wp in photoCache)) photoCache[it.wp] = loadPhoto_(it);
-  return Promise.resolve(photoCache[it.wp]);
+/* No Buddha imagery anywhere (a deliberate choice). Pictures of Buddhist temples and shrines often show Buddha statues, so
+   temples get no photo at all (not Google's either) unless that exact picture was looked at and listed in PHOTO_CHECKED.
+   Pictures whose file name mentions a Buddha, monks or a pagoda are skipped everywhere. Bali's Hindu temples (Pura …) are fine. */
+const NO_PH_RE = /\b(wat|buddha|budda|buddhas|buddhist|buddhism|pagoda|stupa|chedi|vihara|viharn|wihan|candi|monastery|monks?|bodhisattva|guanyin|guan yin|kuan yin|phra that|phra yai|reclining)\b/i;
+const PHOTO_CHECKED = {            // place id: the Commons file that was looked at (temple architecture only, no statues)
+  "c-doisuthep":"Wat Phra That Doi Suthep - Chiang Mai.jpg", "c-bkk-watarun":"Wat Arun from Chao Phraya River.jpg",
+  "c-cm-chedluang":"Wat Chedi Luang, Buddhist temple, Chiang Mai, Thailand.jpg", "c-cm-phrasingh":"Chiang Mai - Wat Phra Singh - 0004.jpg",
+  "c-cm-chiangman":"Wat Chiang Man (I).jpg", "c-cr-blue":"Wat Rong Suea Ten (Blue Temple, Chiang Rai) วัดร่องเสือเต้น (October 2021) - img 01.jpg",
+  "c-ay-sanphet":"Ayutthaya Wat Phra Si Sanphet (Site of Royal Palace) (31538948627).jpg",
+  "c-sk-central":"Sukhothai, Buddhist stupas on the lake, Thailand.jpg", "c-py-sanctuary":"Sanctuary of Truth 001.JPG",
+  "c-angkor":"Angkor Wat.jpg", "c-phousi":"Mount Phou Si from the Mekong.jpg", "c-batu":"Batu Caves stairs 2022-05.jpg",
+  "c-ubd-tirtaempul":"Bali - bathing (Melukat) at Pura Tirta Empul (2025) - img 07.jpg", "c-ubd-goagajah":"Bali - Goa Gajah (2022) - img 20.jpg",
+  "c-ubd-gunungkawi":"Bali - Gunung Kawi (2025) - img 07.jpg", "c-cgg-tanahlot":"TanahLot 2014.JPG",
+  "c-amd-lempuyang":"Bali Pura Lempuyang Luhur.jpg", "c-plm-mosque":"Masjid Agung Palembang.jpg"};
+const phName = f => { let s = String(f || ""); try { s = decodeURIComponent(s); } catch(e){} return s.replace(/^File:/i, "").replace(/_/g, " ").trim(); };
+const isTemple = it => it.osm ? it.k === "temple" : hasT(it, "Temples");
+const templeLike = it => !!it && ((isTemple(it) && !/\bpura\b/i.test(it.n || "")) || NO_PH_RE.test(it.n || ""));
+const photoPlaceOk = it => !templeLike(it) || !!PHOTO_CHECKED[it.id];
+const photoFileOk = (it, file) => PHOTO_CHECKED[it.id] ? phName(file) === phName(PHOTO_CHECKED[it.id]) : !!phName(file) && !NO_PH_RE.test(phName(file).replace(/[-.,()]/g, " "));
+const photoSrcOk = (it, src) => photoPlaceOk(it) && photoFileOk(it, commonsFile(src));
+function batcher(run, max = 40, wait = 40){
+  const q = new Map(); let t = null;
+  const flush = async () => {
+    t = null;
+    const batch = [...q.entries()].slice(0, max); batch.forEach(([k]) => q.delete(k));
+    if (q.size) t = setTimeout(flush, wait);
+    let res = null; try { res = await run(batch.map(([k]) => k)); } catch(e){ res = null; }
+    batch.forEach(([k, waiters]) => waiters.forEach(w => w(res ? (res[k] || null) : {err:true})));
+  };
+  return key => new Promise(r => { if (!q.has(key)) q.set(key, []); q.get(key).push(r); if (!t) t = setTimeout(flush, wait); });
 }
-async function loadPhoto_(it){
-  let out = null;
-  try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${enc(it.wp)}`);
-    if (!res.ok) throw new Error("no page");
-    const j = await res.json();
-    const orig = j.originalimage, th = j.thumbnail;
-    let src = null;
-    if (orig && orig.width <= 1400) src = orig.source;
-    else if (th && th.source) src = th.source.replace(/\/\d+px-/, "/800px-");
-    if (src && !/\/wikipedia\/commons\//.test(src)) src = null;     // pictures kept only on English Wikipedia can be non-free: skip them
-    out = src ? {src, page: (j.content_urls && j.content_urls.mobile && j.content_urls.mobile.page) || `https://en.wikipedia.org/wiki/${enc(it.wp)}`, by:"Photo via Wikipedia"} : null;
-  } catch(e){ out = null; }
+const commonsOnly = src => src && /\/wikipedia\/commons\//.test(src) ? src : null;   // pictures kept only on English Wikipedia can be non-free: skip them
+const wpLookup = batcher(async titles => {
+  const j = await getJSON(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=${PH_CARD}&pilicense=free&titles=${enc(titles.join("|"))}`, {timeout:10000});
+  const q = j.query || {}, norm = {}, redir = {};
+  (q.normalized || []).forEach(n => norm[n.from] = n.to); (q.redirects || []).forEach(r => redir[r.from] = r.to);
+  const byTitle = {}; Object.values(q.pages || {}).forEach(p => byTitle[p.title] = p);
+  const out = {};
+  for (const t of titles){
+    let k = norm[t] || t; k = redir[k] || k;
+    const p = byTitle[k], src = p && p.thumbnail && commonsOnly(p.thumbnail.source);
+    out[t] = src ? {src, page:p.fullurl || `https://en.wikipedia.org/wiki/${enc(t)}`, by:"Photo via Wikipedia"} : {none:true};
+  }
   return out;
+});
+const wdLookup = batcher(async ids => {
+  // one small query for many items: just each item's main picture (P18)
+  const sparql = `SELECT ?i ?img WHERE { VALUES ?i { ${ids.filter(x => /^Q\d+$/.test(x)).map(x => "wd:" + x).join(" ")} } ?i wdt:P18 ?img }`;
+  const j = await getJSON(`https://query.wikidata.org/sparql?format=json&query=${enc(sparql)}`, {timeout:10000});
+  const out = {}; ids.forEach(id => out[id] = {none:true});
+  for (const b of (j.results && j.results.bindings) || []){
+    const id = b.i.value.split("/").pop(), file = decodeURIComponent(b.img.value.split("/").pop()).replace(/_/g, " ");
+    if (out[id] && out[id].none) out[id] = {file, src:commonsThumb(file, PH_CARD) || `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=${PH_CARD}`, page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"};
+  }
+  return out;
+}, 50);
+// a lookup that failed isn't remembered, so the next look tries again
+function cachedLookup(key, make){
+  if (!(key in photoCache)) photoCache[key] = make().then(r => { if (!r || r.err) delete photoCache[key]; return r; });
+  return photoCache[key];
 }
-function loadWdPhoto(it){
-  if (!it.wd || typeof fetch === "undefined") return Promise.resolve(null);
-  const key = "wd:" + it.wd;
-  if (!(key in photoCache)) photoCache[key] = (async () => {
-    try {
-      const j = await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${enc(it.wd)}&property=P18&format=json&origin=*`, {timeout:9000});
-      const file = j.claims && j.claims.P18 && j.claims.P18[0] && j.claims.P18[0].mainsnak.datavalue.value;
-      return file ? {src:`https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=640`, page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"} : null;
-    } catch(e){ return null; }
-  })();
-  return Promise.resolve(photoCache[key]);
-}
+const loadPhoto = it => !it.wp || typeof fetch === "undefined" ? Promise.resolve(null) : cachedLookup("wp:" + it.wp, () => wpLookup(String(it.wp)));
+const loadWdPhoto = it => !it.wd || typeof fetch === "undefined" ? Promise.resolve(null) : cachedLookup("wd:" + it.wd, () => wdLookup(String(it.wd)));
+const realPhoto = r => r && r.src ? r : null;
+// the bigger picture for the details sheet (Wikimedia makes these sizes on request)
+const bigPhoto = src => src && /\/\d+px-/.test(src) ? src.replace(/\/\d+px-/, `/${PH_BIG}px-`) : src && /Special:FilePath/.test(src) ? src.replace(/width=\d+/, "width=" + PH_BIG) : src;
+// {src, page, by} for a place, null when it has none, {err:true} when it couldn't be checked (no signal)
 const freePhoto = async it => {
+  if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it);
   if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
-  return (it.wp && await loadPhoto(it)) || (it.wd && await loadWdPhoto(it)) || null;
+  const a = it.wp ? await loadPhoto(it) : null; if (realPhoto(a) && photoSrcOk(it, a.src)) return a;
+  const b = it.wd ? await loadWdPhoto(it) : null; if (realPhoto(b) && photoSrcOk(it, b.src)) return b;
+  return (a && a.err) || (b && b.err) ? {err:true} : null;
 };
 // a landmark photo saved with a city (Tools > Offline & backup), if there is one
 async function savedPhoto(it){
   if (typeof PACK_PHOTOS === "undefined") return null;
   if (packPhotosReady) await packPhotosReady;
-  return PACK_PHOTOS.get(it.id) || null;
+  const pk = PACK_PHOTOS.get(it.id) || null;
+  return pk && photoSrcOk(it, pk.s) ? pk : null;
 }
 /* Card photos load only when the card scrolls into view. Order: Google (only with a key, within today's allowance),
    then a free Wikipedia / Wikimedia Commons photo, otherwise the card keeps its illustration.
@@ -165,30 +252,39 @@ const cphSave = debounce(() => {
   lsSet(CPH_KEY, cph);
 }, 800);
 const googleFor = it => !!googleKey() && it.c !== "move" && it.c !== "ess";     // Google only for stays, food and things to do
+const googlePhotoFor = it => googleFor(it) && !templeLike(it);                   // nobody has looked at Google's temple photos
 async function cardPhoto(it){
+  if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it); if (pk) return pk.s;          // saved with a city: free, and works offline
   const hit = cph[it.id], now = Date.now();
   // free photos are kept for 30 days; Google photo links only for a day (they expire and Google asks apps not to keep them)
-  if (hit && now - hit.at < (hit.g ? 864e5 : 30 * 864e5) && (hit.src || !googleFor(it) || hit.gTried)) return hit.src;
+  if (hit && now - hit.at < (hit.g ? 864e5 : 30 * 864e5) && (hit.src || !googlePhotoFor(it) || hit.gTried))
+    return hit.src && !hit.g && !photoSrcOk(it, hit.src) ? null : hit.src;     // remembered by an older version: checked again
   let src = null, g = false, gTried = false;
-  if (googleFor(it) && gAllow("photo")){
+  if (googlePhotoFor(it) && gAllow("photo")){
     gTried = true;
     const pl = await googlePlace(it, ["photos"]);
     if (pl && pl.photos && pl.photos.length){ src = pl.photos[0].getURI({maxWidth: 640}); g = true; gSpend("photo"); }
   }
-  if (!src){ const ph = await freePhoto(it); if (ph) src = ph.src; }
-  if (src || navigator.onLine !== false){ cph[it.id] = {src, at:now, g, gTried}; cphSave(); }
+  let failed = false;
+  if (!src){ const ph = await freePhoto(it); if (ph && ph.src) src = ph.src; else if (ph && ph.err) failed = true; }
+  if (src || !failed){ cph[it.id] = {src, at:now, g, gTried}; cphSave(); }      // "no photo" is remembered; "couldn't check" isn't
   return src;
 }
+const cardWait = {};                                // one lookup per place even when it's on two cards at once
+const cardPhotoOnce = it => cardWait[it.id] || (cardWait[it.id] = cardPhoto(it).finally(() => { delete cardWait[it.id]; }));
 let photoObs = null;
 function watchCardPhotos(root){
   const slots = root.querySelectorAll("[data-ph]:not([data-done])"); if (!slots.length) return;
   const fill = async slot => {
     const it = findPlace(slot.dataset.ph); if (!it || slot.dataset.done) return;
     slot.dataset.done = "1";
-    const src = await cardPhoto(it); if (!src || !slot.isConnected) return;
+    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src) slot.dataset.nophoto = "1"; return; }
     const img = new Image(); img.alt = ""; img.decoding = "async";
-    img.onerror = () => { img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); } };
+    img.onerror = () => {
+      const fb = !img.dataset.fb && thumbFallback(img.src); if (fb){ img.dataset.fb = "1"; img.src = fb; return; }
+      img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
+    };
     img.onload = () => slot.insertBefore(img, slot.firstChild);
     img.src = src;
   };
@@ -217,11 +313,18 @@ function wikiInto(box, it){
   if (!it.wp && !it.wd){ box.innerHTML = photoFallback(it, "none"); return; }
   freePhoto(it).then(ph => {
     if (!box.isConnected || box.dataset.id !== it.id) return;
-    if (!ph){ box.innerHTML = photoFallback(it, "none"); return; }
+    if (!ph || !ph.src){ box.innerHTML = photoFallback(it, "none"); return; }
     box.classList.add("has-img");
     box.classList.remove("art"); box.style.backgroundImage = "";
+    // the card's picture shows at once (the browser already has it), then the bigger one replaces it when it arrives
     box.innerHTML = `<img alt="${esc(it.n)}" src="${esc(ph.src)}"><div class="credit"><a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.by)}</a></div>`;
-    box.querySelector("img").onerror = () => { box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none"); };
+    const im = box.querySelector("img");
+    im.onerror = () => {
+      const fb = !im.dataset.fb && thumbFallback(im.src); if (fb){ im.dataset.fb = "1"; im.src = fb; return; }
+      box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none");
+    };
+    const big = bigPhoto(ph.src);
+    if (big && big !== ph.src){ const pre = new Image(); pre.onload = () => { if (im.isConnected && !im.dataset.fb) im.src = big; }; pre.src = big; }
     // name the photographer and the licence, as Commons licences ask
     if (ph.credit){ box.querySelector(".credit").innerHTML = `<a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.credit)}</a>`; return; }
     commonsCredit(ph.src).then(c => { const cr = box.querySelector(".credit"); if (c && cr && box.dataset.id === it.id) cr.innerHTML = `Photo: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.by)}</a>, ${esc(c.lic)}, Wikimedia Commons`; });
@@ -349,7 +452,7 @@ function openDetail(id){
     if (pl && pl.photos && pl.photos.length){ gSpend("photo"); box.classList.remove("art"); box.style.backgroundImage = ""; showGooglePhoto(box, it, pl); return; }
     wikiInto(box, it);
   });
-  if (googleFor(it) && gAllow("photo")) viaGoogle();
+  if (googlePhotoFor(it) && gAllow("photo")) viaGoogle();
   else if (it.wp || it.wd) wikiInto(box0, it);
   if (googleFor(it)) googleFacts(it);
 }

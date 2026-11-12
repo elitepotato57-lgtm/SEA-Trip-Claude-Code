@@ -36,7 +36,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 (async () => {
   const server = process.env.BASE ? null : await start(PORT);
   const browser = await chromium.launch(launchOpts);
-  const ctx = await browser.newContext({viewport:{width:393, height:852}});
+  // a phone in central Bangkok that allows location (the app no longer pretends: it uses the real position)
+  const ctx = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -46,7 +47,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
-  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 6, "each place summary downloads once, for Thailand and Indonesia " + JSON.stringify(sumHits));
+  const dbs = await page.evaluate(() => PLACE_DBS.length);
+  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3 * dbs, `each place summary downloads once, for all ${dbs} countries ` + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
@@ -63,14 +65,45 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => !!document.querySelector("#sheetRoot .sheet")), "tapping a place opens its details");
   await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(600);
 
+  // Design Lab: hidden on a new phone; Settings has no look controls; switching the Lab on brings it back, with the look inside it
   await page.goto(BASE + "#tools/settings"); await page.waitForTimeout(1000);
-  await page.click('#pageview [data-look="paper"]'); await page.waitForTimeout(2500);
-  ok(await page.evaluate(() => document.documentElement.dataset.look === "paper"), "Paper Atlas look switches on");
+  ok(await page.evaluate(() => !document.querySelector("#labBtn") && !document.querySelector('#pageview [data-look]') && S.design.on === false), "Design Lab is hidden by default and Settings has no look controls");
+  await page.click('#pageview [data-labtoggle]'); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => !!document.querySelector("#labBtn") && S.design.on === true), "the Design Lab can still be switched on in Settings");
+  await page.click("#labBtn"); await page.waitForTimeout(400);
+  await page.click('#lab [data-labtab="look"]'); await page.waitForTimeout(300);
+  await page.click('#lab [data-look="paper"]'); await page.waitForTimeout(2500);
+  ok(await page.evaluate(() => document.documentElement.dataset.look === "paper"), "Paper Atlas look switches on from the Design Lab");
   await page.goto(BASE + "#map"); await page.waitForTimeout(3000);
   ok(await page.evaluate(() => map.getStyle().name.includes("Paper")), "map uses the Paper Atlas style");
-  await page.goto(BASE + "#tools/settings"); await page.waitForTimeout(1000);
-  await page.click('#pageview [data-look="night"]'); await page.waitForTimeout(2500);
+  await page.click("#labBtn"); await page.waitForTimeout(400);
+  await page.click('#lab [data-labtab="look"]'); await page.waitForTimeout(300);
+  await page.click('#lab [data-look="night"]'); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !document.documentElement.dataset.look), "back to the night look");
+
+  // Currency: local money on the left, pounds on the right, and it works both ways
+  await page.goto(BASE + "#tools/currency"); await page.waitForTimeout(800);
+  const conv = await page.evaluate(() => { const ins = [...document.querySelectorAll(".conv input")]; return {left:ins[0] && ins[0].id, right:ins[1] && ins[1].id, leftCur:document.querySelector(".conv select").value}; });
+  ok(conv.left === "cv-loc" && conv.right === "cv-gbp" && conv.leftCur === "THB", "the converter shows baht on the left and pounds on the right " + JSON.stringify(conv));
+  await page.fill("#cv-loc", "1000"); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => Math.abs(parseFloat(document.querySelector("#cv-gbp").value) - 1000 / rate("THB")) < 0.02), "typing baht gives pounds");
+  await page.fill("#cv-gbp", "10"); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => Math.abs(parseFloat(document.querySelector("#cv-loc").value) - 10 * rate("THB")) < 0.02), "typing pounds gives baht");
+
+  // Budget is hidden (no tile, no Discover card) but its saved data is kept
+  await page.evaluate(() => { S.budget.items.push({amt:100, cur:"THB", what:"test", at:Date.now()}); persist(); });
+  await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => !document.querySelector('#pageview a[href="#tools/budget"]')), "Budget has no tile in Tools");
+  await page.goto(BASE + "#discover"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => !document.querySelector('#pageview a[href="#tools/budget"]') && S.budget.items.some(x => x.what === "test")), "Discover shows no Budget card, and the spending is still saved");
+  await page.evaluate(() => { S.budget.items = S.budget.items.filter(x => x.what !== "test"); persist(); });
+
+  // Wi-Fi finder: straight to the main map with only Wi-Fi showing
+  await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
+  await page.click('#pageview a[href="#tools/wifi"]'); await page.waitForTimeout(5000);
+  const wf = await page.evaluate(() => ({view:ui.view, ess:[...ui.essKinds], cats:ui.mapCats.size, n:mapRun.items.length, onlyWifi:mapRun.items.every(p => p.k === "wifi")}));
+  ok(wf.view === "map" && wf.ess.join() === "wifi" && wf.cats === 0 && wf.onlyWifi, "Wi-Fi finder opens the map with only Wi-Fi places " + JSON.stringify(wf));
+  await page.evaluate(() => { ui.essKinds.clear(); ui.essOpen = false; ui.mapCats = new Set(["gaff", "munch", "cool"]); mapRun.stash = null; renderMapUI(); });
 
   // map filters: picking Munch (from All) shows only food, with a price row; tapping Munch again clears the map
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
@@ -78,11 +111,24 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => [...ui.mapCats].join() === "munch" && !document.querySelector("#mapFilt").hidden), "tapping Munch shows only food, with the filter row");
   const before = await page.evaluate(() => mapRun.items.length);
-  await page.click('#mapFilt [data-mb="1"]'); await page.waitForTimeout(1500);
-  const cheap = await page.evaluate(() => ({n:mapRun.items.length, ok:mapRun.items.every(p => priceBand(p) === 1)}));
-  ok(cheap.ok && cheap.n > 0 && cheap.n < before, `£ filter keeps only cheap places (${cheap.n} of ${before})`);
+  // price presets: every place left has a known or estimated price at or under the maximum, none with an unknown price
+  await page.click('#mapFilt [data-pfp="2"]'); await page.waitForTimeout(1500);
+  const cheap = await page.evaluate(() => ({n:mapRun.items.length, ok:mapRun.items.every(p => { const pr = pfPrice(p, "munch"); return pr && pr.gbp <= 2; })}));
+  ok(cheap.ok && cheap.n > 0 && cheap.n < before, `£2 a dish keeps only places at or under £2 (${cheap.n} of ${before})`);
+  // the same filter, the same answer in the Munch list
+  await page.goto(BASE + "#munch"); await page.waitForTimeout(3000);
+  const lst = await page.evaluate(() => ({max:ui.pf.munch.max, all:listItems("munch").every(p => passPF(p, "munch")), note:!!document.querySelector(".pf-note")}));
+  ok(lst.max === 2 && lst.all && lst.note, "the Munch list keeps the £2 maximum from the map and applies the same rule " + JSON.stringify(lst));
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  // a custom amount in baht is converted at the app's rate; a nonsense amount is refused
+  await page.fill('#mapFilt [data-pfamt]', "60"); await page.selectOption('#mapFilt [data-pfcur]', "THB"); await page.click('#mapFilt [data-pfset]'); await page.waitForTimeout(1200);
+  ok(await page.evaluate(() => Math.abs(ui.pf.munch.max - Math.round(toGBP(60, "THB") * 100) / 100) < 0.011), "a custom maximum of ฿60 is converted to pounds at the app's rate");
+  await page.fill('#mapFilt [data-pfamt]', "-3"); await page.click('#mapFilt [data-pfset]'); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => ui.pf.munch.max > 0 && document.querySelector('#mapFilt [data-pfamt]').getAttribute("aria-invalid") === "true"), "a negative custom amount is refused");
   ok(await page.evaluate(() => !document.querySelector("#mapFilt [data-mr]")), "no star filter (places have no ratings to filter on)");
-  await page.click('#mapFilt [data-mb=""]'); await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(1500);
+  await page.click('#mapFilt [data-pfp=""]'); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => ui.pf.munch.max === null), "Any clears the maximum");
+  await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(1500);
   ok(await page.evaluate(() => ui.mapCats.size === 0 && mapRun.items.length === 0), "tapping the only section again switches everything off");
   await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
   ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden && ui.mapCats.size === 3), "All brings everything back, without the filter row");
@@ -91,8 +137,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.evaluate(() => { setFocus({n:"Palembang", lat:-2.9888, lng:104.7569}); setCountry("ID", true); });
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
   await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.7569, -2.9888], zoom:14.5}); }); await page.waitForTimeout(4000);
-  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, lab:(document.querySelector('#mapFilt [data-mb="1"]') || {}).textContent}));
-  ok(idMap.id > 20 && /Rp/.test(idMap.lab || ""), "Palembang food shows on the map, with price filters in rupiah " + JSON.stringify(idMap));
+  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, lab:(document.querySelector('#mapFilt [data-pfcur]') || {}).textContent}));
+  ok(idMap.id > 20 && /Rp/.test(idMap.lab || ""), "Palembang food shows on the map, with a custom maximum in rupiah " + JSON.stringify(idMap));
   const pem = await page.evaluate(async () => (await Places.search("pempek", {lat:-2.9888, lng:104.7569})).map(s => s.n));
   ok(pem.length > 0 && pem.every(n => /pempek|empek/i.test(n)), "search finds pempek places in Palembang " + JSON.stringify(pem.slice(0, 3)));
   await page.evaluate(() => { setFocus({n:"Ubud", lat:-8.5069, lng:115.2625}); });
@@ -111,8 +157,33 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
   await page.evaluate(() => { ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
 
+  // Transport on the map: Airports counts only airports, zoomed out and in, and a selected airport stays selected through zooming
+  await page.evaluate(() => { ui.mapCats = new Set(["move"]); ui.mf.move.t = "airport"; renderMapUI(); map.jumpTo({center:[100.6, 13.8], zoom:8}); }); await page.waitForTimeout(3500);
+  const air = await page.evaluate(() => ({mode:mapRun.mode, total:mapRun.total, status:document.querySelector("#mapStatusTxt").textContent}));
+  ok(air.total > 0 && air.total < 20 && /airports here/.test(air.status), "zoomed out, Transport › Airports counts only airports " + JSON.stringify(air));
+  await page.evaluate(() => map.jumpTo({center:[100.65, 13.8], zoom:10})); await page.waitForTimeout(3500);
+  const airIn = await page.evaluate(() => ({mode:mapRun.mode, n:mapRun.items.length, kinds:[...new Set(mapRun.items.map(p => p.k))]}));
+  ok(airIn.mode === "detail" && airIn.n >= 2 && airIn.kinds.every(k => k === "airport"), "zoomed in, only airport pins " + JSON.stringify(airIn));
+  const pick = await page.evaluate(() => { const p = mapRun.items.find(x => x.k === "airport"); selectPlace(p.id); return {id:p.id, c:[p.lng, p.lat]}; });
+  await page.evaluate(c => map.jumpTo({center:c, zoom:7}), pick.c); await page.waitForTimeout(2500);
+  const outSel = await page.evaluate(id => ({sel:ui.mapSel === id, hl:mapRun.hl === id, prev:!!document.querySelector("#preview"), mode:mapRun.mode}), pick.id);
+  await page.evaluate(c => map.jumpTo({center:c, zoom:11}), pick.c); await page.waitForTimeout(3000);
+  const inSel = await page.evaluate(id => ({sel:ui.mapSel === id, hl:mapRun.hl === id, prev:!!document.querySelector("#preview"), pin:mapRun.items.some(p => p.id === id)}), pick.id);
+  ok(outSel.sel && outSel.hl && outSel.prev && inSel.sel && inSel.hl && inSel.prev && inSel.pin, "the selected airport stays selected after zooming out and back in " + JSON.stringify({outSel, inSel}));
+  await page.evaluate(() => { selectPlace(null); ui.mf.move.t = "all"; ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
+
+  // Journey planner: every leg's 12Go button matches that leg (mode and direction), with the date and group
+  await page.goto(BASE + "#tools/transport"); await page.waitForTimeout(1200);
+  await page.evaluate(() => { ui.tp.from = hubNode("bkk"); ui.tp.to = hubNode("gilit"); ui.tp.date = addDays(todayISO(), 20); ui.tp.people = 2; renderPage(); }); await page.waitForTimeout(1500);
+  const book = await page.evaluate(() => { const card = [...document.querySelectorAll(".trip")].find(c => c.querySelectorAll(".leg").length === 3); return card ? [...card.querySelectorAll(".leg")].map(l => { const a = l.querySelector("a[data-book]"); return a ? a.getAttribute("href") : ""; }) : null; });
+  const d20 = await page.evaluate(() => addDays(todayISO(), 20));
+  ok(book && /\/flights\/bangkok\/denpasar-airport\?date=/.test(book[0]) && /\/padang-bai\?/.test(book[1]) && /\/ferry\/padang-bai\/gili-trawangan\?/.test(book[2]) && book.every(h => h.includes("date=" + d20) && h.includes("people=2")), "Bangkok to Gili T: flight, transfer and ferry each link to their own 12Go page " + JSON.stringify(book));
+  ok(await page.evaluate(() => /12Go shows the real departures/.test(document.querySelector("#pageview").textContent)), "the planner says 12Go confirms the service, price and seats");
+  await page.evaluate(() => { ui.tp.from = null; ui.tp.to = null; ui.tp.date = ""; ui.tp.people = 1; });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+
   // questions in the search box: typed questions get an answer row; answers list nearby places
-  await page.fill("#m-q", "where's the nearest toilet"); await page.waitForTimeout(600);
+  await page.fill("#m-q", "toilets near me"); await page.waitForTimeout(600);
   ok(await page.evaluate(() => { const b = document.querySelector("#mapSugs button"); return !!b && b.hasAttribute("data-ask"); }), "a typed question offers an answer first");
   await page.click("#mapSugs [data-ask]"); await page.waitForTimeout(4000);
   const toil = await page.evaluate(() => ({rows:document.querySelectorAll("#sheetRoot .ask-row").length, title:(document.querySelector("#askBody h3") || {}).textContent}));
@@ -121,6 +192,25 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   const ans = await page.evaluate(async () => { const r = await answerAsk("best cheap restaurant near me"); return r.items.map(x => ({c:x.p.c, band:priceBand(x.p), km:x.km})); });
   ok(ans.length > 0 && ans.every(x => x.c === "munch" && x.band === 1 && x.km <= 5), "best cheap restaurant near me: cheap food within 5 km " + ans.length);
   await page.fill("#m-q", ""); await page.waitForTimeout(300);
+
+  // "take me to the nearest ATM", typed: the map moves to the single nearest ATM, selects its pin and opens the preview with directions
+  const pagesBefore = ctx.pages().length;
+  await page.fill("#m-q", "Take me to the nearest ATM"); await page.waitForTimeout(700);
+  ok(await page.evaluate(() => /nearest ATM/.test((document.querySelector("#mapSugs [data-ask]") || {}).textContent || "")), "a nearest-place request offers to go there");
+  await page.press("#m-q", "Enter"); await page.waitForTimeout(5000);
+  const near = await page.evaluate(() => { const p = ui.mapSel && findPlace(ui.mapSel); return p && {k:p.k, km:dist(userLoc, p), ess:[...ui.essKinds], prev:!!document.querySelector("#preview"), dir:!!document.querySelector('#preview a[href*="maps/dir"]'), ring:mapRun.hl === ui.mapSel ? 1 : 0, z:map.getZoom()}; });
+  ok(near && ["atm", "bank"].includes(near.k) && near.km < 2 && near.prev && near.dir && near.ring === 1 && near.z > 14 && near.ess.join() === "atm", "the nearest ATM is selected on the map with its preview and directions " + JSON.stringify(near));
+  // check it really is the nearest: nothing loaded nearby is closer
+  ok(await page.evaluate(async () => { const p = findPlace(ui.mapSel), d = dist(userLoc, p); const all = await Places.near("ess", userLoc, {maxKm:d + 0.05, want:400, test:x => ["atm", "bank"].includes(x.k)}); return all.items.every(x => dist(userLoc, x) >= d - 1e-6); }), "no ATM in the data is closer than the one chosen");
+  ok(ctx.pages().length === pagesBefore, "directions are offered, not launched");
+  await page.evaluate(() => selectPlace(null));
+  // with location blocked it says so and uses the middle of the map, rather than pretending
+  await page.evaluate(() => { window.__toasts = []; const t = window.toast; window.toast = (m, u) => { __toasts.push(m); return t(m, u); }; S.testLoc = "off"; userLoc = null; locStatus = "idle"; navigator.geolocation.getCurrentPosition = (ok, err) => setTimeout(() => err({code:1}), 50); });
+  await page.evaluate(() => goNearest("where's the closest pharmacy")); await page.waitForTimeout(4000);
+  const den = await page.evaluate(() => { const p = ui.mapSel && findPlace(ui.mapSel); return {k:p && p.k, status:locStatus, toast:__toasts.join(" | ")}; });
+  ok(den.k === "pharmacy" && den.status === "denied" && /location is off/.test(den.toast), "with location blocked, the nearest pharmacy to the map is shown and labelled honestly " + JSON.stringify(den));
+  await page.evaluate(() => { selectPlace(null); delete navigator.geolocation.getCurrentPosition; ui.essKinds.clear(); ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); });
+  await page.evaluate(() => new Promise(r => locate(false, r)));
 
   // Documents: a PDF boarding pass and a picture of a TDAC are read on the phone, named and sorted
   await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
@@ -143,17 +233,13 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => !!document.querySelector("#docView canvas.doc-page, #docView img")), "a document opens to view");
   await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(400);
 
-  // Camera translator: with Google's replies faked (no real key, no cost), a photo comes back as lines with English and pronunciation
-  await page.route("**/vision.googleapis.com/**", r => r.fulfill({json:{responses:[{textAnnotations:[{description:"ข้าวผัดกุ้ง\nPad Thai\nน้ำเปล่า\n"}]}]}}));
-  await page.route("**/translation.googleapis.com/**", r => r.fulfill({json:{data:{translations:[{translatedText:"Shrimp fried rice"}, {translatedText:"Water"}]}}}));
-  await page.evaluate(() => { S.gkey = "AIzaTEST-fake"; });
-  await page.goto(BASE + "#tools/camera"); await page.waitForTimeout(800);
-  const png = path.join(os.tmpdir(), "sea-trip-menu.png");
-  fs.writeFileSync(png, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
-  await page.setInputFiles("#camPick", png); await page.waitForTimeout(2500);
-  const cam = await page.evaluate(() => [...document.querySelectorAll(".cam-line")].map(x => x.textContent.replace(/\s+/g, " ").trim()));
-  ok(cam.length === 3 && /Shrimp fried rice/.test(cam[0]) && /say: /.test(cam[0]) && /Not Thai/.test(cam[1]) && /Water/.test(cam[2]), "camera translator shows each line in English with how to say it " + JSON.stringify(cam));
-  await page.evaluate(() => { S.gkey = ""; }); await page.unroute("**/vision.googleapis.com/**"); await page.unroute("**/translation.googleapis.com/**");
+  // Camera translator: switched off (it needed a paid Google service); Tools has no tile, an old link asks for nothing and explains the free phone apps
+  await page.goto(BASE + "#tools"); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => !document.querySelector('#pageview a[href="#tools/camera"]')), "no camera translator tile in Tools");
+  await page.goto(BASE + "#tools/camera"); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => !document.querySelector('#pageview input[type="file"]') && /Google Translate/.test(document.querySelector("#pageview").textContent)), "the old camera link shows the free phone apps and no camera input");
+  await page.goto(BASE + "#tools/translate"); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => /Live Text|text icon/.test(document.querySelector("#pageview").textContent) && !document.querySelector('#pageview a[href="#tools/camera"]')), "the translator explains camera translation on the phone instead");
 
   // Design Lab: a colour preset recolours the chips and the map circles; text size and reset work
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
@@ -173,6 +259,83 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click("#lab [data-labclose]"); await page.waitForTimeout(300);
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
   ok(w2 <= 393, `no sideways scroll after the Lab (width ${w2})`);
+
+  // Location on a new phone, anywhere the app covers: here, a friend in Ubud (Bali)
+  const ubudGeo = {latitude:-8.5069, longitude:115.2625};
+  const phoneIn = async (geo, opts = {}) => {
+    const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:geo, permissions:opts.deny ? [] : ["geolocation"]});
+    if (opts.saved) await c.addInitScript(st => { if (!sessionStorage.getItem("seeded")){ localStorage.setItem("sea-trip-app-v1", JSON.stringify(st)); sessionStorage.setItem("seeded", "1"); } }, opts.saved);
+    const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(7000);
+    return {c, pg};
+  };
+  const where = pg => pg.evaluate(() => ({cc:S.country, mode:S.countryMode, st:locStatus, test:S.testLoc, km:map ? dist({lat:map.getCenter().lat, lng:map.getCenter().lng}, {lat:-8.5069, lng:115.2625}) : null, near:(document.querySelector(".near-title") || {}).textContent || ""}));
+  {
+    const {c, pg} = await phoneIn(ubudGeo);
+    const w = await where(pg);
+    ok(w.cc === "ID" && w.st === "ok" && w.test === "off" && w.km < 3, "a fresh install in Ubud uses the real location: Indonesia, map on Ubud " + JSON.stringify(w));
+    await pg.goto(BASE + "#tools/currency"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => document.querySelector("#cv-cur").value === "IDR"), "the money converter starts on rupiah in Indonesia");
+    await c.close();
+  }
+  {
+    // someone who used an older version: the pretend Bangkok default and a map left on Bangkok
+    const {c, pg} = await phoneIn(ubudGeo, {saved:{countryMode:"auto", country:"TH", testLoc:"Bangkok", mapView:{c:[100.5393, 13.7466], z:13}, saved:{}}});
+    const w = await where(pg);
+    ok(w.cc === "ID" && w.st === "ok" && w.test === "off" && w.km < 3, "a returning user's old Bangkok test default no longer overrides the real GPS " + JSON.stringify(w));
+    await c.close();
+  }
+  {
+    // a country picked by hand stays picked; the dot still shows; Automatic follows the phone again
+    const {c, pg} = await phoneIn(ubudGeo, {saved:{v:2, countryMode:"manual", country:"TH", testLoc:"off", saved:{}}});
+    const w = await where(pg);
+    ok(w.cc === "TH" && w.mode === "manual" && w.st === "ok", "a manual country choice is respected " + JSON.stringify(w));
+    await pg.goto(BASE + "#tools/settings"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Picked by you: Thailand/.test(document.querySelector("#pageview").textContent)), "Settings says the country was picked by hand");
+    await pg.click('#pageview [data-cmode="auto"]'); await pg.waitForTimeout(2500);
+    ok(await pg.evaluate(() => S.country === "ID" && S.countryMode === "auto"), "choosing Automatic follows the phone to Indonesia");
+    await c.close();
+  }
+  {
+    // location refused: the map stays on the country, and nothing claims to be "closest to you"
+    const {c, pg} = await phoneIn(ubudGeo, {deny:true});
+    const w = await where(pg);
+    ok(w.st === "denied" && !/Closest to you/.test(w.near), "with location refused the app says so and doesn't pretend " + JSON.stringify(w));
+    await c.close();
+  }
+
+  // Cambodia: a new phone in Phnom Penh follows the real location; the map, lists, guide, emergency numbers and phrasebook switch
+  {
+    const {c, pg} = await phoneIn({latitude:11.5683, longitude:104.9224});
+    const k = await pg.evaluate(() => ({cc:S.country, st:locStatus, km:map ? dist({lat:map.getCenter().lat, lng:map.getCenter().lng}, {lat:11.5683, lng:104.9224}) : null}));
+    ok(k.cc === "KH" && k.st === "ok" && k.km < 3, "a fresh install in Phnom Penh picks Cambodia and centres on it " + JSON.stringify(k));
+    await pg.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.9224, 11.5683], zoom:14.5}); }); await pg.waitForTimeout(4000);
+    const km = await pg.evaluate(() => ({n:mapRun.items.length, kh:mapRun.items.filter(p => p.cc === "KH").length, cur:[...document.querySelectorAll("#mapFilt [data-pfcur] option")].map(o => o.textContent)}));
+    ok(km.kh > 20 && km.cur.includes("$"), "Phnom Penh food shows on the map, with a custom maximum in dollars " + JSON.stringify(km));
+    await pg.goto(BASE + "#munch"); await pg.waitForTimeout(3500);
+    const ml = await pg.evaluate(() => { const t = (document.querySelector("#pageview .cards") || {}).textContent || ""; return {cards:document.querySelectorAll("#pageview .card[data-open]").length, usd:/\$\d/.test(t), baht:/฿/.test(t)}; });
+    ok(ml.cards > 5 && ml.usd && !ml.baht, "the Munch list in Phnom Penh shows dollar estimates, never baht " + JSON.stringify(ml));
+    await pg.goto(BASE + "#tools/guide"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Cambodia guide/.test(document.querySelector("#pageview h1").textContent) && /landmine/i.test(document.querySelector("#pageview").textContent)), "the guide switches to Cambodia");
+    await pg.goto(BASE + "#tools/emergency"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => ["117", "118", "119"].every(n => document.querySelector(`#pageview a[href="tel:${n}"]`)) && /Phnom Penh/.test(document.querySelector("#pageview").textContent)), "Cambodia's emergency numbers (117, 118, 119) and the embassy in Phnom Penh");
+    await pg.goto(BASE + "#tools/translate"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Khmer phrasebook/.test(document.querySelector("#h-pb").textContent) && /អរគុណ/.test(document.querySelector("#pageview").textContent)), "the phrasebook switches to Khmer");
+    const w4 = await pg.evaluate(() => document.documentElement.scrollWidth);
+    ok(w4 <= 393, `no sideways scroll on the Cambodian pages (width ${w4})`);
+    // somewhere to stay, eat and visit near each destination the brief names, islands included
+    const near = await pg.evaluate(async () => {
+      const out = {};
+      for (const name of ["Phnom Penh", "Siem Reap", "Kampot", "Kep", "Battambang", "Sihanoukville", "Koh Rong", "Koh Rong Sanloem"]){
+        const d = KH_DESTS.find(x => x[0] === name), pt = {lat:d[1], lng:d[2]}, r = {};
+        for (const g of ["stay", "food", "do"]){ const f = await Places.nearest(g, pt, {maxKm:10}); r[g] = f && f.p ? +f.km.toFixed(1) : null; }
+        out[name] = r;
+      }
+      return out;
+    });
+    ok(Object.values(near).every(r => r.stay != null && r.food != null && r.do != null), "a stay, food and something to do within 10 km of all 8 Cambodian destinations " + JSON.stringify(near));
+    await c.close();
+  }
 
   // offline: the service worker should already have saved the app
   // (the app only registers its service worker on https, so register it by hand on localhost)

@@ -7,7 +7,7 @@
   show();
   renderLabButton();                    // the Design Lab's palette tab (Settings can hide it)
   if (tested){ updateMe(); }
-  else if (S.countryMode === "auto") locate(false);
+  else locate(false);                    // the phone's position (asks the first time); the country only follows it in automatic mode
   Places.ready();                       // fetch the small index of the places database in the background
   refreshLiveRates(false);              // and today's exchange rates, if there is signal
 })();

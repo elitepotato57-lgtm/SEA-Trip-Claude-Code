@@ -5,13 +5,15 @@
 const TOOLS = [
   {id:"currency", l:"Currency", d:"Baht and other rates, works offline", ic:"cash"},
   {id:"translate", l:"Translator", get d(){ return `${phrasebook().name} phrasebook and live translation`; }, ic:"lang", alt:1},
-  {id:"camera", l:"Camera translator", d:"Point at a menu or sign", ic:"camera"},
+  // the camera translator needed Google Cloud Vision (a billing account), so it is hidden; the Translator page explains the free phone apps instead
+  {id:"camera", l:"Camera translator", d:"Point at a menu or sign", ic:"camera", hidden:true},
   {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
-  {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1},
+  // Budget is hidden for now: its page and everyone's saved spending are kept (js/tools-more.js), it just has no tile
+  {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1, hidden:true},
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
-  {id:"wifi", l:"Wi-Fi finder", d:"Cafés and spots with Wi-Fi", ic:"wifi", alt:1},
-  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
+  {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
+  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : S.country === "KH" ? "Cambodia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
   {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1}
@@ -24,7 +26,7 @@ function renderTools(){
   if (sub && TOOL_PAGES[sub]){ TOOL_PAGES[sub](root); return; }
   const c = D.countries[S.country];
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
-    <div class="tgrid">${TOOLS.map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
+    <div class="tgrid">${TOOLS.filter(t => !t.hidden).map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
     <div class="sect"><h2>Essentials nearby</h2><a href="#map" id="t-essmap">View on map</a></div>
     <div class="egrid">${["laundry","atm","pharmacy","water","shop","supermarket","sim","hospital"].map(id => { const e = ESS_BY_ID[id]; return `<button class="ebtn" type="button" data-ess="${id}">${icon(e.ic)}${e.l.replace(" and minimarts", "")}</button>`; }).join("")}</div>
     <p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>
@@ -74,11 +76,11 @@ TOOL_PAGES.currency = root => {
   <section class="block" aria-labelledby="h-conv">
     <h2 id="h-conv">Money converter</h2>
     <div class="conv" style="margin-top:8px">
-      <label class="field"><select id="cv-home" aria-label="Your currency">${curOptions(conv.home, HOME_CURS)}</select><input class="big-in" inputmode="decimal" id="cv-gbp" value="${esc(conv.gbp)}" aria-label="Amount in your currency"></label>
-      <span style="padding-bottom:12px;color:var(--muted)">${icon("swap")}</span>
       <label class="field"><select id="cv-cur" aria-label="Local currency">${curOptions(conv.cur, locals)}</select><input class="big-in" inputmode="decimal" id="cv-loc" value="${esc(locVal)}" aria-label="Amount in local currency"></label>
+      <span style="padding-bottom:12px;color:var(--muted)">${icon("swap")}</span>
+      <label class="field"><select id="cv-home" aria-label="Your currency">${curOptions(conv.home, HOME_CURS)}</select><input class="big-in" inputmode="decimal" id="cv-gbp" value="${esc(conv.gbp)}" aria-label="Amount in your currency"></label>
     </div>
-    <p class="note" style="margin-top:10px" id="cv-note">${money(1, conv.home)} = ${money(r, conv.cur)}. ${esc(S.rates[conv.cur] > 0 ? "Using your own rate." : live ? `Live mid-market rate, updated ${S.live.date}.` : `Built-in rate (${D.rates[conv.cur].note}).`)} Cash exchanges and cards give a little less.</p>
+    <p class="note" style="margin-top:10px" id="cv-note">${money(r, conv.cur)} = ${money(1, conv.home)}. ${esc(S.rates[conv.cur] > 0 ? "Using your own rate." : live ? `Live mid-market rate, updated ${S.live.date}.` : `Built-in rate (${D.rates[conv.cur].note}).`)} Cash exchanges and cards give a little less.</p>
     <div class="row" style="margin-top:8px"><button class="btn small" type="button" id="cv-refresh">${icon("swap","i s")}Update rates now</button><a class="btn small ghost" href="#tools/settings">Set my own rate</a></div>
     <div class="quick" aria-label="Common notes">${quick}</div>
   </section>
@@ -93,6 +95,12 @@ TOOL_PAGES.currency = root => {
   refreshLiveRates(false).then(l => { if (l && !live && ui.view === "tools" && ui.sub === "currency" && document.activeElement !== hIn && document.activeElement !== lIn) renderPage(); });
 };
 
+// the phones' own camera translators are free, work offline once the language is downloaded, and read Thai far better than
+// anything that runs inside a web page (see progress.md: Tesseract's Thai model on real signs was mostly guesswork)
+const CAMERA_TIP = `<details class="more" style="margin:2px 0 10px"><summary>${icon("camera", "i s")} Translate a menu or sign with the camera</summary>
+  <ul class="known note" style="margin-top:6px"><li><b>iPhone:</b> open the Camera, point at the writing, tap the text icon in the corner, then <b>Translate</b>. Or use Apple’s Translate app › Camera.</li>
+  <li><b>Android:</b> open Google Translate › Camera (or Google Lens). Download Thai or Indonesian in Translate first and it works with no signal.</li></ul>
+  <p class="note">Both are free. This app’s own camera translator is switched off: it needed a paid Google service.</p></details>`;
 /* ---------- translator and phrasebook ---------- */
 const TR_LANGS = [["th", "Thai"], ["km", "Khmer (Cambodia)"], ["vi", "Vietnamese"], ["lo", "Lao"], ["ms", "Malay"], ["id", "Indonesian"], ["zh-CN", "Chinese (Mandarin)"]];
 const TR_VOICE = {th:"th-TH", km:"km-KH", vi:"vi-VN", lo:"lo-LA", ms:"ms-MY", id:"id-ID", "zh-CN":"zh-CN", en:"en-GB"};
@@ -214,7 +222,29 @@ const PHRASES_ID = [
     ["1,000", "seribu", "", "suh-REE-boo"], ["10,000", "sepuluh ribu", "", "suh-POO-looh REE-boo"], ["100,000", "seratus ribu", "", "suh-RA-toos REE-boo"]]}
 ];
 // the phrasebook for the country you're in: Indonesian in Indonesia, Thai everywhere else
-const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
+/* Khmer: words and spellings from Wikivoyage's Khmer phrasebook where it has them (checked Nov 2026); the "Say" lines are an
+   approximate English spelling. Khmer has no tones, but the vowels are hard: tap the speaker if the phone has a Khmer voice. */
+const PHRASES_KH = [
+  {t:"Basics", p:[
+    ["Hello (polite)", "ជម្រាបសួរ", "", "chum-REAP SUOR"], ["Hello (casual)", "សួស្តី", "", "suos-DEI"], ["Thank you", "អរគុណ", "", "AW-kun"],
+    ["Yes (said by a man)", "បាទ", "", "baht"], ["Yes (said by a woman)", "ច៎ា", "", "jaah"], ["No", "អត់ទេ", "", "ot TAY"],
+    ["Sorry / excuse me", "សូមទោស", "", "som TOH"], ["I don’t understand", "ខ្ញុំមិនយល់ទេ", "", "k’nyom min YUL tay"], ["Goodbye (polite)", "ជម្រាបលា", "", "chum-REAP LEA"]]},
+  {t:"Money and numbers", p:[
+    ["How much is it?", "ថ្លៃប៉ុន្មាន?", "", "t’lai pon-MAAN"], ["Too expensive", "ថ្លៃពេក", "", "t’lai PEK"], ["Can you lower the price?", "ចុះថ្លៃបានទេ?", "", "choh t’lai baan TAY"],
+    ["One", "មួយ", "", "muay"], ["Two", "ពីរ", "", "pee"], ["Three", "បី", "", "bei"], ["Four", "បួន", "", "buan"], ["Five", "ប្រាំ", "", "pram"], ["Ten", "ដប់", "", "dop"],
+    ["One hundred", "មួយរយ", "", "muay ROY"], ["One thousand", "មួយពាន់", "", "muay POAN"]]},
+  {t:"Food and drink", p:[
+    ["Water", "ទឹក", "", "tuk"], ["Rice", "បាយ", "", "bai"], ["Delicious", "ឆ្ងាញ់", "", "ch’NGANH"], ["Not spicy, please", "សូមកុំហឹរ", "", "som kom HUR"],
+    ["The bill, please", "សូមគិតលុយ", "", "som kit LUY"]]},
+  {t:"Getting around", p:[
+    ["Where is the toilet?", "បង្គន់នៅឯណា?", "", "bong-KUN nov ae NAA"], ["Stop here", "ឈប់នៅទីនេះ", "", "chhup nov tee NIH"],
+    ["Left", "ឆ្វេង", "", "ch’veng"], ["Right", "ស្តាំ", "", "sdam"], ["Straight on", "ត្រង់", "", "trong"]]},
+  {t:"Help", p:[
+    ["Help!", "ជួយផង!", "", "CHUAY phong"], ["Hospital", "មន្ទីរពេទ្យ", "", "mon-TEE pet"], ["Police", "ប៉ូលិស", "", "po-LEES"],
+    ["I need a doctor", "ខ្ញុំត្រូវការគ្រូពេទ្យ", "", "k’nyom trov-KAA kru-PET"]]}
+];
+const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}
+  : S.country === "KH" ? {list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
 let phraseTab = 0;
 TOOL_PAGES.translate = root => {
   const lang = trLang(), langName = (TR_LANGS.find(l => l[0] === lang) || TR_LANGS[0])[1];
@@ -222,7 +252,7 @@ TOOL_PAGES.translate = root => {
   if (phraseTab >= PB.list.length) phraseTab = 0;
   const g = PB.list[phraseTab];
   root.innerHTML = toolHero("Translator", `Live translation and an offline ${PB.name} phrasebook`) + `<div class="page">
-    <a class="btn" href="#tools/camera" style="margin:2px 0 10px">${icon("camera", "i s")}Translate with the camera</a>
+    ${CAMERA_TIP}
   <section class="block" aria-labelledby="h-tr">
     <h2 id="h-tr">Translator</h2>
     <div class="row" style="margin-top:8px"><label class="field">Language<select id="tr-lang">${TR_LANGS.map(([code, name]) => `<option value="${code}" ${code === lang ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></label>
@@ -233,7 +263,7 @@ TOOL_PAGES.translate = root => {
   </section>
   <section class="block" aria-labelledby="h-pb">
     <h2 id="h-pb">${PB.name} phrasebook</h2>
-    <p class="note">Works offline. ${PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
+    <p class="note">Works offline. ${PB.lang === "km" ? "Men say <b>baht</b> for yes and women <b>jaah</b>. Words from Wikivoyage’s Khmer phrasebook; the “Say” line is only a rough guide. " : PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
     <div class="scroller" style="margin-top:8px">${PB.list.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
     <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in ${PB.name}">${icon("speaker")}</button><span class="th" lang="${PB.lang}">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span>${p[2] ? `<span class="ro">With tone marks: ${esc(p[2])}</span>` : ""}</div>`).join("")}</div>
   </section></div>`;
@@ -252,19 +282,20 @@ function setupPage(){
   const domains = [...new Set([...D.places, ...D.routes, ...D.net.edges].flatMap(x => x.src || []).map(s => s[0]))].sort();
   const gk = googleKey(), m = Places.meta;
   return toolHero("Settings", "Location, photos, exchange rates and data") + `<div class="page">
-  <section class="block"><h2>Test location</h2>
-    <p class="note">While you’re testing at home, the app can pretend you’re somewhere on the trip. Turn this off before you fly.</p>
-    <label class="field" style="margin-top:8px">Pretend I’m in<select id="testLoc"><option value="off" ${S.testLoc === "off" ? "selected" : ""}>Off (use my real location)</option>${TEST_SPOTS.map(c => `<option value="${esc(c[0])}" ${S.testLoc === c[0] ? "selected" : ""}>${esc(c[0])}${c[0] === "Bangkok" ? " (Siam, city centre)" : ""}</option>`).join("")}</select></label>
-  </section>
   <section class="block"><h2>Country</h2>
-    <p class="note">Sets the money converter, translator and ride tips. Thailand is the country covered in depth.</p>
+    <p class="note">Sets the money converter, translator, guide and ride tips.</p>
     <div class="seg" role="group" aria-label="How to choose the country" style="margin:6px 0 10px">
-      <button data-cmode="auto" aria-pressed="${S.countryMode === "auto"}">Use my location</button>
+      <button data-cmode="auto" aria-pressed="${S.countryMode === "auto"}">Automatic</button>
       <button data-cmode="manual" aria-pressed="${S.countryMode === "manual"}">Pick it myself</button></div>
+    <p class="note" style="color:var(--ink)">${S.countryMode === "auto" ? `Automatic: ${esc(D.countries[S.country].name)}${locStatus === "ok" ? ", from your phone’s location" : locStatus === "test" ? ", from the test location" : " until your location is known"}.` : `Picked by you: ${esc(D.countries[S.country].name)}. It stays until you choose Automatic.`}</p>
     <p class="note">${esc(LOC_LINE())}</p>
     <button class="btn small" id="relocate" type="button" style="margin:8px 0 10px">${icon("locate","i s")}Check my location again</button>
     <div class="cgrid">${Object.entries(D.countries).map(([k, x]) => `<button data-country="${k}" aria-pressed="${S.country === k}"><span class="f" aria-hidden="true">${x.flag}</span>${esc(x.name)}</button>`).join("")}</div>
   </section>
+  <details class="block more"${S.testLoc !== "off" ? " open" : ""}><summary><b>Testing: pretend location</b>${S.testLoc !== "off" ? ` <span class="tag warn">On: ${esc(S.testLoc)}</span>` : ""}</summary>
+    <p class="note" style="margin-top:6px">For trying the app at home: it pretends you’re somewhere on the trip instead of using GPS. Leave it Off on the trip.</p>
+    <label class="field" style="margin-top:8px">Pretend I’m in<select id="testLoc"><option value="off" ${S.testLoc === "off" ? "selected" : ""}>Off (use my real location)</option>${TEST_SPOTS.map(c => `<option value="${esc(c[0])}" ${S.testLoc === c[0] ? "selected" : ""}>${esc(c[0])}${c[0] === "Bangkok" ? " (Siam, city centre)" : ""}</option>`).join("")}</select></label>
+  </details>
   <section class="block"><h2>Photos from Google</h2>
     <p class="note">With a Google key, the researched places show Google photos, their Google rating and exact location. Other places only load Google photos when you ask, to keep Google’s costs at zero.</p>
     <p class="note" style="color:var(--ink)">${gk ? (S.gkey ? "Key saved on this phone." : "Key set in config.js, so everyone gets photos.") : "No key yet."}</p>
@@ -272,14 +303,10 @@ function setupPage(){
     <div class="row" style="margin-top:10px"><button class="btn small primary" id="gkeySave" type="button">Save key</button><button class="btn small" id="gkeyTest" type="button">Test it</button></div>
     <p class="note" style="margin-top:10px">Photos only load with signal; Google doesn’t allow saving them for offline use.</p>
   </section>
-  <section class="block"><h2>Look</h2>
-    <p class="note">Night is the standard dark look. Paper Atlas is a lighter, old-map style that is easier to read in bright sun. The app reloads to switch.</p>
-    <div class="seg" role="group" aria-label="Look" style="margin-top:8px"><button data-look="night" aria-pressed="${S.look !== "paper"}">Night</button><button data-look="paper" aria-pressed="${S.look === "paper"}">Paper Atlas</button></div>
-  </section>
   <section class="block"><h2>Design Lab</h2>
-    <p class="note">A place to try colours, map colours, fonts and sizes live on any screen. Open it from the palette tab on the left edge of the screen.</p>
-    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-openlab>${icon("palette","i s")}Open the Design Lab</button>
-      <button class="switch" type="button" data-labtoggle aria-pressed="${S.design.on !== false}"><i></i>Show the palette tab</button></div>
+    <p class="note">For trying looks (Night or Paper Atlas), colours, fonts and sizes. It’s hidden unless you switch it on here.</p>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="switch" type="button" data-labtoggle aria-pressed="${S.design.on === true}"><i></i>Show the Design Lab</button>
+      ${S.design.on === true ? `<button class="btn" type="button" data-openlab>${icon("palette","i s")}Open it</button>` : ""}</div>
   </section>
   <section class="block"><h2>Exchange rates</h2>
     <p class="note">How much £1 gets you. ${S.live ? `Live rates were last updated ${esc(S.live.date)}.` : "Live rates load when you open the Currency tool with signal."} Type your own rate to override one.</p>
@@ -288,9 +315,9 @@ function setupPage(){
     <p class="note" style="margin-top:10px">Built-in rates checked on: ${D.rateSources.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}.</p>
   </section>
   <section class="block" id="aboutData"><h2>About the data</h2>
-    <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a Thailand transport network of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
-    <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} Thailand places from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider Thailand places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
-    <p>Anything marked “not checked yet” uses typical prices, not ones we looked up. Taxi prices are estimates from Bangkok’s meter rates. OpenStreetMap places never show a price or rating, because it doesn’t record them.</p>
+    <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a transport network (Thailand, Bali, Lombok and southern Sumatra) of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
+    <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} places in ${esc(listAnd(PLACE_DBS.map(db => (D.countries[db.cc] || {name:db.cc}).name)))} from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
+    <p>Anything marked “not checked yet” uses typical prices, not ones we looked up. Taxi prices are estimates from Bangkok’s meter rates. OpenStreetMap doesn’t record prices or ratings, so its places never show a rating, and any price on one is a typical-price estimate marked “est.”.</p>
     <p class="note">Sources for the researched places: ${domains.map(esc).join(", ")}. Country outlines from Natural Earth. Weather by Open-Meteo. Exchange rates by the open currency-api project.</p>
     <details class="more"><summary>Photo credits</summary>
       <p class="note" style="margin-top:6px">Photos from Wikimedia Commons, cropped for the app and shared under the same licences:</p>
@@ -306,9 +333,8 @@ function bindSetup(){
     else { applyTestLocation(); updateMe(); if (map) flyTo(userLoc, 12); toast(`Test location: ${S.testLoc}`); }
     rerender();
   };
-  root.querySelector("[data-openlab]").onclick = () => openLab();
-  root.querySelector("[data-labtoggle]").onclick = () => { S.design.on = S.design.on === false; persist(); renderLabButton(); renderPage(); };
-  root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { if (S.look === b.dataset.look) return; S.look = b.dataset.look; persist(); location.reload(); });
+  const ol = root.querySelector("[data-openlab]"); if (ol) ol.onclick = () => openLab();
+  root.querySelector("[data-labtoggle]").onclick = () => { S.design.on = S.design.on !== true; persist(); if (!S.design.on) closeLab(); renderLabButton(); renderPage(); };
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);

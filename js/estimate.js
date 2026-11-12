@@ -38,6 +38,7 @@ const FOOD_TYPES = [
   ["Bakery & cakes",    /^(cake|donut|bakery|pastry|bread)$/,                                                      /bakery|เบเกอรี่|cake|เค้ก|ขนมปัง|donut|โดนัท|pastry|croissant|\broti\b|\bkue\b/],
   ["Café & coffee",     /^(coffee shop|coffee|cafe)$/,                                                             /coffee|café|cafe|กาแฟ|คาเฟ่|espresso|roaster|\bkopi\b|warkop|ngopi/],
   // the everyday local food of each country: only used for places in that country (see foodType)
+  ["Khmer",             /^(khmer|cambodian)$/,                                                                     /\bamok\b|lok ?lak|num ?banh|nom ?banh|kuy ?teav|kuy ?tieu|bai sach|khmer|cambodian|prahok|\bbbq khmer\b/],
   ["Indonesian",        /^(indonesian|regional|local|sundanese|javanese|balinese|betawi)$/,                        /warung|rumah makan|\brm\b|\bnasi\b|\bsoto\b|gado|pecel|lalapan|bebek|\bayam\b|indonesian|sambal|lontong|ketoprak|rawon|gudeg|martabak|sunda|seblak|batagor|siomay|\bmasakan\b/],
   ["Thai",              /^(thai|regional|local|thai;regional|southern thai|northern thai)$/,                       /thai|ไทย|อาหารตามสั่ง|ตามสั่ง|ครัว|ร้านอาหาร|แกง|ผัดไทย|pad thai|tom yum|ต้มยำ|kaphrao|krapow|กะเพรา|khao|ข้าว/],
   ["Asian",             /^(asian|thai;asian|fusion)$/,                                                             /asian|fusion/]
@@ -75,7 +76,7 @@ const brandOf = it => {
   return Object.keys(FOOD_BRANDS).find(b => b.length > 3 && n.toLowerCase().startsWith(b.toLowerCase())) || null;
 };
 // each country's everyday food label is only used there ("regional" cuisine means Thai food in Thailand, Indonesian food in Indonesia)
-const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian"};
+const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer"};
 const typeFits = (label, it) => !Object.values(LOCAL_FOOD).includes(label) || LOCAL_FOOD[it.cc || "TH"] === label;
 // cache per place: these run for thousands of map points
 function foodType(it){
@@ -146,10 +147,19 @@ const DO_PRICE_ID = {
 const STAY_PRICE_ID = {hostel:[80000, 200000, "A dorm bed."], guesthouse:[150000, 350000], hotel:[250000, 700000], resort:[500000, 1500000], bungalow:[150000, 400000],
   apartment:[300000, 700000], motel:[150000, 300000], campsite:[20000, 100000, "A pitch or tent."], hut:[50000, 150000]};
 const STAY_STARS_ID = {1:[150000, 300000], 2:[200000, 400000], 3:[350000, 700000], 4:[600000, 1200000], 5:[1200000, 3000000]};
+/* Cambodia, in US dollars (prices there are mostly quoted in dollars, small change in riel). Only kinds of place that
+   2026 cost guides cover have an estimate: dorm beds about $5–10, guesthouse rooms $10–25, street food $1–4, local
+   restaurants $3–10, a local beer $1–2 (Lonely Planet "Cambodia on a budget", travelwithhello.com, travelguidestip.com,
+   checked Nov 2026). Other kinds get no estimate, so they show no price rather than a guess. */
+const FOOD_TYPE_PRICE_KH = {"Khmer":[2, 6], "Street food":[1, 4], "Market food":[1, 4], "Noodles":[1, 4], "Rice dishes":[1, 4]};
+const FOOD_KIND_PRICE_KH = {fastfood:[1, 4], market:[1, 4], foodcourt:[2, 5], restaurant:[3, 10]};
+const DO_PRICE_KH = {bar:[1, 2, "A local beer."], market:[0, 0, "Free to walk round."]};
+const STAY_PRICE_KH = {hostel:[5, 10, "A dorm bed."], guesthouse:[10, 25]};
 // which tables each country uses (others use Thailand's, converted)
 const PRICE_TABLES = {
   TH:{cur:"THB", food:FOOD_TYPE_PRICE, kind:FOOD_KIND_PRICE, do:DO_PRICE, stay:STAY_PRICE, stars:STAY_STARS},
-  ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID}
+  ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID},
+  KH:{cur:"USD", food:FOOD_TYPE_PRICE_KH, kind:FOOD_KIND_PRICE_KH, do:DO_PRICE_KH, stay:STAY_PRICE_KH, stars:{}, only:true}
 };
 
 // {lo, hi, cur, per, est:true, why, note?}  or null when we can't sensibly guess
@@ -161,6 +171,7 @@ function estPrice(it){
   const grp = it.g || (it.c === "gaff" ? "stay" : it.c === "munch" ? "food" : it.c === "cool" ? "do" : null);
   if (grp === "food"){
     const b = brandOf(it);
+    if (b && T.only) return (it._ep = null);          // chains have no sourced Cambodian prices, so no estimate there
     if (b){
       const br = FOOD_BRANDS[b];
       if (it.cc === "ID" && BRAND_PRICE_ID[b]){ out = {lo:BRAND_PRICE_ID[b][0], hi:BRAND_PRICE_ID[b][1]}; cur = "IDR"; }
@@ -170,6 +181,7 @@ function estPrice(it){
       const ft = foodType(it);
       const byKind = T.kind[it.k];
       const byType = it.k === "restaurant" || !byKind ? T.food[ft] : null;
+      if (T.only && !byType && !byKind){ return (it._ep = null); }
       const r = byType || byKind;
       const ftl = ft && /^(Thai|Indonesian|Japanese|Korean|Chinese|Indian|Vietnamese|Mexican|Western|Asian|Middle Eastern)$/.test(ft) ? ft + " food" : (ft || "").toLowerCase();
       if (r) out = {lo:r[0], hi:r[1], why: byType ? `Typical for ${ftl} here` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()} here`};
@@ -231,6 +243,111 @@ function estGBP(e){
   const lo = toGBP(e.lo, e.cur || "THB"), hi = toGBP(e.hi, e.cur || "THB");
   const r = v => v < 1 ? "<£1" : "£" + Math.round(v);
   return lo === hi ? r(lo) : e.lo === 0 ? `up to ${r(hi)}` : (Math.round(lo) === Math.round(hi) ? r(lo) : `${r(lo)}–${Math.round(hi)}`).replace("<£1–", "<£1–£");
+}
+
+/* ---------- the maximum-price filter, shared by the map and the Gaffs, Munch and Activities lists ----------
+   One state per section (ui.pf), so a maximum set in a list is still set on the map and the other way round.
+   Amounts are kept in pounds and compared with each place's price converted at the app's exchange rates.
+   - a researched price counts by its lowest ("from") figure; a typical estimate by the middle of its range
+   - a place with no price and no estimate never passes while a maximum is set (unknown is not cheap, and not free)
+   - stays compare like with like: a dorm bed (or a per-person rate) is never compared with a whole room */
+const PF_GRP = {gaff:"stay", munch:"food", cool:"do"};
+const PF_PRESETS = {gaff:[5, 8, 10, 15, 20], munch:[1, 2, 5, 10], cool:[1, 5, 10]};
+const PF_PER = {gaff:"a night", munch:"a dish", cool:"per person"};
+const PF_CAP_GBP = 5000;                                 // a custom maximum above this is surely a typo
+const newPF = () => ({max:null, amt:"", cur:"GBP", basis:"bed", est:true});
+ui.pf = {gaff:newPF(), munch:newPF(), cool:newPF()};
+// how a stay's price is counted: "bed" (a dorm bed, or a per-person rate) or "room" (the whole room, villa or pitch)
+function stayBasis(it){
+  if (it.p && it.p.length){
+    const pu = String(it.pu || "");
+    if (/dorm|\bbed\b|per person/i.test(pu)) return "bed";
+    if (/room|double|twin|villa|bungalow|apartment|cottage|pitch|whole/i.test(pu)) return "room";
+    return (it.t || []).includes("Hostel") ? "bed" : "room";
+  }
+  return it.k === "hostel" ? "bed" : "room";
+}
+const STAY_BASIS_LABEL = {bed:"dorm bed or per person", room:"private room"};
+// food prices that aren't one dish (a 100 g of seafood, an evening's budget) can't be compared with "a dish"
+const notPerDish = it => it.p && /100 ?g|per kg|budget|per pack/i.test(it.pu || "");
+// the price the filter goes by, in pounds: {gbp, est, basis} or null when nothing is known
+function pfPrice(it, cat){
+  if (it.p && it.p.length){
+    if (cat === "munch" && notPerDish(it)) return null;
+    return {gbp:toGBP(it.p[0], it.cur || "THB"), est:false, basis:cat === "gaff" ? stayBasis(it) : null};
+  }
+  if (it.cur_ && cat === "cool" && /^free\b/i.test(it.cost || "")) return {gbp:0, est:false, basis:null};
+  if (it.cur_ && it.verified && it.cost) return null;      // a researched note like "small fee, not listed": unknown, not an estimate
+  const e = estPrice(it); if (!e) return null;
+  return {gbp:e.free ? 0 : toGBP((e.lo + e.hi) / 2, e.cur || "THB"), est:true, basis:cat === "gaff" ? stayBasis(it) : null};
+}
+// why a place is left out: "price" (over the maximum), "unknown", "basis" (priced per room while looking at beds), "est" (estimates switched off)
+function pfReason(it, cat){
+  const f = ui.pf[cat]; if (!f || f.max == null) return null;
+  const pr = pfPrice(it, cat);
+  if (!pr) return "unknown";
+  if (pr.est && !f.est) return "est";
+  if (cat === "gaff" && pr.basis !== f.basis) return "basis";
+  if (f.max === 0 ? pr.gbp > 0 : pr.gbp > f.max + 1e-9) return "price";
+  return null;
+}
+const passPF = (it, cat) => !pfReason(it, cat);
+const pfOn = cat => !!(ui.pf[cat] && ui.pf[cat].max != null);
+// "under £5 a night (about ฿220)" in the money of the place you're looking at
+function pfSummary(cat, cc = S.country){
+  const f = ui.pf[cat]; if (!f || f.max == null) return "";
+  if (f.max === 0) return "free";
+  const lc = (D.countries[cc] || {}).cur || "THB";
+  const local = f.cur !== "GBP" ? money(+f.amt, f.cur) : lc !== "GBP" ? `about ${money(niceRound(f.max * rate(lc), lc), lc)}` : "";
+  return `up to ${f.cur === "GBP" ? "£" + fmtNum(f.max) : money(+f.amt, f.cur)} ${PF_PER[cat]}${f.cur === "GBP" && local ? ` (${local})` : f.cur !== "GBP" ? ` (£${fmtNum(f.max)})` : ""}`;
+}
+// set a maximum from a preset (pounds) or a custom amount in pounds or the local money; returns an error message or ""
+function setPF(cat, amount, cur = "GBP"){
+  const f = ui.pf[cat];
+  if (amount === null || amount === ""){ f.max = null; f.amt = ""; f.cur = "GBP"; return ""; }
+  const v = typeof amount === "number" ? amount : parseFloat(String(amount).replace(/[, ]/g, ""));
+  if (!isFinite(v) || v < 0) return "Type an amount of 0 or more";
+  if (v === 0 && cat !== "cool") return "Type an amount above 0";
+  const gbp = cur === "GBP" ? v : toGBP(v, cur);
+  if (gbp > PF_CAP_GBP) return `That’s over £${fmtNum(PF_CAP_GBP)}. Check the amount`;
+  f.max = Math.round(gbp * 100) / 100; f.amt = String(v); f.cur = cur;
+  return "";
+}
+// the controls: preset buttons, a custom amount, and for stays which kind of price to compare
+function pfControls(cat, cc = S.country){
+  const f = ui.pf[cat], lc = (D.countries[cc] || {}).cur || "THB";
+  const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
+  const custom = f.max != null && f.max !== 0 && !(f.cur === "GBP" && PF_PRESETS[cat].includes(f.max));
+  return `<div class="pf" data-pf="${cat}" role="group" aria-label="Maximum price ${PF_PER[cat]}">
+    <span class="mf-lab">Max ${PF_PER[cat]}</span>
+    ${b('data-pfp=""', "Any", f.max == null, "No maximum")}${cat === "cool" ? b('data-pfp="0"', "Free", f.max === 0, "Free only") : ""}${PF_PRESETS[cat].map(v => b(`data-pfp="${v}"`, `£${v}`, f.max === v && f.cur === "GBP", `Up to £${v} ${PF_PER[cat]}`)).join("")}
+    <span class="pf-custom${custom ? " on" : ""}"><input type="text" inputmode="decimal" data-pfamt placeholder="Custom" value="${custom ? esc(f.amt) : ""}" aria-label="Custom maximum ${PF_PER[cat]}" size="6"><select data-pfcur aria-label="Currency of the custom amount">${[...new Set(["GBP", lc])].map(k => `<option value="${k}" ${(custom ? f.cur : "GBP") === k ? "selected" : ""}>${k === "GBP" ? "£" : SYM[k] ? SYM[k].trim() : k}</option>`).join("")}</select><button class="chip" type="button" data-pfset>Set</button></span>
+    ${cat === "gaff" ? `<span class="pf-sep"></span>${b('data-pfb="bed"', "Dorm bed", f.basis === "bed", "Compare dorm-bed and per-person prices")}${b('data-pfb="room"', "Private room", f.basis === "room", "Compare whole-room prices")}` : ""}
+    <span class="pf-sep"></span>${b("data-pfest", "Include estimates", f.est, "Include typical estimated prices")}
+  </div>`;
+}
+// wire the controls up; onChange runs after every change
+function bindPF(root, cat, onChange){
+  const el = root.querySelector(`[data-pf="${cat}"]`); if (!el) return;
+  const f = ui.pf[cat];
+  el.querySelectorAll("[data-pfp]").forEach(x => x.onclick = () => { setPF(cat, x.dataset.pfp === "" ? null : +x.dataset.pfp); onChange(); });
+  const amt = el.querySelector("[data-pfamt]"), curSel = el.querySelector("[data-pfcur]");
+  const apply = () => { const msg = setPF(cat, amt.value.trim() === "" ? null : amt.value, curSel.value); if (msg){ toast(msg); amt.focus(); amt.setAttribute("aria-invalid", "true"); return; } onChange(); };
+  el.querySelector("[data-pfset]").onclick = apply;
+  amt.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); apply(); } };
+  el.querySelectorAll("[data-pfb]").forEach(x => x.onclick = () => { f.basis = x.dataset.pfb; onChange(); });
+  el.querySelector("[data-pfest]").onclick = () => { f.est = !f.est; onChange(); };
+}
+// what the filter is doing to a set of places, in words (shown under the controls)
+function pfExplain(cat, items){
+  const f = ui.pf[cat]; if (!f || f.max == null) return "";
+  const n = {unknown:0, basis:0, est:0};
+  for (const it of items){ const r = pfReason(it, cat); if (r && r in n) n[r]++; }
+  const bits = [];
+  if (n.unknown) bits.push(`${n.unknown.toLocaleString("en-GB")} with no known price are hidden`);
+  if (n.basis) bits.push(`${n.basis.toLocaleString("en-GB")} priced per ${f.basis === "bed" ? "room" : "bed"} are hidden (switch to ${f.basis === "bed" ? "Private room" : "Dorm bed"})`);
+  if (n.est) bits.push(`${n.est.toLocaleString("en-GB")} with only an estimate are hidden`);
+  return `Showing places ${pfSummary(cat)}${cat === "gaff" ? `, ${STAY_BASIS_LABEL[f.basis]} prices` : ""}. ${bits.length ? bits.join("; ") + ". " : ""}Prices are researched “from” prices (checked ${D.checked}) or typical estimates (est.), not live prices: confirm before you pay.`;
 }
 
 /* ---------- ratings we know about ---------- */

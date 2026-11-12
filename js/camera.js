@@ -53,7 +53,13 @@ async function translateLines(lines){
   return out;
 }
 
+// The tool is switched off (no tile in Tools): Google's text reader needs a billing account, and reading Thai on the phone itself
+// (Tesseract) was too unreliable to offer. An old link to #tools/camera shows the free alternatives and asks for nothing.
 TOOL_PAGES.camera = root => {
+  root.innerHTML = toolHero("Camera translator", "Use your phone's own camera translation") + `<div class="page">${CAMERA_TIP.replace("<details", "<details open")}
+    <p class="note"><a href="#tools/translate">Type something to translate instead</a></p></div>`;
+};
+TOOL_PAGES.cameraGoogle = root => {
   const key = !!googleKey();
   root.innerHTML = toolHero("Camera translator", "Point at a menu, sign or label") + `<div class="page">
     ${key ? "" : `<div class="callout">${icon("info")}<div><b>This needs the Google key.</b> Add it in Settings, with the <b>Cloud Vision API</b> switched on for it. Until then, the iPhone can do this itself: open the Camera, point at the text, tap the text icon in the corner, then <b>Translate</b>.</div></div>`}
