@@ -53,6 +53,20 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click('#pageview [data-look="night"]'); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !document.documentElement.dataset.look), "back to the night look");
 
+  // map filters: picking Munch (from All) shows only food, with a filter row; a price band and a rating filter narrow it
+  await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
+  await page.evaluate(() => map.jumpTo({center:[100.5018, 13.7563], zoom:14.5})); await page.waitForTimeout(3500);
+  await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(2500);
+  ok(await page.evaluate(() => [...ui.mapCats].join() === "munch" && !document.querySelector("#mapFilt").hidden), "tapping Munch shows only food, with the filter row");
+  const before = await page.evaluate(() => mapRun.items.length);
+  await page.click('#mapFilt [data-mb="1"]'); await page.waitForTimeout(1500);
+  const cheap = await page.evaluate(() => ({n:mapRun.items.length, ok:mapRun.items.every(p => priceBand(p) === 1)}));
+  ok(cheap.ok && cheap.n > 0 && cheap.n < before, `£ filter keeps only cheap places (${cheap.n} of ${before})`);
+  await page.click('#mapFilt [data-mb=""]'); await page.click('#mapFilt [data-mr="4"]'); await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => mapRun.items.every(p => knownRating(p) != null && knownRating(p) >= 8)), "4+ stars keeps only places rated 4 or more");
+  await page.click('#mapFilt [data-mr="0"]'); await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden), "the filter row hides again for All");
+
   // Design Lab: a colour preset recolours the chips and the map circles; text size and reset work
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
   await page.click("#labBtn"); await page.waitForTimeout(400);

@@ -125,5 +125,41 @@ test("map colour choices reach the right map layers", () => {
   A.S.design = {on:true};
 });
 
+/* ---------- food types and price estimates ---------- */
+const P = (o) => Object.assign({g:"food", k:"restaurant", n:"Somewhere"}, o);
+test("food type from the cuisine tag, the brand, or words in the name", () => {
+  eq(A.foodType(P({cu:["noodle"]})), "Noodles");
+  eq(A.foodType(P({n:"KFC Silom", br:"KFC", k:"fastfood"})), "Fried chicken");
+  eq(A.foodType(P({n:"ร้านส้มตำป้าแดง"})), "Isaan & som tam");
+  eq(A.foodType(P({n:"หมูกระทะ ชาบู"})), "BBQ & hotpot");
+  eq(A.foodType(P({n:"Mama's Pizzeria"})), "Pizza & Italian");
+  eq(A.foodType(P({n:"ร้านลุงชัย"})), "Thai", "a Thai-only name");
+  eq(A.foodType(P({n:"Joe's", k:"cafe"})), "Café & coffee", "falls back on the kind of place");
+});
+test("every food place gets a price estimate, labelled as one", () => {
+  const e = A.estPrice(P({cu:["noodle"]}));
+  ok(e.est && e.cur === "THB" && e.lo < e.hi, JSON.stringify(e));
+  eq(A.estText(e), "est. ฿50–120");
+  ok(/^£\d+–\d+$|^<£1/.test(A.estGBP(e)), A.estGBP(e));
+});
+test("researched prices beat estimates", () => {
+  const it = P({p:[500, 500], cur:"THB", cu:["noodle"]});
+  eq(A.priceInfo(it).est, false);
+  eq(A.priceBand(it), 3, "฿500 a head is £££ for food");
+});
+test("price bands per section", () => {
+  eq(A.priceBand({g:"do", k:"temple", n:"Wat"}), 0, "temples are usually free");
+  eq(A.priceBand({g:"do", k:"cooking", n:"Class"}), 2);
+  eq(A.priceBand({g:"stay", k:"hostel", n:"Dorms"}), 1);
+  eq(A.priceBand({g:"stay", k:"hotel", n:"Grand", st:5}), 3);
+  eq(A.priceBand({g:"do", k:"tour", n:"Tours R Us"}), null, "too varied to guess");
+});
+test("known ratings: researched first, then Google ones kept on the phone", () => {
+  eq(A.knownRating({r:8.6}), 8.6);
+  A.G_RATINGS.set("o:1", 4.4);
+  eq(A.knownRating({id:"o:1"}), 8.8);
+  eq(A.knownRating({id:"o:2"}), null);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

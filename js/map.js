@@ -67,6 +67,7 @@ function ensureMap(){
       <div class="map-chips" id="mapChips" role="group" aria-label="What to show"></div>
       <div class="map-chips" id="mapEss" role="group" aria-label="Essentials" hidden></div>
       <div id="mapModeRow" style="display:flex;gap:8px;align-items:center"></div>
+      <div class="map-chips mfilt" id="mapFilt" role="group" aria-label="Filter what's on the map" hidden></div>
     </div>
     <div class="maplist" id="mapList" hidden></div>
     <div class="map-side" id="mapSide"></div>
@@ -183,7 +184,47 @@ function activeGroups(){
 }
 const essKindSet = () => new Set([...ui.essKinds].flatMap(id => ESS_BY_ID[id].kinds));
 function curatedForMap(){
-  return D.places.filter(p => ui.mapCats.has(p.c)).filter(p => p.c !== "gaff" || (passPrice(p, ui.mapMaxGBP) && passRating(p, ui.mapMinR)));
+  return D.places.filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
+}
+
+/* ---------- the filter row: shown when one section is picked ---------- */
+const MOVE_TYPES = [["all", "All"], ["bus", "Buses"], ["train", "Trains"], ["ferry", "Ferries"], ["airport", "Airports"], ["taxi", "Taxis & scooters"]];
+const MOVE_KIND_TYPE = {bus:"bus", train:"train", metro:"train", ferry:"ferry", airport:"airport", taxi:"taxi", scooter:"taxi", bike:"taxi", carrental:"taxi"};
+function soloCat(){
+  if (ui.mapSaved || ui.essKinds.size) return null;
+  const c = [...ui.mapCats]; return c.length === 1 ? c[0] : null;
+}
+function mapFilterOn(){
+  const c = soloCat(); if (!c) return false;
+  const f = ui.mf[c]; return c === "move" ? f.t !== "all" : !!f.r || f.b != null;
+}
+function passMapFilter(it){
+  const c = soloCat(); if (!c || it.c !== c) return true;
+  const f = ui.mf[c];
+  if (c === "move") return f.t === "all" || MOVE_KIND_TYPE[it.k] === f.t;
+  if (f.r){ const r = knownRating(it); if (r == null || r / 2 < f.r) return false; }
+  if (f.b != null && priceBand(it) !== f.b) return false;
+  return true;
+}
+function renderMapFilt(){
+  const el = $("#mapFilt"); if (!el) return;
+  const c = soloCat();
+  if (!c || !ui.mf[c]){ el.hidden = true; el.innerHTML = ""; return; }
+  const f = ui.mf[c];
+  const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
+  if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, f.t === id)).join("");
+  else {
+    const labels = BAND_LABELS[CAT[c].grp];
+    el.innerHTML = `<span class="mf-lab">${icon("star", "i xs")}Rating</span>`
+      + [[0, "Any"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"]].map(([v, l]) => b(`data-mr="${v}"`, l, f.r === v, v ? `${v} stars and up` : "Any rating")).join("")
+      + `<span class="mf-lab">Price</span>` + b('data-mb=""', "Any", f.b == null, "Any price")
+      + labels.map((l, i) => l ? b(`data-mb="${i}"`, l.split(" ")[0], f.b === i, l) : "").join("");
+  }
+  el.hidden = false;
+  el.querySelectorAll("[data-mr]").forEach(x => x.onclick = () => { f.r = +x.dataset.mr; renderMapFilt(); refreshMapData(); });
+  el.querySelectorAll("[data-mb]").forEach(x => x.onclick = () => { f.b = x.dataset.mb === "" ? null : +x.dataset.mb; renderMapFilt(); refreshMapData(); });
+  el.querySelectorAll("[data-mt]").forEach(x => x.onclick = () => { f.t = x.dataset.mt; renderMapFilt(); refreshMapData(); });
+  if (typeof updateFade === "function") updateFade(el);
 }
 function mapItems(){ return mapRun.items; }
 function refreshMapData(){
@@ -240,7 +281,7 @@ function refreshMapData(){
           for (const g of groups) for (const leaf of Places.leavesIn(g, bb)){
             needed.add(leaf.key);
             const got = Places.loaded(leaf);
-            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k))){ feats.push(featOf(p)); items.push(p); } }
+            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k)) && passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } }
             else {
               loading = true;
               if (!mapRun.pending.has(leaf.key)){
@@ -284,7 +325,12 @@ function renderMapStatus(){
   if (Places.state === "off" && activeGroups().length && !ui.mapSaved) txt = "Showing researched places only (the full list needs signal once)";
   else if (mapRun.failed && !ui.mapSaved && activeGroups().length) txt = "Some places couldn’t load. Check your signal, then move the map";
   else if (mapRun.loading) txt = "Loading places…";
-  else if (mapRun.mode === "summary" && mapRun.total) txt = `${mapRun.total.toLocaleString("en-GB")} places here. Zoom in to see them`;
+  else if (mapRun.mode === "summary" && mapRun.total) txt = mapFilterOn() ? "Zoom in to use the filters" : `${mapRun.total.toLocaleString("en-GB")} places here. Zoom in to see them`;
+  else if (mapFilterOn()){
+    const c = soloCat(), f = ui.mf[c], n = mapRun.items.length;
+    txt = n ? `${n.toLocaleString("en-GB")} match${n === 1 ? "es" : ""}${f.r ? " · unrated hidden" : ""}${f.b != null ? " · prices estimated" : ""}`
+            : f.r ? "No rated places here. Only researched places (and ones you've opened with Google ratings on) have ratings" : "Nothing here matches. Try another price or zoom out";
+  }
   else if (ui.mapSaved) txt = `${Object.keys(S.saved).length} saved`;
   const el = $("#mapStatusTxt"); if (el){ el.textContent = txt; el.hidden = !txt; }
 }
@@ -307,7 +353,13 @@ function renderMapUI(){
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   const top = $("#mapTop");
   top.querySelector("[data-all]").onclick = () => { ui.mapCats = new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
-  top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => { const k = b.dataset.cat; ui.mapSaved = false; ui.mapCats.has(k) ? ui.mapCats.delete(k) : ui.mapCats.add(k); renderMapUI(); });
+  top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+    const k = b.dataset.cat; ui.mapSaved = false;
+    if (all) ui.mapCats = new Set([k]);                       // everything showing: tapping a section shows just that one
+    else if (ui.mapCats.has(k)){ ui.mapCats.delete(k); if (!ui.mapCats.size) ui.mapCats = new Set(["gaff","munch","cool"]); }
+    else ui.mapCats.add(k);
+    renderMapUI();
+  });
   top.querySelector("[data-ess]").onclick = () => { ui.essOpen = !(ui.essOpen || ui.essKinds.size); if (!ui.essOpen && ui.essKinds.size){ ui.essKinds.clear(); if (mapRun.stash){ ui.mapCats = mapRun.stash; mapRun.stash = null; } } renderMapUI(); };
   top.querySelector("[data-saved]").onclick = () => { ui.mapSaved = !ui.mapSaved; if (ui.mapSaved && !Object.keys(S.saved).length) toast("Nothing saved yet. Tap the bookmark on a place."); renderMapUI(); };
   top.querySelector("[data-filters]").onclick = () => { ui.mapFilters = !ui.mapFilters; renderMapUI(); };
@@ -327,6 +379,7 @@ function renderMapUI(){
   const list = $("#mapList"); list.hidden = ui.mapMode !== "list";
   $("#mapview").classList.toggle("listmode", ui.mapMode === "list");
   padMapList();
+  renderMapFilt();
   refreshMapData(); renderMapStatus(); renderMapBottom();
   if (ui.mapMode === "list") renderMapList();
 }
@@ -392,12 +445,8 @@ function renderMapBottom(){
   if (ui.mapFilters){
     el.innerHTML = `<div class="fpanel" style="box-shadow:var(--shadow)">
       <label class="field">Sort the nearby strip<select id="mf-sort">${[["near","Nearest"],["rated","Best reviewed"],["cheap","Cheapest first"],["dear","Priciest first"],["match","Best match"]].map(([v, l]) => `<option value="${v}" ${ui.mapSort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      <div class="controls"><label class="field">Researched gaffs: top price<select id="mf-max">${[["","Any"],["5","£5"],["8","£8"],["10","£10"],["15","£15"],["20","£20"]].map(([v, l]) => `<option value="${v}" ${String(ui.mapMaxGBP) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="field">Researched gaffs: reviews<select id="mf-minr">${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+ui.mapMinR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
       <button class="btn small" id="mf-done" type="button">Done</button></div>`;
     $("#mf-sort").onchange = e => { ui.mapSort = e.target.value; };
-    $("#mf-max").onchange = e => { ui.mapMaxGBP = e.target.value; refreshMapData(); };
-    $("#mf-minr").onchange = e => { ui.mapMinR = +e.target.value; refreshMapData(); };
     $("#mf-done").onclick = () => { ui.mapFilters = false; renderMapUI(); };
     placeSide(el.offsetHeight); return;
   }

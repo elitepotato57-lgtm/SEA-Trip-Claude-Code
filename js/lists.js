@@ -30,14 +30,16 @@ function sortItems(items, how, pt = userLoc){
   }
   else if (how === "near" && pt) arr.sort(byKm);
   else if (how === "rated") arr.sort((a, b) => nullLast(a, b, x => x.r, -1) || byKm(a, b));
-  else if (how === "dear") arr.sort((a, b) => nullLast(a, b, gbpMin, -1) || byKm(a, b));
+  else if (how === "dear") arr.sort((a, b) => nullLast(a, b, gbpOrEst, -1) || byKm(a, b));
   else if (how === "match") arr.sort((a, b) => (b.cur_ ? bestScore(b) : -1) - (a.cur_ ? bestScore(a) : -1) || byKm(a, b));
   else if (how === "az") arr.sort((a, b) => a.n.localeCompare(b.n));
   else if (how === "near") arr.sort((a, b) => nullLast(a, b, x => x.r, -1) || nullLast(a, b, gbpMin, 1));
-  else arr.sort((a, b) => nullLast(a, b, gbpMin, 1) || nullLast(a, b, x => x.r, -1) || byKm(a, b));
+  else arr.sort((a, b) => nullLast(a, b, gbpOrEst, 1) || nullLast(a, b, x => x.r, -1) || byKm(a, b));
   return arr;
 }
-function passPrice(it, maxGBP){ if (!maxGBP) return true; const g = gbpMin(it); return g == null || g <= +maxGBP; }
+function passPrice(it, maxGBP){ if (!maxGBP) return true; const g = gbpOrEst(it); return g == null || g <= +maxGBP; }
+// a researched price in pounds, or the low end of the estimate
+const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, "THB") : null; };
 function passRating(it, minR){ return !minR || (it.r != null && it.r / 2 >= minR); }
 
 /* ---------- small renderers ---------- */
@@ -107,8 +109,11 @@ function placeCard(it, pt){
   const loc = itemLocal(it);
   if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small></span>`);
   else if (it.cur_ && it.cost) line.push(`<span>${esc(it.cost)}</span>`);
+  else { const e = estPrice(it); if (e) line.push(`<span class="price est" title="${esc(e.why)}: an estimate">${esc(estText(e))}${estGBP(e) ? ` <small>${esc(estGBP(e))}</small>` : ""}</span>`); }
   if (it.st) line.push(`<span>${it.st}-star</span>`);
-  if (it.cu && it.cu.length) line.push(`<span>${esc(it.cu.slice(0, 2).join(", "))}</span>`);
+  const ft = it.c === "munch" ? foodType(it) : null;
+  if (ft) line.push(`<span class="ftype">${esc(ft)}</span>`);
+  else if (it.cu && it.cu.length) line.push(`<span>${esc(it.cu.slice(0, 2).join(", "))}</span>`);
   if (oh) line.push(`<span class="${oh.open ? "open" : "shut"}">${esc(oh.text)}</span>`);
   if (km != null) line.push(`<span>${distShort(km)}</span>`);
   const blurb = it.cur_ ? (it.s && it.s[0]) : it.desc;      // one line on why it is worth a look, when we have one

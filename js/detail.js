@@ -71,7 +71,7 @@ async function googleFacts(it){
   const pl = await googlePlace(it, fields); if (!pl) return;
   gSpend("details");
   const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, at:Date.now()};
-  lsSet(key, g); showGoogleFacts(it, g);
+  lsSet(key, g); if (g.r) G_RATINGS.set(it.id, g.r); showGoogleFacts(it, g);
   applyGoogleExtras(it, pl);
 }
 function applyGoogleExtras(it, pl){
@@ -260,6 +260,10 @@ function openDetail(id){
   const converted = it.p && dispCur(it.cc, it.cur) !== it.cur;
   // only what we actually know: unknown prices and reviews are left out rather than shown as empty boxes
   if (it.cur_ && it.c !== "move" && (pr || it.cost)) facts.push(fact(`${it.c === "cool" ? "Cost" : "Price"}${it.pu && pr ? ", " + esc(it.pu) : ""}`, pr ? `<b>${esc(pr)}</b> <span class="note">${esc(gbpRange(it.p, it.cur))}</span>${converted ? `<div class="note">Listed as ${esc(rangeText(it.p, it.cur))}, converted at your saved rate</div>` : ""}${it.cost ? `<div class="note">${esc(it.cost)}</div>` : ""}` : esc(it.cost)));
+  if (!(it.cur_ && (pr || it.cost)) && it.c !== "move"){
+    const e = estPrice(it);
+    if (e) facts.push(fact(`Typical price, ${esc(e.per)}`, `<b>${esc(estText(e))}</b>${estGBP(e) ? ` <span class="note">${esc(estGBP(e))}</span>` : ""}<div class="note">${esc(e.why)}. An estimate, not a quoted price.${e.note ? " " + esc(e.note) : ""}</div>`, true));
+  }
   if (it.cur_ && it.r != null) facts.push(fact("Reviews", `${starsHTML(it.r)}<div class="note">${esc(it.rs)}${it.rc ? `, ${it.rc.toLocaleString("en-GB")} reviews` : ""}</div>`));
   const oh = isOpenNow(it);
   if (it.oh) facts.push(fact("Opening hours", `${oh ? `<b style="color:${oh.open ? "var(--ok)" : "var(--muted)"}">${esc(oh.text)}</b><div class="note">` : '<div>'}${esc(it.oh.replace(/;\s*/g, "; "))}</div>`, true));
@@ -274,7 +278,8 @@ function openDetail(id){
   if (it.web) facts.push(fact("Website", `<a href="${esc(it.web)}" target="_blank" rel="noopener">${esc(it.web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 40))}</a>`));
   const soc = [it.fb && `<a href="${esc(socialLink(it.fb, "https://www.facebook.com/"))}" target="_blank" rel="noopener">Facebook</a>`, it.ig && `<a href="${esc(socialLink(it.ig, "https://www.instagram.com/"))}" target="_blank" rel="noopener">Instagram</a>`, it.ln && `Line: ${esc(it.ln)}`].filter(Boolean);
   if (soc.length) facts.push(fact("Social", soc.join(" · ")));
-  if (it.cu && it.cu.length) facts.push(fact("Food", esc(it.cu.join(", "))));
+  const ftype = it.c === "munch" ? foodType(it) : null;
+  if (ftype || (it.cu && it.cu.length)) facts.push(fact("Food", `${esc(ftype || it.cu.join(", "))}${ftype && it.cu && it.cu.length ? `<div class="note">${esc(it.cu.join(", "))}</div>` : ""}`));
   if (it.veg || it.vegan) facts.push(fact("Diet", [it.vegan ? (it.vegan === 2 ? "Fully vegan" : "Vegan options") : "", it.veg ? (it.veg === 2 ? "Fully vegetarian" : "Vegetarian options") : ""].filter(Boolean).join(", ")));
   if (it.wifi) facts.push(fact("Wi-Fi", WIFI_TXT[it.wifi] || "Yes"));
   if (it.st) facts.push(fact("Star rating", `${it.st}-star`));

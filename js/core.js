@@ -203,7 +203,8 @@ const ui = {
   view:"map", sub:"",
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
   mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
-  mapSort:"near", mapMinR:0, mapMaxGBP:"", mapFilters:false, mapSel:null, mapQ:"", mapSaved:false,
+  mapSort:"near", mapFilters:false,
+  mf:{gaff:{r:0, b:null}, munch:{r:0, b:null}, cool:{r:0, b:null}, move:{t:"all"}},      // the map's filter row (stars, price, transport type) mapSel:null, mapQ:"", mapSaved:false,
   tp:{from:null, to:null, sort:"fast", sel:0}
 };
 
