@@ -22,10 +22,10 @@ function loadGoogle(){
 }
 /* A daily allowance on this phone, so a long scroll can never run up a Google bill.
    The real cap is the per-day quota set in Google Cloud (see CLAUDE.md); this just stops one phone using it all. */
-const G_DAILY = {photo:40, details:25};
-function gUse(){ const u = lsGet("g-usage", null); return u && u.d === todayISO() ? u : {d:todayISO(), photo:0, details:0}; }
-const gAllow = kind => gUse()[kind] < G_DAILY[kind];
-function gSpend(kind){ const u = gUse(); u[kind]++; lsSet("g-usage", u); }
+const G_DAILY = {photo:40, details:25, vision:15};        // vision: camera translator photos
+function gUse(){ const u = lsGet("g-usage", null); return u && u.d === todayISO() ? u : {d:todayISO(), photo:0, details:0, vision:0}; }
+const gAllow = kind => (gUse()[kind] || 0) < G_DAILY[kind];
+function gSpend(kind){ const u = gUse(); u[kind] = (u[kind] || 0) + 1; lsSet("g-usage", u); }
 const gPlaceCache = {}, gPlaceWait = {};
 // Google bills each lookup at the price of its dearest field, so photos (cheap) and ratings (dearer) are asked for separately
 const G_FULL = ["photos"];

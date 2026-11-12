@@ -107,6 +107,18 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => !!document.querySelector("#docView canvas.doc-page, #docView img")), "a document opens to view");
   await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(400);
 
+  // Camera translator: with Google's replies faked (no real key, no cost), a photo comes back as lines with English and pronunciation
+  await page.route("**/vision.googleapis.com/**", r => r.fulfill({json:{responses:[{textAnnotations:[{description:"ข้าวผัดกุ้ง\nPad Thai\nน้ำเปล่า\n"}]}]}}));
+  await page.route("**/translation.googleapis.com/**", r => r.fulfill({json:{data:{translations:[{translatedText:"Shrimp fried rice"}, {translatedText:"Water"}]}}}));
+  await page.evaluate(() => { S.gkey = "AIzaTEST-fake"; });
+  await page.goto(BASE + "#tools/camera"); await page.waitForTimeout(800);
+  const png = path.join(os.tmpdir(), "sea-trip-menu.png");
+  fs.writeFileSync(png, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  await page.setInputFiles("#camPick", png); await page.waitForTimeout(2500);
+  const cam = await page.evaluate(() => [...document.querySelectorAll(".cam-line")].map(x => x.textContent.replace(/\s+/g, " ").trim()));
+  ok(cam.length === 3 && /Shrimp fried rice/.test(cam[0]) && /say: /.test(cam[0]) && /Not Thai/.test(cam[1]) && /Water/.test(cam[2]), "camera translator shows each line in English with how to say it " + JSON.stringify(cam));
+  await page.evaluate(() => { S.gkey = ""; }); await page.unroute("**/vision.googleapis.com/**"); await page.unroute("**/translation.googleapis.com/**");
+
   // Design Lab: a colour preset recolours the chips and the map circles; text size and reset work
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
   await page.click("#labBtn"); await page.waitForTimeout(400);

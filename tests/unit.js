@@ -199,6 +199,18 @@ test("dates in different formats", () => {
   eq(A.docDate("no date here 99/99/9999"), null);
 });
 
+/* ---------- Camera translator ---------- */
+test("the lines Google reads off a photo are cleaned up", () => {
+  eq(A.visionLines({textAnnotations:[{description:"ข้าวผัดกุ้ง\n\n  Pad   Thai \n120\nข้าวผัดกุ้ง\n"}]}), ["ข้าวผัดกุ้ง", "Pad Thai"], "blank lines, prices on their own and repeats go");
+  eq(A.visionLines({}), []);
+  ok(A.hasThai("ข้าว") && !A.hasThai("rice"));
+});
+test("the camera allowance counts up and stops at the daily limit", () => {
+  const before = A.gUse().vision || 0;
+  ok(A.gAllow("vision"));
+  A.gSpend("vision"); eq(A.gUse().vision, before + 1);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};

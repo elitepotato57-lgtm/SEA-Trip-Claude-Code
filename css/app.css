@@ -527,3 +527,14 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:calc(13px * var
 .doc-view img,.doc-page{width:100%;height:auto;border-radius:var(--r);border:1px solid var(--line);background:#fff}
 .sheet .field{margin-top:8px}
 .sheet .field input,.sheet .field select{height:40px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 10px;font-size:calc(15px * var(--ts,1))}
+
+/* Tools > Camera translator */
+.cam-btns{margin-top:4px}
+.btn.off{opacity:.45;pointer-events:none}
+.cam-photo{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:var(--r-l);border:1px solid var(--line);background:var(--raised);margin-top:12px}
+.cam-lines{display:grid;gap:8px;margin-top:12px}
+.cam-line{display:grid;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--surface)}
+.cam-line .btn{justify-self:start;margin-top:4px}
+.cam-src{font-size:calc(19px * var(--ts,1));line-height:1.35;font-weight:600}
+.cam-say{font-size:calc(13.5px * var(--ts,1));color:var(--accent-2)}
+.cam-en{font-size:calc(15px * var(--ts,1));color:var(--ink)}

@@ -5,6 +5,7 @@
 const TOOLS = [
   {id:"currency", l:"Currency", d:"Baht and other rates, works offline", ic:"cash"},
   {id:"translate", l:"Translator", d:"Thai phrasebook and live translation", ic:"lang", alt:1},
+  {id:"camera", l:"Camera translator", d:"Point at a menu or sign", ic:"camera"},
   {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
   {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1},
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
@@ -185,6 +186,7 @@ TOOL_PAGES.translate = root => {
   const lang = trLang(), langName = (TR_LANGS.find(l => l[0] === lang) || TR_LANGS[0])[1];
   const g = PHRASES[phraseTab];
   root.innerHTML = toolHero("Translator", "Live translation and an offline Thai phrasebook") + `<div class="page">
+    <a class="btn" href="#tools/camera" style="margin:2px 0 10px">${icon("camera", "i s")}Translate with the camera</a>
   <section class="block" aria-labelledby="h-tr">
     <h2 id="h-tr">Translator</h2>
     <div class="row" style="margin-top:8px"><label class="field">Language<select id="tr-lang">${TR_LANGS.map(([code, name]) => `<option value="${code}" ${code === lang ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></label>
