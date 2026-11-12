@@ -181,7 +181,7 @@ function mapStyleBase(){
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}, packs:{}, lastBackup:null};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};

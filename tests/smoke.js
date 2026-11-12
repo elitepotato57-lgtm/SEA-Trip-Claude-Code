@@ -90,9 +90,16 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   // (the app only registers its service worker on https, so register it by hand on localhost)
   await page.evaluate(() => Promise.race([navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready), new Promise(r => setTimeout(r, 15000))]));
   await page.reload(); await page.waitForTimeout(4000);
+  // save Bangkok for offline, then check its places still list with no signal
+  await page.goto(BASE + "#tools/offline"); await page.waitForTimeout(1500);
+  const pack = await page.evaluate(async () => { try { const p = await savePack(THAI_DESTS.find(c => c[0] === "Bangkok")); return {files:p.files}; } catch(e){ return {err:e.message}; } });
+  ok(pack.files > 20, "saving Bangkok for offline " + JSON.stringify(pack));
   await ctx.setOffline(true);
   await page.goto(BASE + "#gaffs", {timeout:15000}).catch(() => {}); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !!document.querySelector("#tabs a")), "app still opens offline");
+  await page.evaluate(() => { Places.cache.clear(); Places.byId.clear(); });     // forget what's in memory, so the lists must come from the saved city
+  await page.goto(BASE + "#munch", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
+  ok(await page.evaluate(() => document.querySelectorAll("#pageview .card[data-open]").length > 5), "Bangkok food places list offline from the saved city");
   await ctx.setOffline(false);
 
   ok(errors.length === 0, "no JavaScript errors" + (errors.length ? ":\n  " + errors.join("\n  ") : ""));

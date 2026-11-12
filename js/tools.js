@@ -29,7 +29,8 @@ function renderTools(){
     <div class="sect"><h2>App</h2></div>
     <div class="tgrid"><a class="tool" href="#saved"><span class="ti">${icon("bookmark")}</span><span><b>Saved places</b><small>${Object.keys(S.saved).length} saved on this phone</small></span></a>
       <a class="tool alt" href="#tools/settings"><span class="ti">${icon("cog")}</span><span><b>Settings</b><small>Location, rates, data</small></span></a>
-      <a class="tool" href="#discover"><span class="ti">${icon("compass")}</span><span><b>Discover Thailand</b><small>Destinations at a glance</small></span></a></div>
+      <a class="tool" href="#discover"><span class="ti">${icon("compass")}</span><span><b>Discover Thailand</b><small>Destinations at a glance</small></span></a>
+      <a class="tool alt" href="#tools/offline"><span class="ti">${icon("download")}</span><span><b>Offline & backup</b><small>${Object.keys(S.packs || {}).length ? Object.keys(S.packs).length + " cit" + (Object.keys(S.packs).length === 1 ? "y" : "ies") + " saved" : "Save cities, back up your trip"}</small></span></a></div>
   </div>`;
   root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
   $("#t-essmap").onclick = e => { e.preventDefault(); ui.essOpen = true; go("#map"); };

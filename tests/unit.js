@@ -161,5 +161,22 @@ test("known ratings: researched first, then Google ones kept on the phone", () =
   eq(A.knownRating({id:"o:2"}), null);
 });
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+/* ---------- backup files ---------- */
+test("a backup file is recognised and summarised", () => {
+  const o = {app:"sea-trip", v:1, made:"2026-11-12T10:00:00Z", state:{saved:{a:{}, b:{}}, budget:{items:[{a:1}]}}, docs:[{}, {}, {}]};
+  eq(A.readBackup(o), {saved:2, spend:1, docs:3, made:"2026-11-12T10:00:00Z"});
+  eq(A.readBackup({app:"something-else", state:{}}), null);
+  eq(A.readBackup(null), null);
+});
+/* tests that need to wait (restoring a backup) run last */
+(async () => {
+  A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
+  await A.restoreBackup({app:"sea-trip", state:{saved:{y:{n:"Theirs"}, x:{n:"Old copy"}}, budget:{items:[{amt:100, what:"pad thai"}, {amt:40, what:"bus"}]}}}, "merge");
+  test("restoring a backup adds new saved places and spending once, and keeps this phone's copy", () => {
+    eq(Object.keys(A.S.saved).sort(), ["x", "y"]);
+    eq(A.S.saved.x.n, "Mine");
+    eq(A.S.budget.items.length, 2);
+  });
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed ? 1 : 0);
+})();
