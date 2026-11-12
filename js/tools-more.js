@@ -292,7 +292,7 @@ async function assistantAnswer(text){
     if (toN && fromN){
       const trips = planTrips(fromN, toN).slice(0, 3);
       if (!trips.length) return `<p>I don’t have a saved route from ${esc(fromN.n)} to ${esc(toN.n)} yet.</p>${act("Open Transport", `plan:${fromN.n}>${toN.n}`)}`;
-      return `<p><b>${esc(nodeLabel(fromN).replace(" (you’re here)", ""))} to ${esc(toN.n)}</b>, ${trips.length} way${trips.length === 1 ? "" : "s"} from the saved network:</p><ul class="known">${trips.map(tr => `<li>${tr.fastest ? "<b>Fastest:</b> " : tr.cheapest ? "<b>Cheapest:</b> " : ""}${[...new Set(tr.legs.map(L => L.o.mode.toLowerCase()))].join(" + ")}, ${fRange(tr.dmin, tr.dmax)}${tr.unpriced === tr.legs.length ? ", price to check live" : `, from ${thb(tr.pmin)} (£${fmtNum(tr.pmin)})`}</li>`).join("")}</ul><p class="note">Times and prices are a saved baseline. Confirm before you pay.</p>${act("See the full journeys", `plan:${fromN.id || fromN.n}>${toN.id || toN.n}`)}`;
+      return `<p><b>${esc(nodeLabel(fromN).replace(" (you’re here)", ""))} to ${esc(toN.n)}</b>, ${trips.length} way${trips.length === 1 ? "" : "s"} from the saved network:</p><ul class="known">${trips.map(tr => `<li>${tr.fastest ? "<b>Fastest:</b> " : tr.cheapest ? "<b>Cheapest:</b> " : ""}${[...new Set(tr.legs.map(L => L.o.mode.toLowerCase()))].join(" + ")}, ${fRange(tr.dmin, tr.dmax)}${tr.unpriced === tr.legs.length ? ", price to check live" : `, from ${tripFrom(tr)} (£${fmtNum(tr.pmin)})`}</li>`).join("")}</ul><p class="note">Times and prices are a saved baseline. Confirm before you pay.</p>${act("See the full journeys", `plan:${fromN.id || fromN.n}>${toN.id || toN.n}`)}`;
     }
   }
   // essentials

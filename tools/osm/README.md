@@ -41,7 +41,13 @@ It takes a couple of minutes.
 4. Add the destinations to `D.cities` in `js/data.js` (with a script) and their one-line notes to `DEST_NOTE` in `js/tools-more.js`.
 5. For a new country, also add: price tables in `js/estimate.js` (`PRICE_TABLES`), a phrasebook (`js/tools.js`),
    a guide and emergency numbers with official sources (`js/tools-more.js`), and the folder's small files to `PLACES_CORE` in `sw.js`.
-6. Run `npm test`.
+6. Then the hand-researched layer, as for Thailand and Indonesia (all edited with a script, never by hand):
+   - researched gaffs, munch spots and activities in `D.places`, with sources, `city` set to the destination's name in `D.cities`,
+     and pins taken from the new `places/<cc>/` files where the name matches (`osmid`); otherwise an approximate pin with `ap: true`;
+   - hubs, stations and legs in `D.net` (plus `go12` names), each leg with a source or marked `verified: false` (shown as an estimate);
+   - one Wikimedia Commons photo per destination: `img/dest-*.jpg` (440×270), `DEST_IMG` and `PHOTO_CREDITS` in `js/core.js`,
+     and the credit in `img/CREDITS.md` and `img/credits.json`.
+7. Run `npm test`.
 
 ## What it keeps
 

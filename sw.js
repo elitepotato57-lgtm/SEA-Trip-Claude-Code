@@ -1,5 +1,5 @@
 // Keeps the app working offline, but always shows the newest version when there's signal.
-const APP = "sea-trip-app-v2-6";        // the app itself: bump this name when the files below change
+const APP = "sea-trip-app-v2-7";        // the app itself: bump this name when the files below change
 const TILES = "sea-trip-tiles-v2";      // street-map and satellite tiles you have already looked at
 const PLACES = "sea-trip-places-v1";    // the parts of the places database you have already opened
 const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)

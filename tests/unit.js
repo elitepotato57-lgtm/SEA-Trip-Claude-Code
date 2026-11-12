@@ -259,6 +259,89 @@ test("Indonesian estimates are in rupiah, and dearer in Bali than Sumatra", () =
   ok(/Rp/.test(A.bandLabels("food", "ID")[1]) && /฿150/.test(A.bandLabels("food", "TH")[1]));
 });
 
+/* ---------- Indonesia: the hand-researched layer ---------- */
+const ID_DESTS = A.D.cities.filter(c => A.ccAt(c[1], c[2]) === "ID").map(c => c[0]);
+test("all 17 Indonesian destinations are in the trip data", () => {
+  eq(ID_DESTS.length, 17, ID_DESTS.join(", "));
+});
+test("every Indonesian destination has researched places, Bali and Lombok several of each kind", () => {
+  const small = new Set(["Senaru", "Krui", "Pagar Alam"]);      // little exists there (or online) beyond a few stays and sights
+  for (const d of ID_DESTS){
+    const here = A.D.places.filter(p => p.cc === "ID" && p.city === d);
+    ok(here.length >= 5, `${d}: only ${here.length} researched places`);
+    ok(here.some(p => p.c === "gaff") && here.some(p => p.c === "cool"), `${d}: needs a gaff and an activity`);
+    if (!small.has(d)) ok(here.some(p => p.c === "munch"), `${d}: needs somewhere to eat`);
+  }
+});
+test("researched Indonesian places carry sources, sensible money and pins inside the covered area", () => {
+  const id = A.D.places.filter(p => p.cc === "ID");
+  ok(id.length >= 250, `only ${id.length}`);
+  for (const p of id){
+    if (p.verified) ok(p.src.length > 0 && p.src.every(s => /^https:\/\//.test(s[1])), `${p.id}: a researched place needs https sources`);
+    if (p.p){ ok(["IDR", "GBP", "USD"].includes(p.cur), `${p.id}: currency ${p.cur}`); ok(p.p.every(x => x > 0) && (p.p.length < 2 || p.p[1] >= p.p[0]), `${p.id}: price range`); }
+    ok(A.inPlaceDb(p.lat, p.lng), `${p.id}: pin ${p.lat},${p.lng} is outside Sumatra, Bali and Lombok`);
+    ok(p.chk && p.t && p.t.length, `${p.id}: shape`);
+  }
+  eq(new Set(A.D.places.map(p => p.id)).size, A.D.places.length, "ids are unique");
+});
+test("Indonesian researched prices show in rupiah first, pounds alongside", () => {
+  const ibuOka = A.D.places.find(p => p.id === "m-ubd-ibuoka");
+  ok(/^Rp ?25,000/.test(A.itemLocal(ibuOka)), A.itemLocal(ibuOka));
+  ok(/^£/.test(A.gbpRange(ibuOka.p, ibuOka.cur)));
+  const camp = A.D.places.find(p => p.id === "g-kru-ksc");      // priced in pounds by the camp, shown in rupiah
+  ok(/^Rp/.test(A.itemLocal(camp)), A.itemLocal(camp));
+});
+test("every Indonesian destination has its own photo with a credit", () => {
+  const fs = require("fs"), path = require("path");
+  for (const d of ID_DESTS){
+    const f = A.DEST_IMG[d]; ok(f, `${d}: no photo`);
+    ok(fs.existsSync(path.join(__dirname, "..", f)), `${f} is missing`);
+    ok(A.PHOTO_CREDITS.some(c => c[3].includes("commons.wikimedia.org")), "credits point at Wikimedia Commons");
+  }
+  const credits = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "img", "credits.json"), "utf8"));
+  for (const d of ID_DESTS){ const k = A.DEST_IMG[d].replace("img/", ""); ok(credits[k] && credits[k].lic && credits[k].by, `${k}: credit`); }
+});
+
+/* ---------- Indonesia: journey planner ---------- */
+test("every leg joins real hubs and stations and has a time; priced legs have a currency", () => {
+  for (const e of A.D.net.edges){
+    ok(A.HUB[e.a] && A.HUB[e.b], `${e.a}–${e.b}: unknown hub`);
+    for (const s of [e.da, e.db]) ok(!s || A.D.net.stations[s], `${e.a}–${e.b}: unknown station ${s}`);
+    ok(e.dur[0] > 0 && e.dur[1] >= e.dur[0], `${e.a}–${e.b}: time`);
+    if (e.p) ok(A.D.rates[e.cur], `${e.a}–${e.b}: currency ${e.cur}`);
+    if (e.verified) ok(e.src.length > 0, `${e.a}–${e.b}: a checked leg needs a source`);
+  }
+});
+test("every Indonesian destination can be reached from Bali airport and from Bangkok", () => {
+  const hubFor = d => Object.values(A.HUB).find(h => h.n === d);
+  for (const d of ID_DESTS){
+    const h = hubFor(d); ok(h, `${d}: no hub`);
+    ok(A.planTrips(A.hubNode("dps"), A.hubNode(h.id)).length > 0, `Bali airport to ${d}`);
+  }
+  ok(A.planTrips(A.hubNode("bkk"), A.hubNode("ubud")).length > 0, "Bangkok to Ubud");
+  ok(A.planTrips(A.hubNode("bkk"), A.hubNode("plm")).length > 0, "Bangkok to Palembang");
+});
+test("Ubud to Gili Trawangan: taxi to Padang Bai, then the fast boat, totalled in rupiah", () => {
+  const trips = A.planTrips(A.hubNode("ubud"), A.hubNode("gilit"));
+  const t = trips.find(x => x.legs.some(L => L.from === "padangbai" && L.to === "gilit"));
+  ok(t, "a Padang Bai fast-boat option");
+  eq(A.tripCur(t), "IDR");
+  ok(/^Rp/.test(A.tripFrom(t)), A.tripFrom(t));
+  eq(A.tripCur(A.planTrips(A.hubNode("bkk"), A.hubNode("ubud"))[0]), "THB", "a trip from Bangkok totals in baht");
+});
+test("taxi hops between Indonesian hubs suggest Grab or Gojek and rupiah", () => {
+  const hop = A.LEGS.find(o => (o.a === "ubud" && o.b === "canggu") || (o.a === "canggu" && o.b === "ubud"));
+  ok(hop && /Gojek/.test(hop.op) && hop.cur === "IDR", JSON.stringify(hop));
+  const th = A.LEGS.find(o => o.mode === "Taxi" && !o.src.length && A.nodeCc(A.HUB[o.a]) === "TH");
+  ok(th && /Bolt/.test(th.op) && th.cur === "THB");
+});
+test("a searched place on Gili Meno or Nusa Penida links to its island, not the mainland", () => {
+  const meno = A.connectors({n:"Gili Meno", lat:-8.35, lng:116.058}, "@x");
+  eq(meno.length, 1); eq(meno[0].b, "gilit");
+  const kelingking = A.connectors({n:"Kelingking", lat:-8.75, lng:115.474}, "@x");
+  eq(kelingking.map(l => l.b), ["penida"]);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
