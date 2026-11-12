@@ -1,8 +1,11 @@
 // Keeps the app working offline, but always shows the newest version when there's signal.
-const APP = "sea-trip-app-v2-1";        // the app itself: bump this name when the files below change
+const APP = "sea-trip-app-v2-4";        // the app itself: bump this name when the files below change
 const TILES = "sea-trip-tiles-v2";      // street-map and satellite tiles you have already looked at
 const PLACES = "sea-trip-places-v1";    // the parts of the places database you have already opened
+const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
+  "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/estimate.js", "./js/shell.js", "./js/lists.js", "./js/map.js",
+  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg"];
 const PLACES_CORE = ["./places/th/meta.json", "./places/th/coverage.json", "./places/th/sum-stay.json", "./places/th/sum-food.json", "./places/th/sum-do.json"];
@@ -17,7 +20,7 @@ self.addEventListener("install", e => {
 });
 
 self.addEventListener("activate", e => {
-  const keep = [APP, TILES, PLACES];
+  const keep = [APP, TILES, PLACES, PACKS];
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => !keep.includes(k)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
@@ -46,6 +49,23 @@ async function pageFirst(req){
     return (await cache.match("./index.html")) || (await cache.match("./")) || new Response("Offline and not saved yet. Open the app once with signal.", {status: 503});
   }
 }
+// The app's own code (js/, css/, config.js): newest from the internet when there's signal, so a phone never mixes
+// an updated page with old code files; the saved copy if there's no signal or it takes more than 5 seconds.
+async function codeFirst(req){
+  const cache = await caches.open(APP);
+  const key = new URL(req.url); key.search = "";
+  try {
+    const res = await Promise.race([
+      fetch(req, {cache: "no-cache"}),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("slow")), 5000))
+    ]);
+    if (res && res.ok){ cache.put(key.href, res.clone()).catch(() => {}); return res; }
+    if (res && res.status === 404) return res;                 // config.js is optional
+    throw new Error("bad response");
+  } catch (err) {
+    return (await cache.match(key.href)) || new Response("", {status: 504});
+  }
+}
 // Internet first, saved copy if that fails (the map's small index file, which says where today's tiles live)
 async function netFirst(req, name){
   const cache = await caches.open(name);
@@ -53,12 +73,12 @@ async function netFirst(req, name){
     const res = await fetch(req);
     if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
     return res;
-  } catch (err) { return (await cache.match(req)) || new Response("", {status: 504}); }
+  } catch (err) { return (await caches.match(req)) || new Response("", {status: 504}); }
 }
 // Saved copy if we have one, otherwise fetch and keep it (map tiles never change once made)
 async function cacheFirst(req, name, max){
   const cache = await caches.open(name);
-  const hit = await cache.match(req);
+  const hit = await caches.match(req);              // any cache, including saved cities
   if (hit) return hit;
   try {
     const res = await fetch(req);
@@ -69,7 +89,7 @@ async function cacheFirst(req, name, max){
 // Show the saved copy straight away and refresh it in the background
 async function savedThenFresh(req, name, ignoreSearch){
   const cache = await caches.open(name);
-  const hit = await cache.match(req, {ignoreSearch});
+  const hit = (await cache.match(req, {ignoreSearch})) || (await caches.match(req, {ignoreSearch}));
   const fresh = fetch(req).then(res => {
     if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone()).catch(() => {});
     return res;
@@ -85,6 +105,7 @@ self.addEventListener("fetch", e => {
   const same = url.origin === self.location.origin;
   const isPage = req.mode === "navigate" || (same && /\/(index\.html)?$/.test(url.pathname));
   if (same && isPage){ e.respondWith(pageFirst(req)); return; }
+  if (same && (/\/(js|css)\/[^/]+$/.test(url.pathname) || /\/config\.js$/.test(url.pathname))){ e.respondWith(codeFirst(req)); return; }
   if (MAP_HOSTS.test(url.hostname)){
     const isIndex = url.hostname === "tiles.openfreemap.org" && !/\.(pbf|png|jpg|jpeg|webp|json)$/.test(url.pathname) && !/\/fonts\//.test(url.pathname);
     e.respondWith(isIndex ? netFirst(req, TILES) : cacheFirst(req, TILES, MAX_TILES));

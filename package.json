@@ -1,0 +1,14 @@
+{
+  "name": "sea-trip",
+  "private": true,
+  "description": "SE Asia Trip phone app. No build step: the repo root is the live site.",
+  "scripts": {
+    "test": "node tests/unit.js && node tests/smoke.js",
+    "test:unit": "node tests/unit.js",
+    "test:smoke": "node tests/smoke.js",
+    "serve": "node tests/serve.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}
