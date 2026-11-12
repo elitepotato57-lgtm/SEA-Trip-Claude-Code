@@ -4,14 +4,14 @@
    ============================================================ */
 const TOOLS = [
   {id:"currency", l:"Currency", d:"Baht and other rates, works offline", ic:"cash"},
-  {id:"translate", l:"Translator", d:"Thai phrasebook and live translation", ic:"lang", alt:1},
+  {id:"translate", l:"Translator", get d(){ return `${phrasebook().name} phrasebook and live translation`; }, ic:"lang", alt:1},
   {id:"camera", l:"Camera translator", d:"Point at a menu or sign", ic:"camera"},
   {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
   {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1},
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Cafés and spots with Wi-Fi", ic:"wifi", alt:1},
-  {id:"guide", l:"Thailand guide", d:"Entry rules, money, customs", ic:"book"},
+  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
   {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1}
@@ -181,11 +181,47 @@ const PHRASES = [
     ["1", "หนึ่ง", "nèung", "neung"], ["2", "สอง", "sǎwng", "song"], ["3", "สาม", "sǎam", "saam"], ["4", "สี่", "sèe", "see"], ["5", "ห้า", "hâa", "haa"], ["6", "หก", "hòk", "hok"], ["7", "เจ็ด", "jèt", "jet"],
     ["8", "แปด", "pàet", "paet"], ["9", "เก้า", "gâo", "gao"], ["10", "สิบ", "sìp", "sip"], ["20", "ยี่สิบ", "yêe sìp", "yee-sip"], ["100", "หนึ่งร้อย", "nèung rói", "neung roy"], ["1,000", "หนึ่งพัน", "nèung phan", "neung pan"]]}
 ];
+/* Indonesian phrasebook: same shape, no tone marks (Indonesian has none). The "Say" line is a guide for English speakers:
+   capitals show the stressed part, "uh" is the quiet e, and c always sounds like the ch in "church". */
+const PHRASES_ID = [
+  {t:"Basics", p:[
+    ["Hello / good morning", "Selamat pagi", "", "suh-LAH-mat PAH-gee"], ["Good afternoon", "Selamat siang", "", "suh-LAH-mat SEE-ang"], ["Good evening", "Selamat malam", "", "suh-LAH-mat MAH-lam"],
+    ["Thank you", "Terima kasih", "", "tuh-REE-ma KA-see"], ["You’re welcome", "Sama-sama", "", "SA-ma SA-ma"], ["Yes", "Ya", "", "yah"], ["No", "Tidak", "", "TEE-dak"],
+    ["Sorry", "Maaf", "", "MA-af"], ["Excuse me (to get past)", "Permisi", "", "per-MEE-see"], ["I don’t understand", "Saya tidak mengerti", "", "SAI-ya TEE-dak muh-NGER-tee"],
+    ["Do you speak English?", "Bisa bahasa Inggris?", "", "BEE-sa ba-HA-sa ING-gris"], ["How are you?", "Apa kabar?", "", "A-pa KA-bar"]]},
+  {t:"Money and shopping", p:[
+    ["How much is this?", "Berapa harganya?", "", "buh-RA-pa har-GA-nya"], ["Too expensive", "Terlalu mahal", "", "ter-LA-loo MA-hal"], ["Can it be cheaper?", "Bisa kurang?", "", "BEE-sa KOO-rang"],
+    ["I’ll take this one", "Saya ambil yang ini", "", "SAI-ya AM-bil yang EE-nee"], ["Can I pay by card?", "Bisa bayar pakai kartu?", "", "BEE-sa BAI-yar PA-kai KAR-too"], ["Where is an ATM?", "Di mana ATM?", "", "dee MA-na ah-teh-em"]]},
+  {t:"Food", p:[
+    ["Not spicy", "Tidak pedas", "", "TEE-dak puh-DAS"], ["A little spicy", "Sedikit pedas", "", "suh-DEE-kit puh-DAS"], ["I don’t eat meat", "Saya tidak makan daging", "", "SAI-ya TEE-dak MA-kan DA-ging"],
+    ["I’m allergic to peanuts", "Saya alergi kacang", "", "SAI-ya a-LER-gee KA-chang"], ["Water, please", "Minta air putih", "", "MIN-ta A-eer POO-tee"], ["No ice", "Tanpa es", "", "TAN-pa es"],
+    ["The bill, please", "Minta bon", "", "MIN-ta bon"], ["Delicious", "Enak", "", "EH-nak"], ["Takeaway", "Dibungkus", "", "dee-BOONG-koos"]]},
+  {t:"Getting around", p:[
+    ["Where is …?", "Di mana …?", "", "dee MA-na …"], ["How much to go to …?", "Berapa ke …?", "", "buh-RA-pa kuh …"], ["Stop here", "Berhenti di sini", "", "ber-HEN-tee dee SEE-nee"],
+    ["Turn left", "Belok kiri", "", "BEH-lok KEE-ree"], ["Turn right", "Belok kanan", "", "BEH-lok KA-nan"], ["Straight on", "Lurus", "", "LOO-roos"],
+    ["Bus station", "Terminal bus", "", "TER-mee-nal boos"], ["Train station", "Stasiun kereta", "", "STA-see-oon kuh-REH-ta"], ["Harbour / ferry port", "Pelabuhan", "", "puh-la-BOO-han"],
+    ["Airport", "Bandara", "", "ban-DA-ra"], ["What time does it leave?", "Jam berapa berangkat?", "", "jam buh-RA-pa buh-RANG-kat"], ["One ticket to …", "Satu tiket ke …", "", "SA-too TEE-ket kuh …"]]},
+  {t:"Staying", p:[
+    ["Do you have a room?", "Ada kamar kosong?", "", "A-da KA-mar KO-song"], ["How much per night?", "Berapa semalam?", "", "buh-RA-pa suh-MA-lam"], ["Can I see the room?", "Boleh lihat kamarnya?", "", "BO-leh LEE-hat ka-MAR-nya"],
+    ["Is there Wi-Fi?", "Ada Wi-Fi?", "", "A-da WAI-fai"], ["Where is the toilet?", "Di mana toilet?", "", "dee MA-na toy-LET"], ["Where can I do laundry?", "Di mana tempat laundry?", "", "dee MA-na TEM-pat LON-dree"]]},
+  {t:"Help and health", p:[
+    ["Help!", "Tolong!", "", "TO-long"], ["Call the police", "Panggil polisi", "", "PANG-gil po-LEE-see"], ["I need a doctor", "Saya perlu dokter", "", "SAI-ya PER-loo DOK-ter"],
+    ["Take me to a hospital", "Tolong antar ke rumah sakit", "", "TO-long AN-tar kuh ROO-mah SA-kit"], ["I’m lost", "Saya tersesat", "", "SAI-ya ter-SUH-sat"],
+    ["I lost my passport", "Paspor saya hilang", "", "PAS-por SAI-ya HEE-lang"], ["It hurts here", "Sakit di sini", "", "SA-kit dee SEE-nee"], ["Pharmacy", "Apotek", "", "a-PO-tek"]]},
+  {t:"Numbers", p:[
+    ["1", "satu", "", "SA-too"], ["2", "dua", "", "DOO-a"], ["3", "tiga", "", "TEE-ga"], ["4", "empat", "", "UM-pat"], ["5", "lima", "", "LEE-ma"], ["6", "enam", "", "UH-nam"], ["7", "tujuh", "", "TOO-jooh"],
+    ["8", "delapan", "", "duh-LA-pan"], ["9", "sembilan", "", "sum-BEE-lan"], ["10", "sepuluh", "", "suh-POO-looh"], ["20", "dua puluh", "", "DOO-a POO-looh"], ["100", "seratus", "", "suh-RA-toos"],
+    ["1,000", "seribu", "", "suh-REE-boo"], ["10,000", "sepuluh ribu", "", "suh-POO-looh REE-boo"], ["100,000", "seratus ribu", "", "suh-RA-toos REE-boo"]]}
+];
+// the phrasebook for the country you're in: Indonesian in Indonesia, Thai everywhere else
+const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
 let phraseTab = 0;
 TOOL_PAGES.translate = root => {
   const lang = trLang(), langName = (TR_LANGS.find(l => l[0] === lang) || TR_LANGS[0])[1];
-  const g = PHRASES[phraseTab];
-  root.innerHTML = toolHero("Translator", "Live translation and an offline Thai phrasebook") + `<div class="page">
+  const PB = phrasebook();
+  if (phraseTab >= PB.list.length) phraseTab = 0;
+  const g = PB.list[phraseTab];
+  root.innerHTML = toolHero("Translator", `Live translation and an offline ${PB.name} phrasebook`) + `<div class="page">
     <a class="btn" href="#tools/camera" style="margin:2px 0 10px">${icon("camera", "i s")}Translate with the camera</a>
   <section class="block" aria-labelledby="h-tr">
     <h2 id="h-tr">Translator</h2>
@@ -196,10 +232,10 @@ TOOL_PAGES.translate = root => {
     <p class="note" style="margin-top:8px">Needs signal. ${googleKey() ? "Uses your Google key, with a free service as the fallback." : "Uses the free MyMemory service (about 5,000 characters a day)."}</p>
   </section>
   <section class="block" aria-labelledby="h-pb">
-    <h2 id="h-pb">Thai phrasebook</h2>
-    <p class="note">Works offline. To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
-    <div class="scroller" style="margin-top:8px">${PHRASES.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
-    <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in Thai">${icon("speaker")}</button><span class="th" lang="th">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span><span class="ro">With tone marks: ${esc(p[2])}</span></div>`).join("")}</div>
+    <h2 id="h-pb">${PB.name} phrasebook</h2>
+    <p class="note">Works offline. ${PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
+    <div class="scroller" style="margin-top:8px">${PB.list.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
+    <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in ${PB.name}">${icon("speaker")}</button><span class="th" lang="${PB.lang}">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span>${p[2] ? `<span class="ro">With tone marks: ${esc(p[2])}</span>` : ""}</div>`).join("")}</div>
   </section></div>`;
   const tt = $("#tr-text"), tl = $("#tr-lang");
   let timer = null;
@@ -207,7 +243,7 @@ TOOL_PAGES.translate = root => {
   tl.onchange = () => { trState.lang = tl.value; renderPage(); doTranslate(); };
   root.querySelectorAll("[data-rev]").forEach(b => b.onclick = () => { trState.rev = b.dataset.rev === "1"; trState.out = ""; renderPage(); doTranslate(); });
   root.querySelectorAll("[data-pt]").forEach(b => b.onclick = () => { phraseTab = +b.dataset.pt; const y = root.scrollTop; renderPage(); root.scrollTop = y; });
-  root.querySelectorAll("[data-say]").forEach(b => b.onclick = () => speak(g.p[+b.dataset.say][1].replace(/…/g, " "), "th"));
+  root.querySelectorAll("[data-say]").forEach(b => b.onclick = () => speak(g.p[+b.dataset.say][1].replace(/…/g, " "), PB.voice));
   paintTranslation();
 };
 

@@ -93,7 +93,7 @@ const LOC_LINE = () => ({ok:"Your location is on.", test:`Using a test location:
   outside:"You’re outside the trip countries, so pick a place below.", idle:"Location hasn’t been checked yet."}[locStatus]);
 function openWherePicker(){
   const here = userLoc ? focusPtHere() : null;
-  const dests = THAI_DESTS.map(c => ({n:c[0], lat:c[1], lng:c[2], km: userLoc ? dist(userLoc, {lat:c[1], lng:c[2]}) : null}));
+  const dests = PLACE_DESTS.map(c => ({n:c[0], lat:c[1], lng:c[2], km: userLoc ? dist(userLoc, {lat:c[1], lng:c[2]}) : null}));
   if (userLoc) dests.sort((a, b) => a.km - b.km); else dests.sort((a, b) => a.n.localeCompare(b.n));
   const sheet = openSheet(`<div class="sheet-head"><h2 id="wp-title" style="margin:0 0 4px">Where are you looking?</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
     <p class="note" style="margin-bottom:10px">Gaffs, Munch, Activities and the map all look around this place. ${esc(LOC_LINE())}</p>
@@ -102,13 +102,13 @@ function openWherePicker(){
       ${dests.map((d, i) => `<button type="button" data-dest="${i}" aria-pressed="${!!S.focus && S.focus.n === d.n}">${icon("pin")}<span>${esc(d.n)}${d.km != null ? `<small>${distText(d.km)}</small>` : ""}</span></button>`).join("")}
     </div>
     <details class="more" style="margin-top:14px"><summary>Other countries on the trip</summary>
-      <p class="note" style="margin:8px 0">Thailand is covered in depth. The other countries have a starter set of researched places, money and ride tips.</p>
+      <p class="note" style="margin:8px 0">Thailand is covered in depth, and so are Bali, Lombok and three provinces of Sumatra in Indonesia (Lampung, South Sumatra and Bengkulu). The other countries have a starter set of researched places, money and ride tips.</p>
       <div class="cgrid">${Object.entries(D.countries).map(([k, x]) => `<button type="button" data-pick="${k}" aria-pressed="${S.country === k}"><span class="f" aria-hidden="true">${x.flag}</span>${esc(x.name)}</button>`).join("")}</div>
     </details>`, "wp-title");
   $("#wp-here").onclick = () => { setFocus(null); S.countryMode = "auto"; persist(); closeDetail(); locate(true); if (map && userLoc) flyTo(userLoc, 13); rerender(); };
   sheet.querySelectorAll("[data-dest]").forEach(b => b.onclick = () => {
     const d = dests[+b.dataset.dest]; setFocus(d); closeDetail();
-    if (S.country !== "TH") setCountry("TH", true);
+    const cc = ccAt(d.lat, d.lng) || "TH"; if (S.country !== cc) setCountry(cc, true);
     if (map) flyTo(d, 12.5);
     rerender();
   });

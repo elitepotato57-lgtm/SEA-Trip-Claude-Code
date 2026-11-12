@@ -42,11 +42,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error" && !IGNORE.test(m.text())) errors.push(m.text()); });
   const sumHits = {};
-  page.on("request", r => { const m = r.url().match(/sum-\w+\.json/); if (m) sumHits[m[0]] = (sumHits[m[0]] || 0) + 1; });
+  page.on("request", r => { const m = r.url().match(/places\/\w+\/sum-\w+\.json/); if (m) sumHits[m[0]] = (sumHits[m[0]] || 0) + 1; });
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
-  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3, "each place summary downloads once " + JSON.stringify(sumHits));
+  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 6, "each place summary downloads once, for Thailand and Indonesia " + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
@@ -86,6 +86,30 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => ui.mapCats.size === 0 && mapRun.items.length === 0), "tapping the only section again switches everything off");
   await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
   ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden && ui.mapCats.size === 3), "All brings everything back, without the filter row");
+
+  // Indonesia: the map, lists, search and Tools work in Sumatra, Bali and Lombok too
+  await page.evaluate(() => { setFocus({n:"Palembang", lat:-2.9888, lng:104.7569}); setCountry("ID", true); });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.7569, -2.9888], zoom:14.5}); }); await page.waitForTimeout(4000);
+  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, lab:(document.querySelector('#mapFilt [data-mb="1"]') || {}).textContent}));
+  ok(idMap.id > 20 && /Rp/.test(idMap.lab || ""), "Palembang food shows on the map, with price filters in rupiah " + JSON.stringify(idMap));
+  const pem = await page.evaluate(async () => (await Places.search("pempek", {lat:-2.9888, lng:104.7569})).map(s => s.n));
+  ok(pem.length > 0 && pem.every(n => /pempek|empek/i.test(n)), "search finds pempek places in Palembang " + JSON.stringify(pem.slice(0, 3)));
+  await page.evaluate(() => { setFocus({n:"Ubud", lat:-8.5069, lng:115.2625}); });
+  await page.goto(BASE + "#gaffs"); await page.waitForTimeout(4000);
+  const ubud = await page.evaluate(() => ({cards:document.querySelectorAll("#pageview .card[data-open]").length, rp:/Rp/.test(document.querySelector("#pageview .cards") ? document.querySelector("#pageview .cards").textContent : "")}));
+  ok(ubud.cards > 5 && ubud.rp, "Ubud stays list with rupiah estimates " + JSON.stringify(ubud));
+  await page.goto(BASE + "#tools/guide"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /Indonesia guide/.test(document.querySelector("#pageview h1").textContent) && /500,000 rupiah/.test(document.querySelector("#pageview").textContent)), "the guide switches to Indonesia");
+  await page.goto(BASE + "#tools/emergency"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => !!document.querySelector('#pageview a[href="tel:118"]') && /Jakarta/.test(document.querySelector("#pageview").textContent)), "Indonesia's emergency numbers and the embassy in Jakarta");
+  await page.goto(BASE + "#tools/translate"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /Indonesian phrasebook/.test(document.querySelector("#h-pb").textContent) && /Terima kasih/.test(document.querySelector("#pageview").textContent)), "the phrasebook switches to Indonesian");
+  const w3 = await page.evaluate(() => document.documentElement.scrollWidth);
+  ok(w3 <= 393, `no sideways scroll on the Indonesian pages (width ${w3})`);
+  await page.evaluate(() => { setFocus(null); setCountry("TH", true); });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => { ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
 
   // questions in the search box: typed questions get an answer row; answers list nearby places
   await page.fill("#m-q", "where's the nearest toilet"); await page.waitForTimeout(600);

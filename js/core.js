@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.4.1";
+const VERSION = "2.5.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -267,7 +267,9 @@ function inRing(lat, lng, ring){
 }
 function countryAt(lat, lng){
   for (const c of GEO){ if (c.cc && c.p.some(r => inRing(lat, lng, r))) return c.cc; }
-  // small islands may be missing from the outline, so fall back to a nearby trip city
+  // small islands may be missing from the outline: the places databases' coverage boxes (js/places.js) know them, e.g. the Gilis
+  if (typeof PLACE_DBS !== "undefined"){ const d = PLACE_DBS.find(x => x.bbs && x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3])); if (d) return d.cc; }
+  // otherwise fall back to a nearby trip city
   let best = null, bestKm = 60;
   for (const p of D.places){ const km = dist({lat, lng}, p); if (km < bestKm){ bestKm = km; best = p.cc; } }
   return best;

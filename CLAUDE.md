@@ -30,12 +30,17 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
 - `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
-- `places/th/`: the places database. `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
+- `places/th/` (all of Thailand) and `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok): the places
+  databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
+  Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
+  numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
+- `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
 - `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`.
 
 ## Rules
 
 - Keep the tab names: **Map, Gaffs, Munch, Activities, Tools** (Settings behind the cog).
+- Dylan wants every country to work to the same extent as Thailand. When adding one, do all the steps in `tools/osm/README.md`.
 - Prices: local currency first, GBP alongside. **Estimates** are allowed only from the rules in `js/estimate.js`,
   always shown as "est." and never instead of a researched price. Never invent researched prices, hours, ratings or places.
 - **No Buddha imagery anywhere** (deliberate choice). No temple drawings in themes either.

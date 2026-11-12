@@ -72,25 +72,51 @@ function bboxDist(pt, bb){            // km from a point to a [w, s, e, n] box; 
   return lat === pt.lat && lng === pt.lng ? 0 : dist(pt, {lat, lng});
 }
 const P_MAP = {w:"web", v:"veg", vg:"vegan", d:"desc"};
-function osmPlace(row, areas, grp){
-  const k = row[3], a = areas[row[5]] || ["Thailand", "Thailand"], p = row[6] || {};
+/* The places databases, one folder each in places/ (built by tools/osm/extract.py; see tools/osm/README.md).
+   Thailand covers the whole country. Indonesia so far covers Lampung, South Sumatra and Bengkulu (Sumatra), Bali and Lombok:
+   the boxes below match "regions" in places/id/meta.json. */
+const PLACE_DBS = [{dir:"th", cc:"TH"}, {dir:"id", cc:"ID", bbs:[[100.62, -6.455, 106.847, -1.514], [114.413, -9.05, 115.832, -7.463], [115.75, -9.0, 116.74, -8.15]]}];
+const inPlaceDb = (lat, lng) => !!placeDbCc(lat, lng);
+// which country's database covers a point (islands and coasts can fall outside the simplified country outlines, so the boxes win)
+function placeDbCc(lat, lng){
+  const d = PLACE_DBS.find(x => x.bbs ? x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3]) : countryAt(lat, lng) === x.cc);
+  return d ? d.cc : null;
+}
+const ccAt = (lat, lng) => placeDbCc(lat, lng) || countryAt(lat, lng);
+function osmPlace(row, areas, grp, cc = "TH"){
+  const k = row[3], cn = (D.countries[cc] || {name:"Thailand"}).name, a = areas[row[5]] || [cn, cn], p = row[6] || {};
   const name = String(row[4] || "").split(";")[0].trim();        // OpenStreetMap sometimes packs two names into one field
-  const it = {id:"o:" + row[0], osm:true, g:grp, c:CAT_OF_GRP[grp], k, n:name || (KIND[k] || {l:"Place"}).l, unnamed:!name, cc:"TH", city:a[1], area:a[0],
+  const it = {id:"o:" + row[0], osm:true, g:grp, c:CAT_OF_GRP[grp], k, n:name || (KIND[k] || {l:"Place"}).l, unnamed:!name, cc, city:a[1], area:a[0],
     lat:row[1], lng:row[2], ap:false, t:[(KIND[k] || {l:"Place"}).l], p:null, cur:null, r:null, s:[], tips:[], verified:false};
   for (const key in p) it[P_MAP[key] || key] = p[key];
   if (it.wp){ const m = /^en:(.+)$/.exec(it.wp); it.wpx = it.wp; it.wp = m ? m[1] : undefined; }
   return it;
 }
 const Places = {
-  meta:null, state:"idle", leaves:{}, cache:new Map(), sums:{}, shards:new Map(), byId:new Map(), _ready:null, cc:"th",
+  meta:null, metas:{}, state:"idle", leaves:{}, cache:new Map(), sums:{}, shards:new Map(), byId:new Map(), _ready:null,
+  // every database's index, merged: kinds, and each section's tiles (each tile remembers its folder)
   ready(){
     if (this._ready) return this._ready;
     this.state = "loading";
-    this._ready = getJSON(`${PLACES_BASE}${this.cc}/meta.json`, {timeout:15000}).then(m => {
-      this.meta = m; this.state = "ok";
-      for (const g in m.groups) this.leaves[g] = m.groups[g].leaves.map(([z, x, y, n]) => ({g, z, x, y, n, key:`${g}/${z}-${x}-${y}`,
-        bb:[tile2lng(x, z), tile2lat(y + 1, z), tile2lng(x + 1, z), tile2lat(y, z)]}));
-      return m;
+    this._ready = Promise.all(PLACE_DBS.map(db => getJSON(`${PLACES_BASE}${db.dir}/meta.json`, {timeout:15000}).then(m => [db, m]).catch(() => null))).then(list => {
+      const got = list.filter(Boolean);
+      if (!got.length) throw new Error("no index");
+      const merged = {kinds:{}, groups:{}, generated:"", osm:"", dbs:[]};
+      this.leaves = {};
+      for (const [db, m] of got){
+        this.metas[db.dir] = m;
+        Object.assign(merged.kinds, m.kinds);
+        if (m.generated > merged.generated) merged.generated = m.generated;
+        if (m.osm > merged.osm) merged.osm = m.osm;
+        merged.dbs.push({dir:db.dir, cc:db.cc, regions:m.regions || null});
+        for (const g in m.groups){
+          (merged.groups[g] = merged.groups[g] || {n:0}).n += m.groups[g].n;
+          (this.leaves[g] = this.leaves[g] || []).push(...m.groups[g].leaves.map(([z, x, y, n]) => ({g, z, x, y, n, dir:db.dir, cc:db.cc, key:`${db.dir}/${g}/${z}-${x}-${y}`,
+            bb:[tile2lng(x, z), tile2lat(y + 1, z), tile2lng(x + 1, z), tile2lat(y, z)]})));
+        }
+      }
+      this.meta = merged; this.state = "ok";
+      return merged;
     }).catch(() => { this.state = "off"; this._ready = null; return null; });
     return this._ready;
   },
@@ -100,8 +126,8 @@ const Places = {
     let c = this.cache.get(leaf.key);
     if (c){ c.used = Date.now(); return c.promise; }
     c = {used:Date.now(), items:null};
-    c.promise = getJSON(`${PLACES_BASE}${this.cc}/${leaf.g}/${leaf.z}-${leaf.x}-${leaf.y}.json`, {signal, timeout:20000}).then(t => {
-      c.items = t.f.map(r => osmPlace(r, t.a, leaf.g));
+    c.promise = getJSON(`${PLACES_BASE}${leaf.dir}/${leaf.g}/${leaf.z}-${leaf.x}-${leaf.y}.json`, {signal, timeout:20000}).then(t => {
+      c.items = t.f.map(r => osmPlace(r, t.a, leaf.g, leaf.cc));
       c.items.forEach(p => { if (!this.byId.has(p.id) || p.k !== "wifi") this.byId.set(p.id, p); });
       this.trim();
       return c.items;
@@ -135,14 +161,21 @@ const Places = {
     if (this.sums[g]) return this.sums[g];
     this.sums[g] = this.ready().then(m => {
       if (!m) throw new Error("no index");
-      return getJSON(`${PLACES_BASE}${this.cc}/sum-${g}.json`, {timeout:20000});
-    }).then(s => {
-      const z = s.z;
-      return s.cells.map(c => {
-        const counts = {}; let total = 0;
-        for (let i = 2; i < c.length; i += 2){ counts[s.kinds[c[i]]] = c[i + 1]; total += c[i + 1]; }
-        return {lat:(tile2lat(c[1], z) + tile2lat(c[1] + 1, z)) / 2, lng:(tile2lng(c[0], z) + tile2lng(c[0] + 1, z)) / 2, counts, total};
-      });
+      // each database's counts, added together (a missing one is skipped rather than losing the rest)
+      return Promise.all(m.dbs.filter(db => this.metas[db.dir].groups[g]).map(db => getJSON(`${PLACES_BASE}${db.dir}/sum-${g}.json`, {timeout:20000}).catch(() => null)));
+    }).then(list => {
+      const cells = [];
+      for (const s of list){
+        if (!s) continue;
+        const z = s.z;
+        for (const c of s.cells){
+          const counts = {}; let total = 0;
+          for (let i = 2; i < c.length; i += 2){ counts[s.kinds[c[i]]] = c[i + 1]; total += c[i + 1]; }
+          cells.push({lat:(tile2lat(c[1], z) + tile2lat(c[1] + 1, z)) / 2, lng:(tile2lng(c[0], z) + tile2lng(c[0] + 1, z)) / 2, counts, total});
+        }
+      }
+      if (!cells.length && !list.some(Boolean)) throw new Error("no summary");
+      return cells;
     }).catch(() => { delete this.sums[g]; return null; });
     return this.sums[g];
   },
@@ -152,18 +185,26 @@ const Places = {
     if (!leaf) return null;
     try { const items = await this.leaf(leaf); return items.find(p => p.id === id) || null; } catch(e){ return null; }
   },
-  /* name search over the whole country, one small file per word prefix */
+  // the search file for a word in one database (keep the promise, so typing fast doesn't download the same file twice)
+  shard(dir, key){
+    const k = dir + "/" + key;
+    if (!this.shards.has(k)) this.shards.set(k, getJSON(`${PLACES_BASE}${dir}/search/s-${key}.json`, {timeout:12000}).catch(() => { this.shards.delete(k); return []; }));
+    return this.shards.get(k);
+  },
+  /* name search over every database, one small file per word prefix */
   async search(text, near){
     const m = await this.ready(); if (!m) return [];
     const toks = foldText(text).split(" ").filter(t => t.length > 1);
     if (!toks.length) return [];
-    const stop = new Set(m.search.stop);
-    const pick = toks.filter(t => !stop.has(t)).sort((a, b) => b.length - a.length)[0] || toks[0];
-    let key = pick.slice(0, 2);
-    if (m.search.split.includes(key)){ if (pick.length < 3) return []; key = pick.slice(0, 3); }
-    // keep the promise, not the result, so typing fast doesn't download the same shard twice
-    if (!this.shards.has(key)) this.shards.set(key, getJSON(`${PLACES_BASE}${this.cc}/search/s-${key}.json`, {timeout:12000}).catch(() => { this.shards.delete(key); return []; }));
-    const rows = await this.shards.get(key);
+    const parts = await Promise.all(m.dbs.map(db => {
+      const s = this.metas[db.dir].search;
+      const stop = new Set(s.stop);
+      const pick = toks.filter(t => !stop.has(t)).sort((a, b) => b.length - a.length)[0] || toks[0];
+      let key = pick.slice(0, 2);
+      if (s.split.includes(key)){ if (pick.length < 3) return []; key = pick.slice(0, 3); }
+      return this.shard(db.dir, key);
+    }));
+    const rows = parts.flat();
     const hits = [];
     for (const r of rows){
       const words = foldText(r[0]).split(" ");
@@ -437,6 +478,10 @@ const saveBtn = (it, cls = "save") => `<button class="${cls}" type="button" data
 
 /* ---------- the focus point: where lists and search look ---------- */
 const THAI_DESTS = D.cities.filter(c => countryAt(c[1], c[2]) === "TH");
+// destinations inside a places database (Thailand, and the Sumatran provinces so far): these can be saved offline and picked as "where"
+const PLACE_DESTS = D.cities.filter(c => inPlaceDb(c[1], c[2]));
+const SUMATRA_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] < 110);
+const BALI_LOMBOK_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] >= 114);
 function focusPt(){
   if (S.focus && isFinite(S.focus.lat)) return S.focus;
   if (userLoc) return {lat:userLoc.lat, lng:userLoc.lng, here:true};
@@ -475,7 +520,9 @@ const CHIPS = {
   munch: [
     {id:"all", l:"All", ic:"food"},
     {id:"street", l:"Street Food", ic:"food", f:STREETISH},
-    {id:"thai", l:"Thai Food", ic:"pot", f:it => it.osm ? hasCu(it, THAI_CU) && !it.br : it.cc === "TH" && !WESTERN.test(ptext(it))},
+    // the country's own food: Thai in Thailand, Indonesian (including Padang food, pempek and satay) in Indonesia
+    {id:"thai", get l(){ return S.country === "ID" ? "Indonesian Food" : "Thai Food"; }, ic:"pot",
+      f:it => it.cc === "ID" ? ["Indonesian", "Padang food", "Pempek", "Satay"].includes(foodType(it)) : it.osm ? hasCu(it, THAI_CU) && !it.br : it.cc === "TH" && !WESTERN.test(ptext(it))},
     {id:"cheap", l:"Cheap Eats", ic:"cash", f:it => it.osm ? STREETISH(it) : (it.p ? toGBP(it.p[0], it.cur) * rate("THB") <= 100 : false),
       note:"Researched places with a checked price of ฿100 or less, then street stalls, food courts and markets, which are normally cheap. OpenStreetMap has no prices, so none are shown for those."},
     {id:"picks", l:"Local Favourites", ic:"star", f:it => !it.osm, note:"Places recommended by travel guides and blogs, each with its sources."},

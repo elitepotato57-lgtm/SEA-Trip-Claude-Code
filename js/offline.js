@@ -21,9 +21,12 @@ async function packUrls(city){
   const pt = {lat:city[1], lng:city[2]}, bb = boxAround(pt, PACK_KM), urls = [];
   const abs = u => new URL(u, location.href).href;
   const m = await Places.ready(); if (!m) throw new Error("Needs signal to start");
-  ["meta.json", "coverage.json"].forEach(f => urls.push(abs(`${PLACES_BASE}${Places.cc}/${f}`)));
-  Object.keys(Places.leaves).forEach(g => urls.push(abs(`${PLACES_BASE}${Places.cc}/sum-${g}.json`)));
-  for (const g of Object.keys(Places.leaves)) for (const leaf of Places.leavesIn(g, bb)) urls.push(abs(`${PLACES_BASE}${Places.cc}/${leaf.g}/${leaf.z}-${leaf.x}-${leaf.y}.json`));
+  // every database's small index files (so the map and search start with no signal), then the city's own tiles
+  for (const db of m.dbs){
+    ["meta.json", "coverage.json"].forEach(f => urls.push(abs(`${PLACES_BASE}${db.dir}/${f}`)));
+    Object.keys(Places.metas[db.dir].groups).forEach(g => urls.push(abs(`${PLACES_BASE}${db.dir}/sum-${g}.json`)));
+  }
+  for (const g of Object.keys(Places.leaves)) for (const leaf of Places.leavesIn(g, bb)) urls.push(abs(`${PLACES_BASE}${leaf.dir}/${leaf.g}/${leaf.z}-${leaf.x}-${leaf.y}.json`));
   // street map: the small index file that says where today's tiles live, then the tiles themselves
   const tjUrl = MAP_STYLE.sources.openmaptiles.url;
   let tj = null; try { tj = await getJSON(tjUrl, {timeout:12000}); urls.push(tjUrl); } catch(e){}   // no street map server: still save the places
@@ -138,10 +141,11 @@ async function packPhotoPlaces(city, cache, urls){
   const found = [];
   D.places.filter(p => (p.wp || p.wd) && inBox(p)).forEach(p => found.push({p, tier:0}));
   for (const u of urls){
-    const m = /\/places\/[a-z]+\/(stay|food|do)\/[\d-]+\.json$/.exec(u); if (!m) continue;
+    const m = /\/places\/([a-z]+)\/(stay|food|do)\/[\d-]+\.json$/.exec(u); if (!m) continue;
+    const cc = (PLACE_DBS.find(d => d.dir === m[1]) || {cc:"TH"}).cc;
     try {
       const t = await (await cache.match(u)).json();
-      t.f.forEach(r => { const p = osmPlace(r, t.a, m[1]); if ((p.wp || p.wd) && inBox(p)) found.push({p, tier:m[1] === "do" ? 1 : 2}); });
+      t.f.forEach(r => { const p = osmPlace(r, t.a, m[2], cc); if ((p.wp || p.wd) && inBox(p)) found.push({p, tier:m[2] === "do" ? 1 : 2}); });
     } catch(e){}
   }
   const seen = new Set();
@@ -260,7 +264,7 @@ async function restoreBackup(o, mode){
 /* ---------- the page: Tools > Offline & backup ---------- */
 TOOL_PAGES.offline = root => {
   const ref = userLoc || (S.focus ? focusPt() : null);
-  const cities = THAI_DESTS.slice().sort((a, b) => ref && !ref.none ? dist(ref, {lat:a[1], lng:a[2]}) - dist(ref, {lat:b[1], lng:b[2]}) : 0);
+  const cities = PLACE_DESTS.slice().sort((a, b) => ref && !ref.none ? dist(ref, {lat:a[1], lng:a[2]}) - dist(ref, {lat:b[1], lng:b[2]}) : 0);
   const row = c => {
     const p = S.packs[c[0]], busy = packState.busy === c[0];
     return `<div class="pack" data-city="${esc(c[0])}"><div><b>${esc(c[0])}</b><small>${busy ? packStageText() : p ? `Saved ${agoText(p.at)} · ${fmtBytes(p.bytes)}${p.photos ? ` · ${p.photos} photos` : ""}` : "Not saved"}</small>
@@ -286,7 +290,7 @@ TOOL_PAGES.offline = root => {
   storageLine();
   $("#packPh").onclick = () => { S.packPhotos = S.packPhotos === false; persist(); renderPage(); };
   root.querySelectorAll("[data-pack]").forEach(b => b.onclick = async () => {
-    const name = b.closest("[data-city]").dataset.city, city = THAI_DESTS.find(c => c[0] === name);
+    const name = b.closest("[data-city]").dataset.city, city = PLACE_DESTS.find(c => c[0] === name);
     packState.busy = name; packState.done = 0; packState.total = 0; packState.stage = "map"; renderPage();
     try {
       const p = await savePack(city, (d, t, stage) => {

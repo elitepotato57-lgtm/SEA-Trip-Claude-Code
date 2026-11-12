@@ -141,7 +141,7 @@ function onMapLoad(){
     ["pt-icon-" + g, "cl-circle-" + g].forEach(l => { map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", l, () => map.getCanvas().style.cursor = ""); });
   });
   map.on("click", e => { if (!(e.originalEvent && e.originalEvent._hit) && ui.mapSel) selectPlace(null); });
-  const moved = debounce(() => { refreshMapData(); const c = map.getCenter(); S.mapView = {c:[+c.lng.toFixed(5), +c.lat.toFixed(5)], z:+map.getZoom().toFixed(2)}; persist(); }, 140);
+  const moved = debounce(() => { refreshMapData(); if (soloCat()) renderMapFilt(); const c = map.getCenter(); S.mapView = {c:[+c.lng.toFixed(5), +c.lat.toFixed(5)], z:+map.getZoom().toFixed(2)}; persist(); }, 140);
   map.on("moveend", moved);
   map.on("sourcedata", e => { if (e.sourceId === "openmaptiles" && e.tile && !mapRun.tilesOk){ mapRun.tilesOk = true; setOfflineBase(false); } });
   if (navigator.onLine === false) setOfflineBase(true);
@@ -213,7 +213,8 @@ function renderMapFilt(){
   const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
   if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, f.t === id)).join("");
   else {
-    const labels = BAND_LABELS[CAT[c].grp];
+    const here = map && mapLoaded ? ccAt(map.getCenter().lat, map.getCenter().lng) : null;
+    const labels = bandLabels(CAT[c].grp, here || S.country);
     // price bands, shown with what they mean (e.g. "£ under ฿150")
     el.innerHTML = `<span class="mf-lab">Price</span>` + b('data-mb=""', "Any", f.b == null, "Any price")
       + labels.map((l, i) => l ? b(`data-mb="${i}"`, esc(l), f.b === i, l) : "").join("");
