@@ -344,14 +344,20 @@ function renderDiscover(){
   }
   html += `<div class="sect"><h2>Jump in</h2></div>
     <div class="entry">${[["gaffs","bed","Gaffs"],["munch","food","Munch"],["activities","compass","Activities"],["tools","grid","Tools"]].map(([h, ic, l]) => `<a class="ebtn" href="#${h}">${icon(ic)}${l}</a>`).join("")}</div>
-    <div class="sect"><h2>Explore Thailand</h2><span class="note">${THAI_DESTS.length} destinations</span></div>
-    <div class="dgrid" id="d-dests">${THAI_DESTS.map((c, i) => `<button class="dcard ${DEST_IMG[c[0]] ? "pic" : ""}" type="button" data-dest="${i}">${DEST_IMG[c[0]] ? `<img src="${esc(DEST_IMG[c[0]])}" alt="" loading="lazy" decoding="async">` : ""}<span><b>${esc(c[0])}</b><small data-cov="${esc(c[0])}">${userLoc ? distText(dist(userLoc, {lat:c[1], lng:c[2]})) : ""}</small></span></button>`).join("")}</div>
+    ${[["Explore Thailand", THAI_DESTS], ["Explore Bali and Lombok", BALI_LOMBOK_DESTS], ["Explore Sumatra", SUMATRA_DESTS]].filter(([, list]) => list.length).map(([title, list]) => `
+    <div class="sect"><h2>${title}</h2><span class="note">${list.length} destinations</span></div>
+    <div class="dgrid">${list.map(c => `<button class="dcard ${DEST_IMG[c[0]] ? "pic" : ""}" type="button" data-dest="${esc(c[0])}">${DEST_IMG[c[0]] ? `<img src="${esc(DEST_IMG[c[0]])}" alt="" loading="lazy" decoding="async">` : ""}<span><b>${esc(c[0])}</b><small data-cov="${esc(c[0])}">${userLoc ? distText(dist(userLoc, {lat:c[1], lng:c[2]})) : ""}</small></span></button>`).join("")}</div>`).join("")}
     <p class="note" style="margin-top:12px">Places come from the app’s researched list and OpenStreetMap (© OpenStreetMap contributors).</p></div>`;
   root.innerHTML = html;
-  root.querySelectorAll("[data-dest]").forEach(el => el.onclick = () => { const c = THAI_DESTS[+el.dataset.dest]; setFocus({n:c[0], lat:c[1], lng:c[2]}); if (map) flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
+  root.querySelectorAll("[data-dest]").forEach(el => el.onclick = () => {
+    const c = PLACE_DESTS.find(x => x[0] === el.dataset.dest); if (!c) return;
+    setFocus({n:c[0], lat:c[1], lng:c[2]});
+    const cc = ccAt(c[1], c[2]); if (cc && S.country !== cc) setCountry(cc, true);
+    if (map) flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map");
+  });
   const fill = () => { if (!coverage) return; root.querySelectorAll("[data-cov]").forEach(el => { const c = coverage.by_destination[el.dataset.cov]; if (c) el.textContent = `${(c.stay + c.food + c.do).toLocaleString("en-GB")} places to stay, eat and see`; }); };
   if (coverage) fill();
-  else { coverageWait = coverageWait || getJSON(`${PLACES_BASE}th/coverage.json`).catch(() => null); coverageWait.then(c => { if (!c){ coverageWait = null; return; } coverage = c; if (ui.view === "discover") fill(); }); }
+  else { coverageWait = coverageWait || Promise.all(PLACE_DBS.map(db => getJSON(`${PLACES_BASE}${db.dir}/coverage.json`).catch(() => null))).then(list => { const ok = list.filter(Boolean); return ok.length ? {by_destination:Object.assign({}, ...ok.map(c => c.by_destination || {}))} : null; }); coverageWait.then(c => { if (!c){ coverageWait = null; return; } coverage = c; if (ui.view === "discover") fill(); }); }
   if (typeof paintWeatherMini === "function") paintWeatherMini($("#d-wx"));
   if (!S.seenDiscover){ S.seenDiscover = true; persist(); }
 }

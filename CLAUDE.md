@@ -16,22 +16,31 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
 - `js/estimate.js`: food types and typical-price **estimates** (`foodType`, `estPrice`, `priceBand`), known ratings.
+  OpenStreetMap has no ratings and only researched hostels do, so the map filters on price, not stars.
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
-- `js/map.js`: the MapLibre map, per-category clusters, the filter row (stars, price, transport type).
+- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
+- `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
 - `js/transport.js`: journey planner. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
-- `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). `js/docs.js`: Tools › Documents.
+- `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
+  landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
+- `js/docs.js`: Tools › Documents.
 - `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
 - `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
-- `places/th/`: the places database. `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
+- `places/th/` (all of Thailand) and `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok): the places
+  databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
+  Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
+  numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
+- `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
 - `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`.
 
 ## Rules
 
 - Keep the tab names: **Map, Gaffs, Munch, Activities, Tools** (Settings behind the cog).
+- Dylan wants every country to work to the same extent as Thailand. When adding one, do all the steps in `tools/osm/README.md`.
 - Prices: local currency first, GBP alongside. **Estimates** are allowed only from the rules in `js/estimate.js`,
   always shown as "est." and never instead of a researched price. Never invent researched prices, hours, ratings or places.
 - **No Buddha imagery anywhere** (deliberate choice). No temple drawings in themes either.

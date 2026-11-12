@@ -211,6 +211,54 @@ test("the camera allowance counts up and stops at the daily limit", () => {
   A.gSpend("vision"); eq(A.gUse().vision, before + 1);
 });
 
+/* ---------- questions in the map search ---------- */
+test("questions are understood", () => {
+  const p = q => { const a = A.parseAsk(q); return a && [a.kind, a.ess || a.move || a.ft || (a.kinds || []).join("+") || null, a.cheap, a.best, a.open, a.maxKm]; };
+  eq(p("where's the nearest toilet"), ["ess", "toilet", false, false, false, 25]);
+  eq(p("what's the best cheap restaurant near me"), ["food", null, true, true, false, 5]);
+  eq(p("what's a good activity to do today that isn't too far"), ["do", null, false, true, true, 5]);
+  eq(p("cheap noodles within walking distance"), ["food", "Noodles", true, false, false, 1.5]);
+  eq(p("thai massage nearby"), ["do", "massage", false, false, false, 5], "Thai massage isn't food");
+  eq(p("is there an ATM near here"), ["ess", "atm", false, false, false, 5]);
+  eq(p("where's the pier"), ["move", "ferry", false, false, false, 10]);
+  eq(p("cheapest hostel"), ["stay", "hostel", true, false, false, 10]);
+  eq(p("purple monkey dishwasher"), null);
+});
+test("place names aren't mistaken for questions", () => {
+  eq(A.askOffer("Wat Pho"), null);
+  eq(A.askOffer("Khao San Road"), null);
+  ok(A.askOffer("atm") && !A.askOffer("atm").first, "a plain category word gets an answer row after the place matches");
+  ok(A.askOffer("where can I get a drink?").first, "a question gets the answer row first");
+});
+
+/* ---------- Indonesia ---------- */
+test("Sumatra, Bali and Lombok are covered; Java and Bangkok's neighbours aren't mixed up", () => {
+  ok(A.inPlaceDb(-2.9888, 104.7569), "Palembang");
+  ok(A.inPlaceDb(-8.5069, 115.2625), "Ubud");
+  ok(A.inPlaceDb(-8.3515, 116.0383), "Gili Trawangan");
+  ok(A.inPlaceDb(13.7563, 100.5018), "Bangkok");
+  ok(!A.inPlaceDb(-6.2, 106.85), "Jakarta isn't covered yet");
+  ok(A.PLACE_DESTS.some(c => c[0] === "Palembang") && A.PLACE_DESTS.some(c => c[0] === "Gili Air"));
+});
+test("Indonesian food types, including Palembang's pempek", () => {
+  const P = o => Object.assign({g:"food", k:"restaurant", cc:"ID", lng:104.7, lat:-3}, o);
+  eq(A.foodType(P({n:"Pempek Candy"})), "Pempek");
+  eq(A.foodType(P({n:"Rumah Makan Padang Sederhana"})), "Padang food");
+  eq(A.foodType(P({n:"Warung Bakso Pak Kumis"})), "Noodles");
+  eq(A.foodType(P({n:"Warung Makan Bu Siti"})), "Indonesian");
+  eq(A.foodType(P({cu:["regional"], n:"RM X"})), "Indonesian", "regional food in Indonesia is Indonesian, not Thai");
+  eq(A.foodType({g:"food", k:"restaurant", cc:"TH", cu:["regional"], n:"Y"}), "Thai");
+});
+test("Indonesian estimates are in rupiah, and dearer in Bali than Sumatra", () => {
+  const w = {g:"food", k:"restaurant", cc:"ID", n:"Warung Makan", lng:104.7, lat:-3};
+  const b = {g:"food", k:"restaurant", cc:"ID", n:"Warung Makan", lng:115.26, lat:-8.5};
+  eq(A.estText(A.estPrice(w)), "est. Rp 15,000–40,000");
+  ok(A.estPrice(b).lo > A.estPrice(w).lo, "Bali costs more");
+  eq(A.estPrice({g:"food", k:"fastfood", cc:"ID", n:"KFC", br:"KFC", lng:104.7, lat:-3}).cur, "IDR", "global chains use Indonesian prices");
+  eq(A.priceBand(w), 1);
+  ok(/Rp/.test(A.bandLabels("food", "ID")[1]) && /฿150/.test(A.bandLabels("food", "TH")[1]));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};

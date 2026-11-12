@@ -128,8 +128,70 @@ const DEST_NOTE = {Bangkok:"The capital: temples, street food, markets, nightlif
   "Koh Chang":"Large jungle island near the Cambodian border.", "Koh Tao":"Small island famous for cheap dive courses and snorkelling.", "Koh Phangan":"Home of the Full Moon Party, with quieter beaches in the north.",
   "Koh Samui":"The biggest Gulf island, with an airport, resorts and beaches.", "Khao Sok":"Rainforest national park and the lake at Cheow Lan.", Phuket:"Thailand’s largest island: beaches, an airport and ferries onwards.",
   "Krabi Town":"Mainland base for the Krabi coast, with a night market and buses.", "Ao Nang":"Beach strip and the jumping-off point for Railay and island boats.", Railay:"Limestone peninsula reached only by boat, known for climbing and beaches.",
-  "Koh Phi Phi":"Car-free islands with viewpoints, boat trips and Maya Bay.", "Koh Lanta":"Long, relaxed island with quiet beaches.", "Koh Lipe":"Small island in the far south with clear water, reached by ferry or speedboat."};
-TOOL_PAGES.guide = root => {
+  "Koh Phi Phi":"Car-free islands with viewpoints, boat trips and Maya Bay.", "Koh Lanta":"Long, relaxed island with quiet beaches.", "Koh Lipe":"Small island in the far south with clear water, reached by ferry or speedboat.",
+  // Indonesia
+  Ubud:"Bali’s inland culture town: rice terraces, temples, yoga and craft villages.", Canggu:"Surf and café strip on Bali’s west coast, popular with backpackers and digital nomads.",
+  Seminyak:"Busy beach area with beach clubs, shops and restaurants, next to Kuta.", Uluwatu:"Clifftop south of Bali: surf breaks, beaches below the cliffs and the sea temple.",
+  Sanur:"Calm east-coast beach town, and the main port for boats to Nusa Penida.", Amed:"Quiet black-sand coast in east Bali, known for snorkelling and diving.",
+  "Nusa Penida":"Rugged island off Bali with dramatic cliffs and manta-ray snorkelling, reached by fast boat.",
+  "Kuta Lombok":"Surf town on Lombok’s south coast with wide bays nearby.", Senggigi:"Lombok’s older beach resort on the west coast, near the boats to the Gilis.",
+  "Gili Trawangan":"The liveliest Gili island: no cars or scooters, diving, snorkelling and nightlife.", "Gili Air":"Smaller, quieter Gili island with snorkelling and beach cafés.",
+  Senaru:"Village on the north side of Mount Rinjani, a start point for treks and waterfalls.",
+  Palembang:"South Sumatra’s big river city, known for pempek fish cakes, the Ampera Bridge and the Musi river.",
+  "Bandar Lampung":"Lampung’s capital on the bay at Sumatra’s southern tip, gateway to the islands and Way Kambas.",
+  Bengkulu:"Quiet coastal city on Sumatra’s west coast with the old British Fort Marlborough.",
+  Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations."};
+// the guide for the country you're in (Indonesia gets its own; everywhere else the Thailand one)
+TOOL_PAGES.guide = root => (S.country === "ID" ? guideID : guideTH)(root);
+
+/* Indonesia guide: entry rules and laws from gov.uk, checked 12 Nov 2026 */
+const GUIDE_ID_CHECKED = "12 Nov 2026";
+const ID_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID");
+function guideID(root){
+  const src = (label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+  root.innerHTML = toolHero("Indonesia guide", "The practical basics, with official sources") + `<div class="page">
+  <div class="callout">${icon("info")}<div>Entry rules and laws change. Each section says when it was checked and links to the official page. <b>Check those pages again before you fly.</b></div></div>
+  <section class="block"><h2>Getting in (British passport)</h2>
+    <ul class="known"><li>You need a visa. A <b>30-day visa on arrival</b> costs <b>500,000 rupiah</b>, is single entry, and you need proof of an onward or return journey.</li>
+      <li>You can also apply online before you fly, which offers other options such as 60-day and multiple-entry visas. If an online visa isn’t approved in time, you may only get the 30-day visa on arrival.</li>
+      <li>Your passport needs <b>at least 6 months</b> left after the day you arrive, and <b>at least 2 blank pages</b>.</li>
+      <li>Fill in the free <b>All Indonesia arrival card</b> online within the 72 hours before you arrive. Avoid paid third-party sites.</li>
+      <li><b>Bali</b> charges foreign tourists a <b>150,000 rupiah</b> levy (about £8), paid online or on arrival.</li>
+      <li>Staying somewhere private rather than a hotel? You must register with the local police (hotels do it for you). Not registering can mean a fine of up to 5 million rupiah.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_ID_CHECKED}. Source: ${src("gov.uk entry requirements", "https://www.gov.uk/foreign-travel-advice/indonesia/entry-requirements")}. Other passports have different rules.</p></section>
+  <section class="block"><h2>Money</h2>
+    <ul class="known"><li>The currency is the Indonesian rupiah (Rp). Prices run into thousands: Rp 100,000 is about £${fmtNum(Math.round(toGBP(100000, "IDR") * 10) / 10)}.</li>
+      <li>Cash rules for warungs (small local restaurants), markets, buses and small guesthouses, especially in Sumatra.</li>
+      <li>If a machine or card reader offers to charge you in pounds, choose rupiah. Your bank’s rate is almost always better.</li></ul>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/currency">Open the converter</a><button class="btn small" type="button" data-ess="atm">ATMs on the map</button><button class="btn small" type="button" data-ess="exchange">Money exchange</button></div></section>
+  <section class="block"><h2>Laws that catch travellers out</h2>
+    <ul class="known"><li><b>Drug penalties are severe</b>, up to the death penalty. Police raid venues popular with foreigners, especially in Bali, and may test you for drugs; a positive test means arrest.</li>
+      <li>Indonesian law covers <b>sex outside marriage</b> and unmarried couples living together. Read the gov.uk section on it before you go.</li>
+      <li>To ride a scooter you need the right licence for it, and a helmet. Riding without the right licence can cancel your travel insurance.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_ID_CHECKED}. Source: ${src("gov.uk safety and security", "https://www.gov.uk/foreign-travel-advice/indonesia/safety-and-security")}. This is a summary, not legal advice.</p></section>
+  <section class="block"><h2>Staying safe</h2>
+    <ul class="known"><li>Indonesia has active volcanoes (including Rinjani on Lombok and Agung on Bali) and earthquakes. Follow local warnings and closures.</li>
+      <li>Stick to sealed drinks from busy, reputable bars: drinks made with methanol can kill. Don’t drink the tap water.</li>
+      <li>Watch for strong currents and obey beach flags.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_ID_CHECKED}. Source: ${src("gov.uk Indonesia travel advice", "https://www.gov.uk/foreign-travel-advice/indonesia")}.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small primary" href="#tools/emergency">${icon("siren","i s")}Emergency numbers</a><button class="btn small" type="button" data-ess="water">Water refill points</button></div></section>
+  <section class="block"><h2>Language and manners</h2>
+    <ul class="known"><li>Indonesian (Bahasa Indonesia) is the language. English is common in Bali’s tourist areas, much less so in Sumatra. A few polite words go a long way.</li>
+      <li>Most Indonesians are Muslim; Bali is mostly Hindu. Away from the beach, cover shoulders and knees, and always in mosques and temples (Bali temples lend sarongs).</li>
+      <li>Give and take things with your right hand.</li></ul>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/translate">Open the phrasebook</a></div></section>
+  <section class="block"><h2>When to go</h2>
+    <p>Roughly: Bali and Lombok are drier from about April to October and wetter from November to March. Southern Sumatra gets rain all year, most from about November to April.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/weather">Check the forecast</a></div></section>
+  ${D.rides.ID ? `<section class="block"><h2>Getting around</h2><p>${esc(D.rides.ID)}</p><div class="row" style="margin-top:8px"><a class="btn small" href="#tools/transport">Plan a journey</a></div></section>` : ""}
+  <div class="sect"><h2>Destinations</h2><span class="note">${ID_DESTS.length}</span></div>
+  ${ID_DESTS.map(c => `<div class="block" style="padding:11px 12px"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><h3>${esc(c[0])}</h3><p class="note" style="margin-top:2px">${esc(DEST_NOTE[c[0]] || "")}</p></div><button class="btn small" type="button" data-look="${esc(c[0])}">Look here</button></div></div>`).join("")}
+  </div>`;
+  root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
+  root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { const c = ID_DESTS.find(x => x[0] === b.dataset.look); setFocus({n:c[0], lat:c[1], lng:c[2]}); flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
+}
+
+function guideTH(root){
   const src = (label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
   root.innerHTML = toolHero("Thailand guide", "The practical basics, with official sources") + `<div class="page">
   <div class="callout">${icon("info")}<div>Entry rules and laws change. Each section says when it was checked and links to the official page. <b>Check those pages again before you fly.</b></div></div>
@@ -175,17 +237,23 @@ TOOL_PAGES.guide = root => {
   </div>`;
   root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
   root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { const c = THAI_DESTS[+b.dataset.look]; setFocus({n:c[0], lat:c[1], lng:c[2]}); flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
-};
+}
 
 /* ---------- emergency ---------- */
 const SOS = [["Police", "191", "General emergency line"], ["Tourist Police", "1155", "English-speaking help for visitors"], ["Ambulance", "1669", "Medical emergencies"], ["Fire", "199", ""]];
+// Indonesia, from gov.uk "Getting help" (checked 12 Nov 2026)
+const SOS_ID = [["Ambulance", "118", "Medical emergencies"], ["Police", "110", ""], ["Fire", "112", ""]];
 TOOL_PAGES.emergency = root => {
-  root.innerHTML = toolHero("Emergency", "Numbers that work anywhere in Thailand") + `<div class="page">
-  <section class="block">${SOS.map(([n, tel, d], i) => `<div class="tel"><div><b>${n}</b><small>${d}</small></div><a class="btn${i ? "" : " primary"}" href="tel:${tel}">${icon("phone","i s")}${tel}</a></div>`).join("")}
-    <p class="note" style="margin-top:8px">Checked ${GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/thailand/getting-help" target="_blank" rel="noopener">gov.uk, getting help in Thailand</a>.</p></section>
+  const ID = S.country === "ID", list = ID ? SOS_ID : SOS;
+  root.innerHTML = toolHero("Emergency", `Numbers that work anywhere in ${ID ? "Indonesia" : "Thailand"}`) + `<div class="page">
+  <section class="block">${list.map(([n, tel, d], i) => `<div class="tel"><div><b>${n}</b><small>${d}</small></div><a class="btn${i ? "" : " primary"}" href="tel:${tel}">${icon("phone","i s")}${tel}</a></div>`).join("")}
+    <p class="note" style="margin-top:8px">Checked ${ID ? GUIDE_ID_CHECKED : GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/${ID ? "indonesia" : "thailand"}/getting-help" target="_blank" rel="noopener">gov.uk, getting help in ${ID ? "Indonesia" : "Thailand"}</a>.</p></section>
   <section class="block"><h2>British nationals</h2>
-    <p>For consular help, contact the British Embassy in Bangkok. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
-    <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.gov.uk/world/organisations/british-embassy-bangkok" target="_blank" rel="noopener">British Embassy Bangkok ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>
+    ${ID ? `<p>For consular help, contact the British Embassy in Jakarta (its phone line is answered 24 hours) or the British Consulate in Bali. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.gov.uk/world/organisations/british-embassy-jakarta" target="_blank" rel="noopener">British Embassy Jakarta ${icon("ext","i s")}</a><a class="btn small" href="tel:+622123565200">${icon("phone","i s")}+62 21 2356 5200</a>
+      <a class="btn small" href="https://www.gov.uk/world/organisations/british-consulate-bali" target="_blank" rel="noopener">British Consulate Bali ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`
+    : `<p>For consular help, contact the British Embassy in Bangkok. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.gov.uk/world/organisations/british-embassy-bangkok" target="_blank" rel="noopener">British Embassy Bangkok ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`}
     <p class="note" style="margin-top:8px">Tell your travel insurer as soon as you can; most have a 24-hour number on the policy. Keep that number and your policy number somewhere you can reach offline.</p></section>
   <div class="sect"><h2>Nearest help</h2><span class="note">${esc(focusPt().none ? "" : focusLabel())}</span></div>
   <div class="scroller" style="margin-bottom:8px">${[["hospital","Hospitals",["hospital"]],["clinic","Clinics",["clinic"]],["pharmacy","Pharmacies",["pharmacy"]],["police","Police",["police"]],["embassy","Embassies",["embassy"]]].map(([id, l], i) => `<button class="chip" type="button" data-near="${id}" aria-pressed="${i === 0}">${l}</button>`).join("")}</div>

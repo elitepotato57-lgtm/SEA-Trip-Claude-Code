@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.3.0";
+const VERSION = "2.5.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -181,7 +181,7 @@ function mapStyleBase(){
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}, packs:{}, lastBackup:null};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}, packs:{}, packPhotos:true, lastBackup:null};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
@@ -204,7 +204,7 @@ const ui = {
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
   mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
   mapSort:"near", mapFilters:false,
-  mf:{gaff:{r:0, b:null}, munch:{r:0, b:null}, cool:{r:0, b:null}, move:{t:"all"}},      // the map's filter row (stars, price, transport type) mapSel:null, mapQ:"", mapSaved:false,
+  mf:{gaff:{b:null}, munch:{b:null}, cool:{b:null}, move:{t:"all"}},      // the map's filter row (price, or transport type) mapSel:null, mapQ:"", mapSaved:false,
   tp:{from:null, to:null, sort:"fast", sel:0}
 };
 
@@ -267,7 +267,9 @@ function inRing(lat, lng, ring){
 }
 function countryAt(lat, lng){
   for (const c of GEO){ if (c.cc && c.p.some(r => inRing(lat, lng, r))) return c.cc; }
-  // small islands may be missing from the outline, so fall back to a nearby trip city
+  // small islands may be missing from the outline: the places databases' coverage boxes (js/places.js) know them, e.g. the Gilis
+  if (typeof PLACE_DBS !== "undefined"){ const d = PLACE_DBS.find(x => x.bbs && x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3])); if (d) return d.cc; }
+  // otherwise fall back to a nearby trip city
   let best = null, bestKm = 60;
   for (const p of D.places){ const km = dist({lat, lng}, p); if (km < bestKm){ bestKm = km; best = p.cc; } }
   return best;

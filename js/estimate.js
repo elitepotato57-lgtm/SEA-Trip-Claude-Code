@@ -9,11 +9,15 @@
 /* ---------- food type ---------- */
 // [label, OSM cuisine values, words in the name (English or Thai)]
 const FOOD_TYPES = [
+  // Indonesian specialities first, so "RM Padang" or "Pempek Candy" aren't filed under something general
+  ["Pempek",            /^(pempek|empek-empek|empek empek)$/,                                                      /pempek|empek|tekwan|celimpungan|\blaksan\b|\bburgo\b|model ikan/],
+  ["Padang food",       /^(padang|minangkabau|minang)$/,                                                           /padang|minang|rendang|nasi kapau|\bkapau\b/],
+  ["Satay",             /^(satay|sate|satai)$/,                                                                    /\bsate\b|\bsatay\b|\bsatai\b/],
   ["BBQ & hotpot",      /^(barbecue|bbq|grill|hot ?pot|shabu|suki|sukiyaki|korean barbecue|yakiniku|thai bbq)$/,  /mookata|moo kata|moo krata|หมูกระทะ|ชาบู|shabu|สุกี้|suki|hot ?pot|ปิ้งย่าง|bbq|barbecue|yakiniku|บาร์บีคิว|เนื้อย่าง/],
-  ["Noodles",           /^(noodles?|ramen|pho|udon|soba|khao soi)$/,                                               /noodle|ก๋วยเตี๋ยว|ก๋วยจั๊บ|บะหมี่|ราเมน|ramen|\bpho\b|เฝอ|ข้าวซอย|khao ?soi|เย็นตาโฟ|udon|เส้น/],
+  ["Noodles",           /^(noodles?|ramen|pho|udon|soba|khao soi|bakso|mie|meatball)$/,                            /noodle|ก๋วยเตี๋ยว|ก๋วยจั๊บ|บะหมี่|ราเมน|ramen|\bpho\b|เฝอ|ข้าวซอย|khao ?soi|เย็นตาโฟ|udon|เส้น|\bmie\b|\bmi ayam\b|bakmi|bakso|kwetiau|kwetiaw|\bbihun\b/],
   ["Rice dishes",       /^(rice|khao man gai|chicken rice)$/,                                                      /ข้าวมันไก่|ข้าวขาหมู|ข้าวหมูแดง|ข้าวหมูกรอบ|ข้าวแกง|ข้าวผัด|ข้าวต้ม|khao man|chicken rice|ข้าวราด|โจ๊ก|jok/],
   ["Isaan & som tam",   /^(isaan|isan|lao|laotian|som tam|papaya salad)$/,                                         /ส้มตำ|somtam|som ?tam|อีสาน|isaan|isan|ลาบ|ไก่ย่าง|น้ำตก|แจ่วฮ้อน/],
-  ["Seafood",           /^(seafood|fish|fish and chips|oyster|crab)$/,                                             /seafood|ซีฟู้ด|อาหารทะเล|กุ้ง|ปูนึ่ง|หอย|ปลาเผา|fish|crab|prawn|oyster/],
+  ["Seafood",           /^(seafood|fish|fish and chips|oyster|crab)$/,                                             /seafood|ซีฟู้ด|อาหารทะเล|กุ้ง|ปูนึ่ง|หอย|ปลาเผา|fish|crab|prawn|oyster|\bikan\b|pindang|\budang\b|kepiting|\blele\b/],
   ["Japanese",          /^(japanese|sushi|ramen;japanese|izakaya|tonkatsu|donburi)$/,                              /sushi|ซูชิ|japanese|ญี่ปุ่น|izakaya|อิซากายะ|tonkatsu|ทงคัตสึ|donburi|yakitori|teppanyaki/],
   ["Korean",            /^(korean)$/,                                                                              /korean|เกาหลี|kimchi|กิมจิ|bibimbap/],
   ["Chinese",           /^(chinese|dim sum|cantonese|szechuan|sichuan|dumpling|peking duck)$/,                     /dim ?sum|ติ่มซำ|chinese|อาหารจีน|เป็ดย่าง|peking|dumpling|เกี๊ยว|xiao long/],
@@ -22,17 +26,19 @@ const FOOD_TYPES = [
   ["Middle Eastern",    /^(middle eastern|lebanese|turkish|arab|kebab|falafel|shawarma|halal)$/,                   /kebab|shawarma|falafel|lebanese|turkish|halal|ฮาลาล/],
   ["Mexican",           /^(mexican|tex-mex|tacos?|burrito)$/,                                                      /mexican|taco|burrito|tex-?mex/],
   ["Burgers",           /^(burger)$/,                                                                              /burger|เบอร์เกอร์/],
-  ["Fried chicken",     /^(chicken|fried chicken|wings)$/,                                                         /fried chicken|ไก่ทอด|wings|\bkfc\b/],
+  ["Fried chicken",     /^(chicken|fried chicken|wings)$/,                                                         /fried chicken|ไก่ทอด|wings|\bkfc\b|ayam goreng|geprek|penyet|\bcfc\b/],
   ["Pizza & Italian",   /^(pizza|italian|italian pizza|pasta)$/,                                                   /pizza|pizzeria|พิซซ่า|italian|trattoria|pasta|พาสต้า|spaghetti|สปาเก็ตตี้|lasagn/],
   ["Steak",             /^(steak house|steak|steakhouse)$/,                                                        /steak|สเต็ก/],
   ["Vegetarian",        /^(vegetarian|vegan)$/,                                                                    /vegan|vegetarian|มังสวิรัติ|อาหารเจ|\bเจ\b/],
   ["Breakfast & brunch",/^(breakfast|brunch|diner|sandwich|bagel)$/,                                               /breakfast|brunch|sandwich|bagel|bistro/],
   ["Western",           /^(international|western|american|german|french|russian|european|british|english|australian|mediterranean|greek|spanish|irish|swiss)$/, /western|international|german|french|british|english pub|irish|bistro/],
-  ["Juice & smoothies", /^(juice|smoothie)$/,                                                                      /juice|smoothie|น้ำผลไม้|น้ำปั่น/],
-  ["Tea & bubble tea",  /^(tea|bubble tea)$/,                                                                      /bubble tea|boba|ชาไข่มุก|ชานม|milk tea/],
-  ["Desserts",          /^(ice cream|dessert|frozen yogurt|bingsu|crepe)$/,                                        /ice cream|ไอศกรีม|ไอติม|บิงซู|bingsu|dessert|ของหวาน|crepe|เครป|waffle|วาฟเฟิล|gelato/],
-  ["Bakery & cakes",    /^(cake|donut|bakery|pastry|bread)$/,                                                      /bakery|เบเกอรี่|cake|เค้ก|ขนมปัง|donut|โดนัท|pastry|croissant/],
-  ["Café & coffee",     /^(coffee shop|coffee|cafe)$/,                                                             /coffee|café|cafe|กาแฟ|คาเฟ่|espresso|roaster/],
+  ["Juice & smoothies", /^(juice|smoothie)$/,                                                                      /juice|smoothie|น้ำผลไม้|น้ำปั่น|\bjus\b/],
+  ["Tea & bubble tea",  /^(tea|bubble tea)$/,                                                                      /bubble tea|boba|ชาไข่มุก|ชานม|milk tea|\bes teh\b|teh tarik/],
+  ["Desserts",          /^(ice cream|dessert|frozen yogurt|bingsu|crepe)$/,                                        /ice cream|ไอศกรีม|ไอติม|บิงซู|bingsu|dessert|ของหวาน|crepe|เครป|waffle|วาฟเฟิล|gelato|es campur|es teler|martabak manis/],
+  ["Bakery & cakes",    /^(cake|donut|bakery|pastry|bread)$/,                                                      /bakery|เบเกอรี่|cake|เค้ก|ขนมปัง|donut|โดนัท|pastry|croissant|\broti\b|\bkue\b/],
+  ["Café & coffee",     /^(coffee shop|coffee|cafe)$/,                                                             /coffee|café|cafe|กาแฟ|คาเฟ่|espresso|roaster|\bkopi\b|warkop|ngopi/],
+  // the everyday local food of each country: only used for places in that country (see foodType)
+  ["Indonesian",        /^(indonesian|regional|local|sundanese|javanese|balinese|betawi)$/,                        /warung|rumah makan|\brm\b|\bnasi\b|\bsoto\b|gado|pecel|lalapan|bebek|\bayam\b|indonesian|sambal|lontong|ketoprak|rawon|gudeg|martabak|sunda|seblak|batagor|siomay|\bmasakan\b/],
   ["Thai",              /^(thai|regional|local|thai;regional|southern thai|northern thai)$/,                       /thai|ไทย|อาหารตามสั่ง|ตามสั่ง|ครัว|ร้านอาหาร|แกง|ผัดไทย|pad thai|tom yum|ต้มยำ|kaphrao|krapow|กะเพรา|khao|ข้าว/],
   ["Asian",             /^(asian|thai;asian|fusion)$/,                                                             /asian|fusion/]
 ];
@@ -49,13 +55,28 @@ const FOOD_BRANDS = {
   "Auntie Anne's":["Bakery & cakes", 60, 120], "Coffee World":["Café & coffee", 80, 150], "ChaTraMue":["Tea & bubble tea", 40, 80], "Tom N Toms":["Café & coffee", 100, 180],
   "Häagen-Dazs":["Desserts", 150, 300], "Hard Rock Cafe":["Western", 500, 1000], "Bar-B-Q Plaza":["BBQ & hotpot", 300, 500], "Hooters":["Western", 400, 800],
   "Potato Corner":["Fried chicken", 50, 100], "Oishi Ramen":["Noodles", 150, 250], "Inthanin":["Café & coffee", 50, 90], "Yayoi":["Japanese", 200, 350],
-  "Haidilao":["BBQ & hotpot", 500, 900], "After You":["Desserts", 150, 300], "Sukishi":["BBQ & hotpot", 350, 550], "Kagonoya":["BBQ & hotpot", 400, 700]
+  "Haidilao":["BBQ & hotpot", 500, 900], "After You":["Desserts", 150, 300], "Sukishi":["BBQ & hotpot", 350, 550], "Kagonoya":["BBQ & hotpot", 400, 700],
+  // Indonesian chains (prices in rupiah: the fourth value is the currency)
+  "Mie Gacoan":["Noodles", 10000, 30000, "IDR"], "Kopi Kenangan":["Café & coffee", 18000, 35000, "IDR"], "Janji Jiwa":["Café & coffee", 18000, 35000, "IDR"],
+  "Kopi Janji Jiwa":["Café & coffee", 18000, 35000, "IDR"], "Fore Coffee":["Café & coffee", 25000, 45000, "IDR"], "Point Coffee":["Café & coffee", 10000, 25000, "IDR"],
+  "Richeese Factory":["Fried chicken", 25000, 50000, "IDR"], "CFC":["Fried chicken", 25000, 45000, "IDR"], "A&W":["Fried chicken", 30000, 60000, "IDR"],
+  "HokBen":["Japanese", 40000, 75000, "IDR"], "Solaria":["Indonesian", 40000, 80000, "IDR"], "J.CO":["Bakery & cakes", 15000, 60000, "IDR"],
+  "J.CO Donuts & Coffee":["Bakery & cakes", 15000, 60000, "IDR"], "Es Teh Indonesia":["Tea & bubble tea", 5000, 20000, "IDR"], "Bakmi GM":["Noodles", 40000, 80000, "IDR"],
+  "Marugame Udon":["Noodles", 45000, 90000, "IDR"], "Yoshinoya":["Japanese", 40000, 70000, "IDR"], "Wendy's":["Burgers", 35000, 70000, "IDR"],
+  "Sederhana":["Padang food", 30000, 70000, "IDR"], "Rumah Makan Sederhana":["Padang food", 30000, 70000, "IDR"], "Pagi Sore":["Padang food", 40000, 90000, "IDR"],
+  "Holland Bakery":["Bakery & cakes", 10000, 40000, "IDR"], "Roti O":["Bakery & cakes", 10000, 25000, "IDR"], "Chatime":["Tea & bubble tea", 25000, 45000, "IDR"]
 };
+// the same global chains cost differently in Indonesia (rupiah per person)
+const BRAND_PRICE_ID = {"KFC":[30000, 60000], "McDonald's":[30000, 70000], "Starbucks":[45000, 85000], "Pizza Hut":[60000, 150000], "Domino's":[40000, 100000],
+  "Burger King":[40000, 80000], "Mixue Ice Cream & Tea":[5000, 25000], "Subway":[45000, 80000], "Dunkin'":[10000, 40000], "Dunkin' Donuts":[10000, 40000], "Texas Chicken":[30000, 60000]};
 const brandOf = it => {
   if (it.br && FOOD_BRANDS[it.br]) return it.br;
   const n = String(it.n || "");
   return Object.keys(FOOD_BRANDS).find(b => b.length > 3 && n.toLowerCase().startsWith(b.toLowerCase())) || null;
 };
+// each country's everyday food label is only used there ("regional" cuisine means Thai food in Thailand, Indonesian food in Indonesia)
+const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian"};
+const typeFits = (label, it) => !Object.values(LOCAL_FOOD).includes(label) || LOCAL_FOOD[it.cc || "TH"] === label;
 // cache per place: these run for thousands of map points
 function foodType(it){
   if (it._ft !== undefined) return it._ft;
@@ -63,10 +84,10 @@ function foodType(it){
   const b = brandOf(it);
   if (b) label = FOOD_BRANDS[b][0];
   const cus = (it.cu || []).map(c => String(c).toLowerCase().trim());
-  if (!label) for (const [l, cuRe] of FOOD_TYPES){ if (cus.some(c => cuRe.test(c))){ label = l; break; } }
+  if (!label) for (const [l, cuRe] of FOOD_TYPES){ if (typeFits(l, it) && cus.some(c => cuRe.test(c))){ label = l; break; } }
   if (!label){
     const name = `${it.n || ""} ${it.nt || ""}`.toLowerCase();
-    for (const [l, , nameRe] of FOOD_TYPES){ if (nameRe.test(name)){ label = l; break; } }
+    for (const [l, , nameRe] of FOOD_TYPES){ if (typeFits(l, it) && nameRe.test(name)){ label = l; break; } }
   }
   if (!label){
     if (it.k === "cafe") label = "Café & coffee";
@@ -75,7 +96,7 @@ function foodType(it){
     else if (it.k === "market") label = "Market food";
     else if (it.k === "foodcourt") label = "Food court";
     else if (it.k === "fastfood" && !it.br) label = "Street food";
-    else if (/[฀-๿]/.test(it.n || "")) label = "Thai";        // a Thai-only name in Thailand: very likely Thai food
+    else if ((it.cc || "TH") === "TH" && /[฀-๿]/.test(it.n || "")) label = "Thai";        // a Thai-only name in Thailand: very likely Thai food
   }
   return (it._ft = label);
 }
@@ -103,66 +124,111 @@ const STAY_PRICE = {hostel:[250, 600, "A dorm bed."], guesthouse:[400, 1000], ho
   motel:[400, 800], campsite:[100, 400, "A pitch or tent."], hut:[300, 800]};
 const STAY_STARS = {1:[500, 1000], 2:[500, 1000], 3:[1000, 2000], 4:[1800, 4000], 5:[3500, 8000]};
 
-// {lo, hi, cur:"THB", per, est:true, why, note?}  or null when we can't sensibly guess
+/* Indonesia (Sumatra), in rupiah. Everyday food and transport there cost less than in Thailand; tourist-priced
+   things (national parks, diving) can cost more. Same shape as the Thai tables above. */
+const FOOD_TYPE_PRICE_ID = {
+  "Indonesian":[15000, 40000], "Padang food":[20000, 50000], "Pempek":[15000, 40000], "Satay":[20000, 50000], "Noodles":[12000, 35000], "Rice dishes":[12000, 30000],
+  "Street food":[8000, 25000], "Market food":[8000, 25000], "Food court":[15000, 40000], "Seafood":[50000, 150000], "BBQ & hotpot":[60000, 150000],
+  "Japanese":[50000, 120000], "Korean":[50000, 120000], "Chinese":[40000, 100000], "Indian":[40000, 90000], "Vietnamese":[30000, 70000],
+  "Middle Eastern":[40000, 90000], "Mexican":[50000, 100000], "Burgers":[30000, 70000], "Fried chicken":[20000, 45000], "Pizza & Italian":[50000, 120000],
+  "Steak":[60000, 200000], "Vegetarian":[20000, 50000], "Breakfast & brunch":[35000, 80000], "Western":[50000, 150000], "Asian":[25000, 60000],
+  "Juice & smoothies":[8000, 25000], "Tea & bubble tea":[8000, 30000], "Desserts":[10000, 35000], "Bakery & cakes":[8000, 30000], "Café & coffee":[15000, 40000], "Thai":[30000, 70000]
+};
+const FOOD_KIND_PRICE_ID = {cafe:[15000, 40000], bakery:[8000, 30000], dessert:[10000, 35000], market:[8000, 25000], foodcourt:[15000, 40000], fastfood:[10000, 35000], restaurant:[20000, 60000]};
+const DO_PRICE_ID = {
+  temple:[0, 0, "Chinese temples and pagodas are usually free; a small donation is welcome."], worship:[0, 0, "Free outside prayer times. Cover shoulders and knees."],
+  park:[0, 10000], beach:[0, 15000, "Some beaches charge a small entry or parking fee."], viewpoint:[0, 10000], peak:[0, 0], market:[0, 0, "Free to walk round."],
+  historic:[0, 20000], museum:[5000, 25000], zoo:[20000, 75000], themepark:[30000, 150000], waterfall:[5000, 25000, "Usually a small entry or parking fee."],
+  cave:[5000, 25000], hotspring:[10000, 40000], nationalpark:[150000, 300000, "National parks charge foreigners more than locals."], dive:[600000, 1200000, "One fun dive."],
+  climbing:[100000, 300000], muaythai:[100000, 300000], massage:[80000, 200000, "An hour of massage (pijat)."], cooking:[200000, 500000],
+  bar:[30000, 80000, "Per drink. Alcohol is harder to find and dearer than in Thailand."], club:[50000, 150000], culture:[20000, 100000]
+};
+const STAY_PRICE_ID = {hostel:[80000, 200000, "A dorm bed."], guesthouse:[150000, 350000], hotel:[250000, 700000], resort:[500000, 1500000], bungalow:[150000, 400000],
+  apartment:[300000, 700000], motel:[150000, 300000], campsite:[20000, 100000, "A pitch or tent."], hut:[50000, 150000]};
+const STAY_STARS_ID = {1:[150000, 300000], 2:[200000, 400000], 3:[350000, 700000], 4:[600000, 1200000], 5:[1200000, 3000000]};
+// which tables each country uses (others use Thailand's, converted)
+const PRICE_TABLES = {
+  TH:{cur:"THB", food:FOOD_TYPE_PRICE, kind:FOOD_KIND_PRICE, do:DO_PRICE, stay:STAY_PRICE, stars:STAY_STARS},
+  ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID}
+};
+
+// {lo, hi, cur, per, est:true, why, note?}  or null when we can't sensibly guess
 function estPrice(it){
   if (it._ep !== undefined) return it._ep;
   let out = null;
+  const T = PRICE_TABLES[it.cc] || PRICE_TABLES.TH;
+  let cur = T.cur;
   const grp = it.g || (it.c === "gaff" ? "stay" : it.c === "munch" ? "food" : it.c === "cool" ? "do" : null);
   if (grp === "food"){
     const b = brandOf(it);
-    if (b){ const [, lo, hi] = FOOD_BRANDS[b]; out = {lo, hi, why:`Typical at ${b}`}; }
-    else {
+    if (b){
+      const br = FOOD_BRANDS[b];
+      if (it.cc === "ID" && BRAND_PRICE_ID[b]){ out = {lo:BRAND_PRICE_ID[b][0], hi:BRAND_PRICE_ID[b][1]}; cur = "IDR"; }
+      else { out = {lo:br[1], hi:br[2]}; cur = br[3] || "THB"; }
+      out.why = `Typical at ${b}`;
+    } else {
       const ft = foodType(it);
-      const byKind = FOOD_KIND_PRICE[it.k];
-      const byType = it.k === "restaurant" || !byKind ? FOOD_TYPE_PRICE[ft] : null;
+      const byKind = T.kind[it.k];
+      const byType = it.k === "restaurant" || !byKind ? T.food[ft] : null;
       const r = byType || byKind;
-      if (r) out = {lo:r[0], hi:r[1], why: byType ? `Typical for ${ft.toLowerCase()} here` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()} here`};
+      const ftl = ft && /^(Thai|Indonesian|Japanese|Korean|Chinese|Indian|Vietnamese|Mexican|Western|Asian|Middle Eastern)$/.test(ft) ? ft + " food" : (ft || "").toLowerCase();
+      if (r) out = {lo:r[0], hi:r[1], why: byType ? `Typical for ${ftl} here` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()} here`};
     }
     if (out) out.per = "per person";
   } else if (grp === "do"){
-    const r = DO_PRICE[it.k];
+    // Bali's big-name temples charge entry, unlike Sumatra's
+    const r = it.cc === "ID" && it.lng >= 114 && it.k === "temple" ? [0, 60000, "Village temples are usually free; the big-name ones charge entry and lend you a sarong."] : T.do[it.k];
     if (r) out = {lo:r[0], hi:r[1], per:"per person", why:`Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()}`, note:r[2]};
   } else if (grp === "stay"){
-    const r = (it.st && STAY_STARS[it.st]) || STAY_PRICE[it.k];
-    if (r) out = {lo:r[0], hi:r[1], per:"a night", why:it.st && STAY_STARS[it.st] ? `Typical for a ${it.st}-star hotel` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()}`, note:r[2]};
+    const r = (it.st && T.stars[it.st]) || T.stay[it.k];
+    if (r) out = {lo:r[0], hi:r[1], per:"a night", why:it.st && T.stars[it.st] ? `Typical for a ${it.st}-star hotel` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()}`, note:r[2]};
   }
-  if (out){ out.cur = "THB"; out.est = true; out.free = out.hi === 0; }
+  // Bali and Lombok are tourist islands: food, stays and things to do cost more than in Sumatra (chains keep their own prices)
+  if (out && it.cc === "ID" && it.lng >= 114 && !out.why.startsWith("Typical at ")){
+    const f = {food:1.6, do:1.3, stay:1.4}[grp] || 1, r5 = v => Math.round(v * f / 5000) * 5000;
+    out.lo = out.lo ? Math.max(5000, r5(out.lo)) : 0; out.hi = out.hi ? Math.max(out.lo, r5(out.hi)) : 0;
+    out.why = out.why.replace(/ here$/, "") + " in Bali and Lombok";
+  }
+  if (out){ out.cur = cur; out.est = true; out.free = out.hi === 0; }
   return (it._ep = out);
 }
 
-/* the price we go by: a researched price if there is one (converted to baht), otherwise the estimate */
-const toTHB = (x, cur) => cur === "THB" || !cur ? x : toGBP(x, cur) * rate("THB");
+/* the price we go by: a researched price if there is one, otherwise the estimate. {lo, hi, cur, est} */
 function priceInfo(it){
-  if (it.p && it.p.length) return {lo:toTHB(it.p[0], it.cur), hi:toTHB(it.p[1] != null ? it.p[1] : it.p[0], it.cur), est:false};
+  if (it.p && it.p.length) return {lo:it.p[0], hi:it.p[1] != null ? it.p[1] : it.p[0], cur:it.cur || "THB", est:false};
   return estPrice(it);
 }
-// price bands per section, in baht: [upper limit of £, upper limit of ££]
-const BAND_LIMITS = {food:[150, 400], do:[300, 1500], stay:[600, 1800]};
-const BAND_LABELS = {
-  food:[null, "£ under ฿150", "££ ฿150–400", "£££ ฿400+"],
-  do:["Free", "£ under ฿300", "££ ฿300–1,500", "£££ ฿1,500+"],
-  stay:[null, "£ under ฿600", "££ ฿600–1,800", "£££ ฿1,800+"]
-};
+// price bands per section, in pounds so they mean the same in every country: [upper limit of £, upper limit of ££]
+const BAND_GBP = {food:[3.35, 8.95], do:[6.7, 33.5], stay:[13.4, 40.2]};      // = ฿150/400, ฿300/1,500, ฿600/1,800 at about ฿44.8 to £1
+// the band labels in the local money of a country, e.g. "£ under ฿150" or "£ under Rp 65,000"
+function bandLabels(grp, cc = S.country){
+  const lim = BAND_GBP[grp]; if (!lim) return [];
+  const cur = (PRICE_TABLES[cc] || {}).cur || (D.countries[cc] || {}).cur || "THB";
+  // friendly figures: ฿150, Rp 80,000; the coarser step only when it is within 3% of the real limit
+  const nice = v => { const x = v * rate(cur), k = Math.pow(10, Math.max(0, Math.floor(Math.log10(x)) - 1)), c = Math.round(x / (5 * k)) * 5 * k; return Math.abs(c - x) / x <= .03 ? c : Math.round(x / k) * k; };
+  const m = v => money(nice(v), cur);
+  return [grp === "do" ? "Free" : null, `£ under ${m(lim[0])}`, `££ ${m(lim[0])}–${fmtNum(nice(lim[1]))}`, `£££ ${m(lim[1])}+`];
+}
 // 0 = free, 1 = £, 2 = ££, 3 = £££, null = no idea
 function priceBand(it){
   const grp = it.g || (it.c === "gaff" ? "stay" : it.c === "munch" ? "food" : it.c === "cool" ? "do" : null);
-  const lim = BAND_LIMITS[grp]; if (!lim) return null;
+  const lim = BAND_GBP[grp]; if (!lim) return null;
   const p = priceInfo(it); if (!p) return null;
   if (p.hi === 0) return 0;
-  const mid = (p.lo + p.hi) / 2;
+  const mid = toGBP((p.lo + p.hi) / 2, p.cur);
   return mid < lim[0] ? 1 : mid <= lim[1] ? 2 : 3;
 }
-/* "est. ฿60–200" and "£1–5" for cards and the details sheet */
+/* "est. ฿60–200" or "est. Rp 15,000–40,000", and "£1–5", for cards and the details sheet */
 function estText(e){
   if (!e) return "";
   if (e.free) return "Usually free";
-  const f = n => Math.round(n).toLocaleString("en-GB");
-  return `est. ${e.lo === e.hi ? "฿" + f(e.lo) : e.lo === 0 ? "free–฿" + f(e.hi) : "฿" + f(e.lo) + "–" + f(e.hi)}`;
+  const cur = e.cur || "THB";
+  return `est. ${e.lo === e.hi ? money(e.lo, cur) : e.lo === 0 ? "free–" + money(e.hi, cur) : money(e.lo, cur) + "–" + fmtNum(e.hi)}`;
 }
 // whole pounds: an estimate shouldn't look more exact than it is
 function estGBP(e){
   if (!e || e.free) return "";
-  const lo = toGBP(e.lo, "THB"), hi = toGBP(e.hi, "THB");
+  const lo = toGBP(e.lo, e.cur || "THB"), hi = toGBP(e.hi, e.cur || "THB");
   const r = v => v < 1 ? "<£1" : "£" + Math.round(v);
   return lo === hi ? r(lo) : e.lo === 0 ? `up to ${r(hi)}` : (Math.round(lo) === Math.round(hi) ? r(lo) : `${r(lo)}–${Math.round(hi)}`).replace("<£1–", "<£1–£");
 }

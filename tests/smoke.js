@@ -42,11 +42,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", m => { if (m.type() === "error" && !IGNORE.test(m.text())) errors.push(m.text()); });
   const sumHits = {};
-  page.on("request", r => { const m = r.url().match(/sum-\w+\.json/); if (m) sumHits[m[0]] = (sumHits[m[0]] || 0) + 1; });
+  page.on("request", r => { const m = r.url().match(/places\/\w+\/sum-\w+\.json/); if (m) sumHits[m[0]] = (sumHits[m[0]] || 0) + 1; });
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
-  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3, "each place summary downloads once " + JSON.stringify(sumHits));
+  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 6, "each place summary downloads once, for Thailand and Indonesia " + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
@@ -72,7 +72,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click('#pageview [data-look="night"]'); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !document.documentElement.dataset.look), "back to the night look");
 
-  // map filters: picking Munch (from All) shows only food, with a filter row; a price band and a rating filter narrow it
+  // map filters: picking Munch (from All) shows only food, with a price row; tapping Munch again clears the map
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
   await page.evaluate(() => map.jumpTo({center:[100.5018, 13.7563], zoom:14.5})); await page.waitForTimeout(3500);
   await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(2500);
@@ -81,10 +81,46 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click('#mapFilt [data-mb="1"]'); await page.waitForTimeout(1500);
   const cheap = await page.evaluate(() => ({n:mapRun.items.length, ok:mapRun.items.every(p => priceBand(p) === 1)}));
   ok(cheap.ok && cheap.n > 0 && cheap.n < before, `£ filter keeps only cheap places (${cheap.n} of ${before})`);
-  await page.click('#mapFilt [data-mb=""]'); await page.click('#mapFilt [data-mr="4"]'); await page.waitForTimeout(1500);
-  ok(await page.evaluate(() => mapRun.items.every(p => knownRating(p) != null && knownRating(p) >= 8)), "4+ stars keeps only places rated 4 or more");
-  await page.click('#mapFilt [data-mr="0"]'); await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
-  ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden), "the filter row hides again for All");
+  ok(await page.evaluate(() => !document.querySelector("#mapFilt [data-mr]")), "no star filter (places have no ratings to filter on)");
+  await page.click('#mapFilt [data-mb=""]'); await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => ui.mapCats.size === 0 && mapRun.items.length === 0), "tapping the only section again switches everything off");
+  await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden && ui.mapCats.size === 3), "All brings everything back, without the filter row");
+
+  // Indonesia: the map, lists, search and Tools work in Sumatra, Bali and Lombok too
+  await page.evaluate(() => { setFocus({n:"Palembang", lat:-2.9888, lng:104.7569}); setCountry("ID", true); });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.7569, -2.9888], zoom:14.5}); }); await page.waitForTimeout(4000);
+  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, lab:(document.querySelector('#mapFilt [data-mb="1"]') || {}).textContent}));
+  ok(idMap.id > 20 && /Rp/.test(idMap.lab || ""), "Palembang food shows on the map, with price filters in rupiah " + JSON.stringify(idMap));
+  const pem = await page.evaluate(async () => (await Places.search("pempek", {lat:-2.9888, lng:104.7569})).map(s => s.n));
+  ok(pem.length > 0 && pem.every(n => /pempek|empek/i.test(n)), "search finds pempek places in Palembang " + JSON.stringify(pem.slice(0, 3)));
+  await page.evaluate(() => { setFocus({n:"Ubud", lat:-8.5069, lng:115.2625}); });
+  await page.goto(BASE + "#gaffs"); await page.waitForTimeout(4000);
+  const ubud = await page.evaluate(() => ({cards:document.querySelectorAll("#pageview .card[data-open]").length, rp:/Rp/.test(document.querySelector("#pageview .cards") ? document.querySelector("#pageview .cards").textContent : "")}));
+  ok(ubud.cards > 5 && ubud.rp, "Ubud stays list with rupiah estimates " + JSON.stringify(ubud));
+  await page.goto(BASE + "#tools/guide"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /Indonesia guide/.test(document.querySelector("#pageview h1").textContent) && /500,000 rupiah/.test(document.querySelector("#pageview").textContent)), "the guide switches to Indonesia");
+  await page.goto(BASE + "#tools/emergency"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => !!document.querySelector('#pageview a[href="tel:118"]') && /Jakarta/.test(document.querySelector("#pageview").textContent)), "Indonesia's emergency numbers and the embassy in Jakarta");
+  await page.goto(BASE + "#tools/translate"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /Indonesian phrasebook/.test(document.querySelector("#h-pb").textContent) && /Terima kasih/.test(document.querySelector("#pageview").textContent)), "the phrasebook switches to Indonesian");
+  const w3 = await page.evaluate(() => document.documentElement.scrollWidth);
+  ok(w3 <= 393, `no sideways scroll on the Indonesian pages (width ${w3})`);
+  await page.evaluate(() => { setFocus(null); setCountry("TH", true); });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => { ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
+
+  // questions in the search box: typed questions get an answer row; answers list nearby places
+  await page.fill("#m-q", "where's the nearest toilet"); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => { const b = document.querySelector("#mapSugs button"); return !!b && b.hasAttribute("data-ask"); }), "a typed question offers an answer first");
+  await page.click("#mapSugs [data-ask]"); await page.waitForTimeout(4000);
+  const toil = await page.evaluate(() => ({rows:document.querySelectorAll("#sheetRoot .ask-row").length, title:(document.querySelector("#askBody h3") || {}).textContent}));
+  ok(toil.rows > 0 && /Toilets/.test(toil.title), "nearest toilets are listed " + JSON.stringify(toil));
+  await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(300);
+  const ans = await page.evaluate(async () => { const r = await answerAsk("best cheap restaurant near me"); return r.items.map(x => ({c:x.p.c, band:priceBand(x.p), km:x.km})); });
+  ok(ans.length > 0 && ans.every(x => x.c === "munch" && x.band === 1 && x.km <= 5), "best cheap restaurant near me: cheap food within 5 km " + ans.length);
+  await page.fill("#m-q", ""); await page.waitForTimeout(300);
 
   // Documents: a PDF boarding pass and a picture of a TDAC are read on the phone, named and sorted
   await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
@@ -144,14 +180,20 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.reload(); await page.waitForTimeout(4000);
   // save Bangkok for offline, then check its places still list with no signal
   await page.goto(BASE + "#tools/offline"); await page.waitForTimeout(1500);
-  const pack = await page.evaluate(async () => { try { const p = await savePack(THAI_DESTS.find(c => c[0] === "Bangkok")); return {files:p.files}; } catch(e){ return {err:e.message}; } });
+  const pack = await page.evaluate(async () => { try { const p = await savePack(THAI_DESTS.find(c => c[0] === "Bangkok")); return {files:p.files, photos:p.photos, mb:+(p.bytes / 1e6).toFixed(1)}; } catch(e){ return {err:e.message}; } });
   ok(pack.files > 20, "saving Bangkok for offline " + JSON.stringify(pack));
+  if (!pack.photos) console.log("SKIP landmark photos: Wikimedia isn't reachable from this machine");
   await ctx.setOffline(true);
   await page.goto(BASE + "#gaffs", {timeout:15000}).catch(() => {}); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !!document.querySelector("#tabs a")), "app still opens offline");
   await page.evaluate(() => { Places.cache.clear(); Places.byId.clear(); });     // forget what's in memory, so the lists must come from the saved city
   await page.goto(BASE + "#munch", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
   ok(await page.evaluate(() => document.querySelectorAll("#pageview .card[data-open]").length > 5), "Bangkok food places list offline from the saved city");
+  if (pack.photos){
+    await page.evaluate(() => { try { localStorage.removeItem("card-photos-v1"); } catch(e){} });
+    await page.goto(BASE + "#activities", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
+    ok(await page.evaluate(() => [...document.querySelectorAll("#pageview .card .ph img")].some(i => i.complete && i.naturalWidth > 0 && /wikimedia/.test(i.src))), `landmark photos show offline (${pack.photos} saved)`);
+  }
   await ctx.setOffline(false);
 
   ok(errors.length === 0, "no JavaScript errors" + (errors.length ? ":\n  " + errors.join("\n  ") : ""));
