@@ -211,6 +211,26 @@ test("the camera allowance counts up and stops at the daily limit", () => {
   A.gSpend("vision"); eq(A.gUse().vision, before + 1);
 });
 
+/* ---------- questions in the map search ---------- */
+test("questions are understood", () => {
+  const p = q => { const a = A.parseAsk(q); return a && [a.kind, a.ess || a.move || a.ft || (a.kinds || []).join("+") || null, a.cheap, a.best, a.open, a.maxKm]; };
+  eq(p("where's the nearest toilet"), ["ess", "toilet", false, false, false, 25]);
+  eq(p("what's the best cheap restaurant near me"), ["food", null, true, true, false, 5]);
+  eq(p("what's a good activity to do today that isn't too far"), ["do", null, false, true, true, 5]);
+  eq(p("cheap noodles within walking distance"), ["food", "Noodles", true, false, false, 1.5]);
+  eq(p("thai massage nearby"), ["do", "massage", false, false, false, 5], "Thai massage isn't food");
+  eq(p("is there an ATM near here"), ["ess", "atm", false, false, false, 5]);
+  eq(p("where's the pier"), ["move", "ferry", false, false, false, 10]);
+  eq(p("cheapest hostel"), ["stay", "hostel", true, false, false, 10]);
+  eq(p("purple monkey dishwasher"), null);
+});
+test("place names aren't mistaken for questions", () => {
+  eq(A.askOffer("Wat Pho"), null);
+  eq(A.askOffer("Khao San Road"), null);
+  ok(A.askOffer("atm") && !A.askOffer("atm").first, "a plain category word gets an answer row after the place matches");
+  ok(A.askOffer("where can I get a drink?").first, "a question gets the answer row first");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};

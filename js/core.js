@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -204,7 +204,7 @@ const ui = {
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
   mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
   mapSort:"near", mapFilters:false,
-  mf:{gaff:{r:0, b:null}, munch:{r:0, b:null}, cool:{r:0, b:null}, move:{t:"all"}},      // the map's filter row (stars, price, transport type) mapSel:null, mapQ:"", mapSaved:false,
+  mf:{gaff:{b:null}, munch:{b:null}, cool:{b:null}, move:{t:"all"}},      // the map's filter row (price, or transport type) mapSel:null, mapQ:"", mapSaved:false,
   tp:{from:null, to:null, sort:"fast", sel:0}
 };
 

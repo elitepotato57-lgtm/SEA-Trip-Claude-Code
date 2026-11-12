@@ -62,7 +62,7 @@ function ensureMap(){
   $("#mapview").innerHTML = `<div id="map" role="application" aria-label="Map of places"></div>
     <div class="map-loading" id="mapLoading" role="status"><div><span class="spin" aria-hidden="true"></span>Loading map…</div></div>
     <div class="map-top" id="mapTop">
-      <label class="sbar"><span class="vis-hidden">Search the map</span>${icon("search")}<input type="search" id="m-q" autocomplete="off" enterkeyhint="search" placeholder="Search stays, food, activities, places"><button class="sbtn" type="button" id="m-clear" aria-label="Clear search" hidden>${icon("x","i s")}</button><a class="sbtn" href="#discover" aria-label="Discover Thailand">${icon("compass")}</a><a class="sbtn" href="#saved" aria-label="Saved places">${icon("bookmark")}</a></label>
+      <label class="sbar"><span class="vis-hidden">Search the map</span>${icon("search")}<input type="search" id="m-q" autocomplete="off" enterkeyhint="search" placeholder="Search places or ask a question"><button class="sbtn" type="button" id="m-clear" aria-label="Clear search" hidden>${icon("x","i s")}</button><button class="sbtn" type="button" id="m-mic" aria-label="Ask a question out loud" aria-pressed="false">${icon("mic")}</button><a class="sbtn" href="#discover" aria-label="Discover Thailand">${icon("compass")}</a><a class="sbtn" href="#saved" aria-label="Saved places">${icon("bookmark")}</a></label>
       <div class="map-sugs" id="mapSugs" hidden></div>
       <div class="map-chips" id="mapChips" role="group" aria-label="What to show"></div>
       <div class="map-chips" id="mapEss" role="group" aria-label="Essentials" hidden></div>
@@ -196,13 +196,12 @@ function soloCat(){
 }
 function mapFilterOn(){
   const c = soloCat(); if (!c) return false;
-  const f = ui.mf[c]; return c === "move" ? f.t !== "all" : !!f.r || f.b != null;
+  const f = ui.mf[c]; return c === "move" ? f.t !== "all" : f.b != null;
 }
 function passMapFilter(it){
   const c = soloCat(); if (!c || it.c !== c) return true;
   const f = ui.mf[c];
   if (c === "move") return f.t === "all" || MOVE_KIND_TYPE[it.k] === f.t;
-  if (f.r){ const r = knownRating(it); if (r == null || r / 2 < f.r) return false; }
   if (f.b != null && priceBand(it) !== f.b) return false;
   return true;
 }
@@ -215,13 +214,11 @@ function renderMapFilt(){
   if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, f.t === id)).join("");
   else {
     const labels = BAND_LABELS[CAT[c].grp];
-    el.innerHTML = `<span class="mf-lab">${icon("star", "i xs")}Rating</span>`
-      + [[0, "Any"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"]].map(([v, l]) => b(`data-mr="${v}"`, l, f.r === v, v ? `${v} stars and up` : "Any rating")).join("")
-      + `<span class="mf-lab">Price</span>` + b('data-mb=""', "Any", f.b == null, "Any price")
-      + labels.map((l, i) => l ? b(`data-mb="${i}"`, l.split(" ")[0], f.b === i, l) : "").join("");
+    // price bands, shown with what they mean (e.g. "£ under ฿150")
+    el.innerHTML = `<span class="mf-lab">Price</span>` + b('data-mb=""', "Any", f.b == null, "Any price")
+      + labels.map((l, i) => l ? b(`data-mb="${i}"`, esc(l), f.b === i, l) : "").join("");
   }
   el.hidden = false;
-  el.querySelectorAll("[data-mr]").forEach(x => x.onclick = () => { f.r = +x.dataset.mr; renderMapFilt(); refreshMapData(); });
   el.querySelectorAll("[data-mb]").forEach(x => x.onclick = () => { f.b = x.dataset.mb === "" ? null : +x.dataset.mb; renderMapFilt(); refreshMapData(); });
   el.querySelectorAll("[data-mt]").forEach(x => x.onclick = () => { f.t = x.dataset.mt; renderMapFilt(); refreshMapData(); });
   if (typeof updateFade === "function") updateFade(el);
@@ -328,8 +325,7 @@ function renderMapStatus(){
   else if (mapRun.mode === "summary" && mapRun.total) txt = mapFilterOn() ? "Zoom in to use the filters" : `${mapRun.total.toLocaleString("en-GB")} places here. Zoom in to see them`;
   else if (mapFilterOn()){
     const c = soloCat(), f = ui.mf[c], n = mapRun.items.length;
-    txt = n ? `${n.toLocaleString("en-GB")} match${n === 1 ? "es" : ""}${f.r ? " · unrated hidden" : ""}${f.b != null ? " · prices estimated" : ""}`
-            : f.r ? "No rated places here. Only researched places (and ones you've opened with Google ratings on) have ratings" : "Nothing here matches. Try another price or zoom out";
+    txt = n ? `${n.toLocaleString("en-GB")} match${n === 1 ? "es" : ""}${f.b != null ? " · prices estimated where unknown" : ""}` : "Nothing here matches. Try another price or zoom out";
   }
   else if (ui.mapSaved) txt = `${Object.keys(S.saved).length} saved`;
   const el = $("#mapStatusTxt"); if (el){ el.textContent = txt; el.hidden = !txt; }
@@ -356,7 +352,7 @@ function renderMapUI(){
   top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
     const k = b.dataset.cat; ui.mapSaved = false;
     if (all) ui.mapCats = new Set([k]);                       // everything showing: tapping a section shows just that one
-    else if (ui.mapCats.has(k)){ ui.mapCats.delete(k); if (!ui.mapCats.size) ui.mapCats = new Set(["gaff","munch","cool"]); }
+    else if (ui.mapCats.has(k)) ui.mapCats.delete(k);          // switching the last one off leaves the map clear
     else ui.mapCats.add(k);
     renderMapUI();
   });
@@ -527,13 +523,17 @@ function bindMapSearch(){
     if (!text){ close(); return; }
     const local = localMatches(text), names = new Set(local.map(s => s.n.toLowerCase()));
     const rem = remote.filter(s => !names.has(s.n.toLowerCase()));
-    let h = local.map((s, i) => `<button type="button" data-l="${i}">${icon(s.dest ? "pin" : "star","i s")}<span>${esc(s.n)}<small>${esc(s.sub)}</small></span></button>`).join("");
+    const offer = typeof askOffer === "function" ? askOffer(text) : null;
+    const askRow = offer ? `<button type="button" data-ask class="ask-sug">${icon("spark","i s")}<span>${esc(askTitle(offer.a))}<small>Answer from the app's places${userLoc ? ", nearest to you" : ""}</small></span></button>` : "";
+    let h = (offer && offer.first ? askRow : "") + local.map((s, i) => `<button type="button" data-l="${i}">${icon(s.dest ? "pin" : "star","i s")}<span>${esc(s.n)}<small>${esc(s.sub)}</small></span></button>`).join("");
+    if (offer && !offer.first) h += askRow;
     if (rem.length) h += `<div class="hd">More places in Thailand</div>` + rem.map((s, i) => `<button type="button" data-r="${i}">${icon((KIND[s.k] || {ic:"pin"}).ic,"i s")}<span>${esc(s.n)}<small>${esc((KIND[s.k] || {l:"Place"}).l)} · ${esc(s.area)}</small></span></button>`).join("");
     if (online.length) h += `<div class="hd">From the web map</div>` + online.map((s, i) => `<button type="button" data-o="${i}">${icon("globe","i s")}<span>${esc(s.n)}<small>${esc(s.sub)}</small></span></button>`).join("");
     else if (text.length >= 3) h += `<button type="button" data-web>${icon("search","i s")}<span>Search everywhere for “${esc(text)}”<small>${busy ? "Searching…" : "OpenStreetMap search, needs signal"}</small></span></button>`;
     if (!local.length && !rem.length && !online.length && text.length < 3) h = `<div class="hd">Keep typing…</div>`;
     box.innerHTML = h; box.hidden = !h;
     box.querySelectorAll("[data-l]").forEach(b => b.onclick = () => choose(local[+b.dataset.l]));
+    const ab = box.querySelector("[data-ask]"); if (ab) ab.onclick = () => { close(); inp.blur(); showAnswer(text); };
     box.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const s = rem[+b.dataset.r]; choose({id:s.id, g:s.g, node:{n:s.n, lat:s.lat, lng:s.lng}}); });
     box.querySelectorAll("[data-o]").forEach(b => b.onclick = () => choose(online[+b.dataset.o]));
     const wb = box.querySelector("[data-web]"); if (wb) wb.onclick = async () => { busy = true; paint(); const r = await osmSearch(text); busy = false; online = r || []; if (!r) toast("Search needs signal"); else if (!r.length) toast("Nothing found. Try another spelling."); paint(); };
@@ -550,6 +550,21 @@ function bindMapSearch(){
   inp.onfocus = () => paint();
   inp.onkeydown = e => { if (e.key === "Enter"){ const first = box.querySelector("button"); if (first) first.click(); } if (e.key === "Escape"){ close(); inp.blur(); } };
   clear.onclick = () => { inp.value = ""; remote = []; online = []; paint(); inp.focus(); };
+  const mic = $("#m-mic"); let rec = null;
+  mic.onclick = () => {
+    if (rec){ try { rec.stop(); } catch(e){} return; }
+    rec = listen(t => { inp.value = t; clear.hidden = !t; }, (final, err) => {
+      rec = null; mic.setAttribute("aria-pressed", "false"); mic.classList.remove("on");
+      if (err === "not-allowed" || err === "service-not-allowed"){ toast("The microphone is switched off for this app. You can still tap the mic on the keyboard."); return; }
+      if (err === "no-speech"){ toast("Didn't catch that. Tap the mic and try again"); return; }
+      if (!final) return;
+      inp.value = final;
+      if (typeof parseAsk === "function" && parseAsk(final)){ close(); inp.blur(); showAnswer(final); }
+      else { online = []; paint(); runRemote(); }
+    });
+    if (rec){ mic.setAttribute("aria-pressed", "true"); mic.classList.add("on"); inp.value = ""; inp.placeholder = "Listening…"; setTimeout(() => inp.placeholder = "Search places or ask a question", 6000); }
+    else { inp.focus(); toast("Tap the microphone on your keyboard and ask, e.g. “nearest toilet”"); }
+  };
   document.addEventListener("pointerdown", e => { if (!box.hidden && !e.target.closest("#mapTop")) close(); });
 }
 window.addEventListener("resize", () => { if (ui.view === "map"){ mapShown(); renderMapBottom(); } });

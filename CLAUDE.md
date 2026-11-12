@@ -16,8 +16,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
 - `js/estimate.js`: food types and typical-price **estimates** (`foodType`, `estPrice`, `priceBand`), known ratings.
+  OpenStreetMap has no ratings and only researched hostels do, so the map filters on price, not stars.
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
-- `js/map.js`: the MapLibre map, per-category clusters, the filter row (stars, price, transport type).
+- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
+- `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
 - `js/transport.js`: journey planner. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). `js/docs.js`: Tools › Documents.
