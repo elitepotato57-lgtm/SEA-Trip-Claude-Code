@@ -22,7 +22,9 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
 - `js/transport.js`: journey planner. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
-- `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). `js/docs.js`: Tools › Documents.
+- `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
+  landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
+- `js/docs.js`: Tools › Documents.
 - `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).

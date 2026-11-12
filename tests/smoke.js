@@ -156,14 +156,20 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.reload(); await page.waitForTimeout(4000);
   // save Bangkok for offline, then check its places still list with no signal
   await page.goto(BASE + "#tools/offline"); await page.waitForTimeout(1500);
-  const pack = await page.evaluate(async () => { try { const p = await savePack(THAI_DESTS.find(c => c[0] === "Bangkok")); return {files:p.files}; } catch(e){ return {err:e.message}; } });
+  const pack = await page.evaluate(async () => { try { const p = await savePack(THAI_DESTS.find(c => c[0] === "Bangkok")); return {files:p.files, photos:p.photos, mb:+(p.bytes / 1e6).toFixed(1)}; } catch(e){ return {err:e.message}; } });
   ok(pack.files > 20, "saving Bangkok for offline " + JSON.stringify(pack));
+  if (!pack.photos) console.log("SKIP landmark photos: Wikimedia isn't reachable from this machine");
   await ctx.setOffline(true);
   await page.goto(BASE + "#gaffs", {timeout:15000}).catch(() => {}); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !!document.querySelector("#tabs a")), "app still opens offline");
   await page.evaluate(() => { Places.cache.clear(); Places.byId.clear(); });     // forget what's in memory, so the lists must come from the saved city
   await page.goto(BASE + "#munch", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
   ok(await page.evaluate(() => document.querySelectorAll("#pageview .card[data-open]").length > 5), "Bangkok food places list offline from the saved city");
+  if (pack.photos){
+    await page.evaluate(() => { try { localStorage.removeItem("card-photos-v1"); } catch(e){} });
+    await page.goto(BASE + "#activities", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
+    ok(await page.evaluate(() => [...document.querySelectorAll("#pageview .card .ph img")].some(i => i.complete && i.naturalWidth > 0 && /wikimedia/.test(i.src))), `landmark photos show offline (${pack.photos} saved)`);
+  }
   await ctx.setOffline(false);
 
   ok(errors.length === 0, "no JavaScript errors" + (errors.length ? ":\n  " + errors.join("\n  ") : ""));

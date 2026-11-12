@@ -143,7 +143,17 @@ function loadWdPhoto(it){
   })();
   return Promise.resolve(photoCache[key]);
 }
-const freePhoto = async it => (it.wp && await loadPhoto(it)) || (it.wd && await loadWdPhoto(it)) || null;
+const freePhoto = async it => {
+  const pk = await savedPhoto(it);
+  if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
+  return (it.wp && await loadPhoto(it)) || (it.wd && await loadWdPhoto(it)) || null;
+};
+// a landmark photo saved with a city (Tools > Offline & backup), if there is one
+async function savedPhoto(it){
+  if (typeof PACK_PHOTOS === "undefined") return null;
+  if (packPhotosReady) await packPhotosReady;
+  return PACK_PHOTOS.get(it.id) || null;
+}
 /* Card photos load only when the card scrolls into view. Order: Google (only with a key, within today's allowance),
    then a free Wikipedia / Wikimedia Commons photo, otherwise the card keeps its illustration.
    Answers are remembered on the phone (cardPhotoCache) so scrolling back never asks again. */
@@ -156,6 +166,7 @@ const cphSave = debounce(() => {
 }, 800);
 const googleFor = it => !!googleKey() && it.c !== "move" && it.c !== "ess";     // Google only for stays, food and things to do
 async function cardPhoto(it){
+  const pk = await savedPhoto(it); if (pk) return pk.s;          // saved with a city: free, and works offline
   const hit = cph[it.id], now = Date.now();
   // free photos are kept for 30 days; Google photo links only for a day (they expire and Google asks apps not to keep them)
   if (hit && now - hit.at < (hit.g ? 864e5 : 30 * 864e5) && (hit.src || !googleFor(it) || hit.gTried)) return hit.src;
@@ -196,7 +207,7 @@ function commonsCredit(src){
   if (!creditCache[file]) creditCache[file] = getJSON(`https://commons.wikimedia.org/w/api.php?action=query&titles=${enc("File:" + file)}&prop=imageinfo&iiprop=extmetadata&format=json&origin=*`, {timeout:8000}).then(j => {
     const pg = j.query && Object.values(j.query.pages || {})[0], md = pg && pg.imageinfo && pg.imageinfo[0] && pg.imageinfo[0].extmetadata;
     if (!md) return null;
-    const txt = h => { const d = document.createElement("div"); d.innerHTML = h || ""; return d.textContent.trim(); };
+    const txt = h => { try { return (new DOMParser().parseFromString(String(h || ""), "text/html").body.textContent || "").trim(); } catch(e){ return ""; } };
     return {by: txt(md.Artist && md.Artist.value).slice(0, 60) || "Unknown author", lic: txt(md.LicenseShortName && md.LicenseShortName.value) || "see file page",
       page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`};
   }).catch(() => null);
@@ -212,6 +223,7 @@ function wikiInto(box, it){
     box.innerHTML = `<img alt="${esc(it.n)}" src="${esc(ph.src)}"><div class="credit"><a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.by)}</a></div>`;
     box.querySelector("img").onerror = () => { box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none"); };
     // name the photographer and the licence, as Commons licences ask
+    if (ph.credit){ box.querySelector(".credit").innerHTML = `<a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.credit)}</a>`; return; }
     commonsCredit(ph.src).then(c => { const cr = box.querySelector(".credit"); if (c && cr && box.dataset.id === it.id) cr.innerHTML = `Photo: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.by)}</a>, ${esc(c.lic)}, Wikimedia Commons`; });
   });
 }
