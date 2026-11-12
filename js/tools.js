@@ -5,8 +5,9 @@
 const TOOLS = [
   {id:"currency", l:"Currency", d:"Baht and other rates, works offline", ic:"cash"},
   {id:"translate", l:"Translator", d:"Thai phrasebook and live translation", ic:"lang", alt:1},
-  {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet"},
-  {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun", alt:1},
+  {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
+  {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1},
+  {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Cafés and spots with Wi-Fi", ic:"wifi", alt:1},
   {id:"guide", l:"Thailand guide", d:"Entry rules, money, customs", ic:"book"},
@@ -22,7 +23,7 @@ function renderTools(){
   if (sub && TOOL_PAGES[sub]){ TOOL_PAGES[sub](root); return; }
   const c = D.countries[S.country];
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
-    <div class="tgrid">${TOOLS.map(t => `<a class="tool ${t.alt ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
+    <div class="tgrid">${TOOLS.map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
     <div class="sect"><h2>Essentials nearby</h2><a href="#map" id="t-essmap">View on map</a></div>
     <div class="egrid">${["laundry","atm","pharmacy","water","shop","supermarket","sim","hospital"].map(id => { const e = ESS_BY_ID[id]; return `<button class="ebtn" type="button" data-ess="${id}">${icon(e.ic)}${e.l.replace(" and minimarts", "")}</button>`; }).join("")}</div>
     <p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>

@@ -168,6 +168,37 @@ test("a backup file is recognised and summarised", () => {
   eq(A.readBackup({app:"something-else", state:{}}), null);
   eq(A.readBackup(null), null);
 });
+/* ---------- Documents: naming and sorting ---------- */
+test("a boarding pass goes in Flights, named by its airports and date", () => {
+  const c = A.classifyDoc("AirAsia BOARDING PASS\nPassenger MR SMITH/JOHN\nFlight FD 3436  Gate 12  Seat 14A\nDMK Bangkok Don Mueang  to  CNX Chiang Mai\nDeparture 02 Dec 2026 07:15  Boarding time 06:35", "boardingpass.pdf");
+  eq(c.section, "flight"); eq(c.name, "Flight DMK → CNX, 2 Dec"); eq(c.date, "2026-12-02");
+});
+test("a Booking.com confirmation goes in Accommodation, named after the hostel", () => {
+  const c = A.classifyDoc("Booking.com\nYour booking is confirmed\nLub d Bangkok Siam Hostel\nCheck-in Sat 28 Nov 2026 from 14:00\nCheck-out Mon 30 Nov 2026\n2 nights, 1 room type: Bed in 8-Bed Dormitory", "Booking confirmation.pdf");
+  eq(c.section, "stay"); eq(c.name, "Lub d Bangkok Siam Hostel, 28 Nov");
+});
+test("the TDAC goes in TDAC and visas", () => {
+  const c = A.classifyDoc("Thailand Digital Arrival Card (TDAC)\nArrival date 27/11/2026\nNationality UNITED KINGDOM", "IMG_2041.PNG");
+  eq(c.section, "entry"); eq(c.name, "TDAC arrival card, 27 Nov");
+});
+test("insurance, a 12Go bus ticket and a ferry ticket", () => {
+  eq(A.classifyDoc("SafetyWing Nomad Insurance\nCertificate of cover\nPolicy number 123456", "cert.pdf").name, "Travel insurance (SafetyWing)");
+  const bus = A.classifyDoc("12Go e-ticket\nGreen Bus Thailand\nChiang Mai Arcade Bus Terminal 2 to Pai\n5 Dec 2026 08:30 Minivan", "ticket.pdf");
+  eq(bus.section, "bus"); eq(bus.name, "Bus Chiang Mai → Pai, 5 Dec");
+  const ferry = A.classifyDoc("Lomprayah High Speed Catamaran\nKoh Tao Mae Haad Pier to Koh Phangan Thong Sala Pier\n12 Dec 2026", "lomprayah.pdf");
+  eq(ferry.section, "ferry"); eq(ferry.name, "Ferry Koh Tao → Koh Phangan, 12 Dec");
+});
+test("a photo with no useful text keeps a tidy version of its file name", () => {
+  const c = A.classifyDoc("", "my_holiday-photo.JPG");
+  eq(c.section, "other"); eq(c.name, "my holiday photo");
+});
+test("dates in different formats", () => {
+  eq(A.docDate("Departs Dec 3, 2026"), "2026-12-03");
+  eq(A.docDate("on 2026-12-04"), "2026-12-04");
+  eq(A.docDate("Date: 05.12.2026"), "2026-12-05");
+  eq(A.docDate("no date here 99/99/9999"), null);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};

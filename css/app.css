@@ -514,3 +514,16 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:calc(13px * var
 .pack small{display:block;color:var(--muted);font-size:calc(12.5px * var(--ts,1))}
 .pack .bar{height:5px;margin-top:6px}
 .btn[disabled]{opacity:.45;pointer-events:none}
+
+/* Tools > Documents */
+.doc-sub{display:flex;align-items:center;gap:6px;font-size:calc(12.5px * var(--ts,1));font-weight:700;color:var(--muted);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.docs{display:grid;gap:8px}
+.doc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:8px 10px 8px 8px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--surface);color:var(--ink)}
+.doc-ph{flex:none;width:64px;height:64px;border-radius:var(--r);background:var(--raised) center/cover no-repeat;display:grid;place-items:center;color:var(--muted)}
+.doc-txt{flex:1;min-width:0}
+.doc-txt b{display:block;font-size:calc(15px * var(--ts,1));line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-txt small{display:block;color:var(--muted);font-size:calc(12.5px * var(--ts,1));margin-top:2px}
+.doc-view{display:grid;gap:8px;margin-top:10px}
+.doc-view img,.doc-page{width:100%;height:auto;border-radius:var(--r);border:1px solid var(--line);background:#fff}
+.sheet .field{margin-top:8px}
+.sheet .field input,.sheet .field select{height:40px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 10px;font-size:calc(15px * var(--ts,1))}

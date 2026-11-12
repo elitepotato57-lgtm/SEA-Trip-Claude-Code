@@ -5,6 +5,25 @@
 // It fails (exit code 1) if any page throws a JavaScript error, a tab scrolls sideways at 393 px,
 // the map or its clusters don't appear, a place won't open, the look switch breaks, or the app won't load offline.
 const { start } = require("./serve");
+const fs = require("fs"), os = require("os"), path = require("path");
+
+// a small real PDF (a pretend boarding pass) for the Documents check
+function makePdf(lines){
+  const NL = "\n";
+  const esc = t => t.replace(/[\\()]/g, m => "\\" + m);
+  const content = "BT /F1 16 Tf 50 790 Td " + lines.map((l, i) => (i ? "0 -26 Td " : "") + "(" + esc(l) + ") Tj").join(" ") + " ET";
+  const objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    ["<< /Length " + content.length + " >>", "stream", content, "endstream"].join(NL), "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  let out = "%PDF-1.4" + NL;
+  const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += [`${i + 1} 0 obj`, o, "endobj", ""].join(NL); });
+  const x = out.length;
+  out += ["xref", `0 ${objs.length + 1}`, "0000000000 65535 f "].join(NL) + NL
+    + offs.map(n => String(n).padStart(10, "0") + " 00000 n " + NL).join("")
+    + ["trailer", `<< /Size ${objs.length + 1} /Root 1 0 R >>`, "startxref", String(x), "%%EOF", ""].join(NL);
+  const f = path.join(os.tmpdir(), "sea-trip-boarding-pass.pdf"); fs.writeFileSync(f, out, "latin1"); return f;
+}
 let chromium, launchOpts = {};
 try { ({ chromium } = require("playwright")); }
 catch (e) { ({ chromium } = require("playwright-core")); launchOpts = {channel: process.env.BROWSER || (process.platform === "win32" ? "msedge" : "chrome")}; }
@@ -66,6 +85,27 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => mapRun.items.every(p => knownRating(p) != null && knownRating(p) >= 8)), "4+ stars keeps only places rated 4 or more");
   await page.click('#mapFilt [data-mr="0"]'); await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
   ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden), "the filter row hides again for All");
+
+  // Documents: a PDF boarding pass and a picture of a TDAC are read on the phone, named and sorted
+  await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
+  await page.setInputFiles("#docAdd", makePdf(["AirAsia BOARDING PASS", "Passenger MR SMITH/JOHN", "Flight FD 3436   Gate 12   Seat 14A",
+    "DMK Bangkok Don Mueang to CNX Chiang Mai", "Departure 02 Dec 2026 07:15"]));
+  await page.waitForFunction(() => document.querySelector('#docList [data-doc]'), null, {timeout:30000}).catch(() => {});
+  ok(await page.evaluate(() => /Flight DMK → CNX, 2 Dec/.test(document.querySelector("#docList").textContent)), "a PDF boarding pass is read and filed under Flights");
+  const ocr = await page.evaluate(async () => {
+    const c = document.createElement("canvas"); c.width = 1100; c.height = 420; const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#111"; g.font = "bold 44px Arial";
+    ["THAILAND DIGITAL ARRIVAL CARD", "TDAC No. A12345678", "Arrival date 27/11/2026"].forEach((t, i) => g.fillText(t, 40, 90 + i * 110));
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    try { const d = await addDocFile(new File([blob], "IMG_2041.png", {type:"image/png"})); return {section:d.section, name:d.name}; } catch(e){ return {err:String(e)}; }
+  });
+  ok(ocr.section === "entry" && /TDAC/.test(ocr.name), "a picture of a TDAC is read on the phone and filed under TDAC and visas " + JSON.stringify(ocr));
+  const bk = await page.evaluate(async () => (await makeBackup()).docs.length);
+  ok(bk >= 2, `documents go into the backup file (${bk})`);
+  await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
+  await page.click("#docList [data-doc]"); await page.waitForTimeout(2500);
+  ok(await page.evaluate(() => !!document.querySelector("#docView canvas.doc-page, #docView img")), "a document opens to view");
+  await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(400);
 
   // Design Lab: a colour preset recolours the chips and the map circles; text size and reset work
   await page.goto(BASE + "#map"); await page.waitForTimeout(2500);

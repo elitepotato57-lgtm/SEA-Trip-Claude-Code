@@ -9,7 +9,7 @@ function fakeElement(){
     setAttribute(){}, removeAttribute(){}, getAttribute(){ return null; }, appendChild(){}, addEventListener(){}, querySelector(){ return null; },
     querySelectorAll(){ return []; }, innerHTML:"", textContent:""};
 }
-function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "tools", "tools-more", "offline"], extra = {}){
+function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "tools", "tools-more", "offline", "docs"], extra = {}){
   const store = new Map();
   const ctx = {
     console, setTimeout, clearTimeout, setInterval, clearInterval, URL, URLSearchParams, Intl, Date, Math, JSON, Promise,

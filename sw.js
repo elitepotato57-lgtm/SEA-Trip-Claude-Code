@@ -5,7 +5,7 @@ const PLACES = "sea-trip-places-v1";    // the parts of the places database you 
 const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
   "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/estimate.js", "./js/shell.js", "./js/lists.js", "./js/map.js",
-  "./js/transport.js", "./js/tools.js", "./js/tools-more.js", "./js/offline.js", "./js/detail.js", "./js/boot.js",
+  "./js/transport.js", "./js/tools.js", "./js/tools-more.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg"];
 const PLACES_CORE = ["./places/th/meta.json", "./places/th/coverage.json", "./places/th/sum-stay.json", "./places/th/sum-food.json", "./places/th/sum-do.json"];
