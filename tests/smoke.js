@@ -1,16 +1,22 @@
 // Quick check of the whole app in a phone-sized headless browser.
-// Run from the repo root:   python3 -m http.server 8765 &   then   node tests/smoke.js
-// Needs Playwright (npx playwright, or the copy that comes with Claude Code's cloud machines).
+// Run from the repo root:   npm test   (or node tests/smoke.js). It starts its own little web server.
+// Uses Playwright if it is installed (Claude Code's cloud machines have it), otherwise playwright-core
+// (npm install) driving the Edge or Chrome already on the computer.
 // It fails (exit code 1) if any page throws a JavaScript error, a tab scrolls sideways at 393 px,
 // the map or its clusters don't appear, a place won't open, the look switch breaks, or the app won't load offline.
-const { chromium } = require("playwright");
-const BASE = process.env.BASE || "http://localhost:8765/";
+const { start } = require("./serve");
+let chromium, launchOpts = {};
+try { ({ chromium } = require("playwright")); }
+catch (e) { ({ chromium } = require("playwright-core")); launchOpts = {channel: process.env.BROWSER || (process.platform === "win32" ? "msedge" : "chrome")}; }
+const PORT = +process.env.PORT || 8765;
+const BASE = process.env.BASE || `http://localhost:${PORT}/`;
 const IGNORE = /config\.js|ERR_TUNNEL|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_PROXY|Failed to load resource/;
 let failed = 0;
 const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!cond) failed++; };
 
 (async () => {
-  const browser = await chromium.launch();
+  const server = process.env.BASE ? null : await start(PORT);
+  const browser = await chromium.launch(launchOpts);
   const ctx = await browser.newContext({viewport:{width:393, height:852}});
   const page = await ctx.newPage();
   const errors = [];
@@ -58,6 +64,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   ok(errors.length === 0, "no JavaScript errors" + (errors.length ? ":\n  " + errors.join("\n  ") : ""));
   await browser.close();
+  if (server) server.close();
   console.log(failed ? `\n${failed} check(s) failed` : "\nAll checks passed");
   process.exit(failed ? 1 : 0);
 })();
