@@ -13,7 +13,7 @@ const TOOLS = [
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
-  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
+  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : S.country === "KH" ? "Cambodia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
   {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1}
@@ -222,7 +222,29 @@ const PHRASES_ID = [
     ["1,000", "seribu", "", "suh-REE-boo"], ["10,000", "sepuluh ribu", "", "suh-POO-looh REE-boo"], ["100,000", "seratus ribu", "", "suh-RA-toos REE-boo"]]}
 ];
 // the phrasebook for the country you're in: Indonesian in Indonesia, Thai everywhere else
-const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
+/* Khmer: words and spellings from Wikivoyage's Khmer phrasebook where it has them (checked Nov 2026); the "Say" lines are an
+   approximate English spelling. Khmer has no tones, but the vowels are hard: tap the speaker if the phone has a Khmer voice. */
+const PHRASES_KH = [
+  {t:"Basics", p:[
+    ["Hello (polite)", "ជម្រាបសួរ", "", "chum-REAP SUOR"], ["Hello (casual)", "សួស្តី", "", "suos-DEI"], ["Thank you", "អរគុណ", "", "AW-kun"],
+    ["Yes (said by a man)", "បាទ", "", "baht"], ["Yes (said by a woman)", "ច៎ា", "", "jaah"], ["No", "អត់ទេ", "", "ot TAY"],
+    ["Sorry / excuse me", "សូមទោស", "", "som TOH"], ["I don’t understand", "ខ្ញុំមិនយល់ទេ", "", "k’nyom min YUL tay"], ["Goodbye (polite)", "ជម្រាបលា", "", "chum-REAP LEA"]]},
+  {t:"Money and numbers", p:[
+    ["How much is it?", "ថ្លៃប៉ុន្មាន?", "", "t’lai pon-MAAN"], ["Too expensive", "ថ្លៃពេក", "", "t’lai PEK"], ["Can you lower the price?", "ចុះថ្លៃបានទេ?", "", "choh t’lai baan TAY"],
+    ["One", "មួយ", "", "muay"], ["Two", "ពីរ", "", "pee"], ["Three", "បី", "", "bei"], ["Four", "បួន", "", "buan"], ["Five", "ប្រាំ", "", "pram"], ["Ten", "ដប់", "", "dop"],
+    ["One hundred", "មួយរយ", "", "muay ROY"], ["One thousand", "មួយពាន់", "", "muay POAN"]]},
+  {t:"Food and drink", p:[
+    ["Water", "ទឹក", "", "tuk"], ["Rice", "បាយ", "", "bai"], ["Delicious", "ឆ្ងាញ់", "", "ch’NGANH"], ["Not spicy, please", "សូមកុំហឹរ", "", "som kom HUR"],
+    ["The bill, please", "សូមគិតលុយ", "", "som kit LUY"]]},
+  {t:"Getting around", p:[
+    ["Where is the toilet?", "បង្គន់នៅឯណា?", "", "bong-KUN nov ae NAA"], ["Stop here", "ឈប់នៅទីនេះ", "", "chhup nov tee NIH"],
+    ["Left", "ឆ្វេង", "", "ch’veng"], ["Right", "ស្តាំ", "", "sdam"], ["Straight on", "ត្រង់", "", "trong"]]},
+  {t:"Help", p:[
+    ["Help!", "ជួយផង!", "", "CHUAY phong"], ["Hospital", "មន្ទីរពេទ្យ", "", "mon-TEE pet"], ["Police", "ប៉ូលិស", "", "po-LEES"],
+    ["I need a doctor", "ខ្ញុំត្រូវការគ្រូពេទ្យ", "", "k’nyom trov-KAA kru-PET"]]}
+];
+const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}
+  : S.country === "KH" ? {list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
 let phraseTab = 0;
 TOOL_PAGES.translate = root => {
   const lang = trLang(), langName = (TR_LANGS.find(l => l[0] === lang) || TR_LANGS[0])[1];
@@ -241,7 +263,7 @@ TOOL_PAGES.translate = root => {
   </section>
   <section class="block" aria-labelledby="h-pb">
     <h2 id="h-pb">${PB.name} phrasebook</h2>
-    <p class="note">Works offline. ${PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
+    <p class="note">Works offline. ${PB.lang === "km" ? "Men say <b>baht</b> for yes and women <b>jaah</b>. Words from Wikivoyage’s Khmer phrasebook; the “Say” line is only a rough guide. " : PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
     <div class="scroller" style="margin-top:8px">${PB.list.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
     <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in ${PB.name}">${icon("speaker")}</button><span class="th" lang="${PB.lang}">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span>${p[2] ? `<span class="ro">With tone marks: ${esc(p[2])}</span>` : ""}</div>`).join("")}</div>
   </section></div>`;
@@ -260,19 +282,20 @@ function setupPage(){
   const domains = [...new Set([...D.places, ...D.routes, ...D.net.edges].flatMap(x => x.src || []).map(s => s[0]))].sort();
   const gk = googleKey(), m = Places.meta;
   return toolHero("Settings", "Location, photos, exchange rates and data") + `<div class="page">
-  <section class="block"><h2>Test location</h2>
-    <p class="note">While you’re testing at home, the app can pretend you’re somewhere on the trip. Turn this off before you fly.</p>
-    <label class="field" style="margin-top:8px">Pretend I’m in<select id="testLoc"><option value="off" ${S.testLoc === "off" ? "selected" : ""}>Off (use my real location)</option>${TEST_SPOTS.map(c => `<option value="${esc(c[0])}" ${S.testLoc === c[0] ? "selected" : ""}>${esc(c[0])}${c[0] === "Bangkok" ? " (Siam, city centre)" : ""}</option>`).join("")}</select></label>
-  </section>
   <section class="block"><h2>Country</h2>
-    <p class="note">Sets the money converter, translator and ride tips. Thailand is the country covered in depth.</p>
+    <p class="note">Sets the money converter, translator, guide and ride tips.</p>
     <div class="seg" role="group" aria-label="How to choose the country" style="margin:6px 0 10px">
-      <button data-cmode="auto" aria-pressed="${S.countryMode === "auto"}">Use my location</button>
+      <button data-cmode="auto" aria-pressed="${S.countryMode === "auto"}">Automatic</button>
       <button data-cmode="manual" aria-pressed="${S.countryMode === "manual"}">Pick it myself</button></div>
+    <p class="note" style="color:var(--ink)">${S.countryMode === "auto" ? `Automatic: ${esc(D.countries[S.country].name)}${locStatus === "ok" ? ", from your phone’s location" : locStatus === "test" ? ", from the test location" : " until your location is known"}.` : `Picked by you: ${esc(D.countries[S.country].name)}. It stays until you choose Automatic.`}</p>
     <p class="note">${esc(LOC_LINE())}</p>
     <button class="btn small" id="relocate" type="button" style="margin:8px 0 10px">${icon("locate","i s")}Check my location again</button>
     <div class="cgrid">${Object.entries(D.countries).map(([k, x]) => `<button data-country="${k}" aria-pressed="${S.country === k}"><span class="f" aria-hidden="true">${x.flag}</span>${esc(x.name)}</button>`).join("")}</div>
   </section>
+  <details class="block more"${S.testLoc !== "off" ? " open" : ""}><summary><b>Testing: pretend location</b>${S.testLoc !== "off" ? ` <span class="tag warn">On: ${esc(S.testLoc)}</span>` : ""}</summary>
+    <p class="note" style="margin-top:6px">For trying the app at home: it pretends you’re somewhere on the trip instead of using GPS. Leave it Off on the trip.</p>
+    <label class="field" style="margin-top:8px">Pretend I’m in<select id="testLoc"><option value="off" ${S.testLoc === "off" ? "selected" : ""}>Off (use my real location)</option>${TEST_SPOTS.map(c => `<option value="${esc(c[0])}" ${S.testLoc === c[0] ? "selected" : ""}>${esc(c[0])}${c[0] === "Bangkok" ? " (Siam, city centre)" : ""}</option>`).join("")}</select></label>
+  </details>
   <section class="block"><h2>Photos from Google</h2>
     <p class="note">With a Google key, the researched places show Google photos, their Google rating and exact location. Other places only load Google photos when you ask, to keep Google’s costs at zero.</p>
     <p class="note" style="color:var(--ink)">${gk ? (S.gkey ? "Key saved on this phone." : "Key set in config.js, so everyone gets photos.") : "No key yet."}</p>
@@ -293,8 +316,8 @@ function setupPage(){
   </section>
   <section class="block" id="aboutData"><h2>About the data</h2>
     <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a transport network (Thailand, Bali, Lombok and southern Sumatra) of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
-    <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} Thailand places from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider Thailand places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
-    <p>Anything marked “not checked yet” uses typical prices, not ones we looked up. Taxi prices are estimates from Bangkok’s meter rates. OpenStreetMap places never show a price or rating, because it doesn’t record them.</p>
+    <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} places in ${esc(listAnd(PLACE_DBS.map(db => (D.countries[db.cc] || {name:db.cc}).name)))} from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
+    <p>Anything marked “not checked yet” uses typical prices, not ones we looked up. Taxi prices are estimates from Bangkok’s meter rates. OpenStreetMap doesn’t record prices or ratings, so its places never show a rating, and any price on one is a typical-price estimate marked “est.”.</p>
     <p class="note">Sources for the researched places: ${domains.map(esc).join(", ")}. Country outlines from Natural Earth. Weather by Open-Meteo. Exchange rates by the open currency-api project.</p>
     <details class="more"><summary>Photo credits</summary>
       <p class="note" style="margin-top:6px">Photos from Wikimedia Commons, cropped for the app and shared under the same licences:</p>

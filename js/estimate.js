@@ -38,6 +38,7 @@ const FOOD_TYPES = [
   ["Bakery & cakes",    /^(cake|donut|bakery|pastry|bread)$/,                                                      /bakery|เบเกอรี่|cake|เค้ก|ขนมปัง|donut|โดนัท|pastry|croissant|\broti\b|\bkue\b/],
   ["Café & coffee",     /^(coffee shop|coffee|cafe)$/,                                                             /coffee|café|cafe|กาแฟ|คาเฟ่|espresso|roaster|\bkopi\b|warkop|ngopi/],
   // the everyday local food of each country: only used for places in that country (see foodType)
+  ["Khmer",             /^(khmer|cambodian)$/,                                                                     /\bamok\b|lok ?lak|num ?banh|nom ?banh|kuy ?teav|kuy ?tieu|bai sach|khmer|cambodian|prahok|\bbbq khmer\b/],
   ["Indonesian",        /^(indonesian|regional|local|sundanese|javanese|balinese|betawi)$/,                        /warung|rumah makan|\brm\b|\bnasi\b|\bsoto\b|gado|pecel|lalapan|bebek|\bayam\b|indonesian|sambal|lontong|ketoprak|rawon|gudeg|martabak|sunda|seblak|batagor|siomay|\bmasakan\b/],
   ["Thai",              /^(thai|regional|local|thai;regional|southern thai|northern thai)$/,                       /thai|ไทย|อาหารตามสั่ง|ตามสั่ง|ครัว|ร้านอาหาร|แกง|ผัดไทย|pad thai|tom yum|ต้มยำ|kaphrao|krapow|กะเพรา|khao|ข้าว/],
   ["Asian",             /^(asian|thai;asian|fusion)$/,                                                             /asian|fusion/]
@@ -75,7 +76,7 @@ const brandOf = it => {
   return Object.keys(FOOD_BRANDS).find(b => b.length > 3 && n.toLowerCase().startsWith(b.toLowerCase())) || null;
 };
 // each country's everyday food label is only used there ("regional" cuisine means Thai food in Thailand, Indonesian food in Indonesia)
-const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian"};
+const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer"};
 const typeFits = (label, it) => !Object.values(LOCAL_FOOD).includes(label) || LOCAL_FOOD[it.cc || "TH"] === label;
 // cache per place: these run for thousands of map points
 function foodType(it){
@@ -146,10 +147,19 @@ const DO_PRICE_ID = {
 const STAY_PRICE_ID = {hostel:[80000, 200000, "A dorm bed."], guesthouse:[150000, 350000], hotel:[250000, 700000], resort:[500000, 1500000], bungalow:[150000, 400000],
   apartment:[300000, 700000], motel:[150000, 300000], campsite:[20000, 100000, "A pitch or tent."], hut:[50000, 150000]};
 const STAY_STARS_ID = {1:[150000, 300000], 2:[200000, 400000], 3:[350000, 700000], 4:[600000, 1200000], 5:[1200000, 3000000]};
+/* Cambodia, in US dollars (prices there are mostly quoted in dollars, small change in riel). Only kinds of place that
+   2026 cost guides cover have an estimate: dorm beds about $5–10, guesthouse rooms $10–25, street food $1–4, local
+   restaurants $3–10, a local beer $1–2 (Lonely Planet "Cambodia on a budget", travelwithhello.com, travelguidestip.com,
+   checked Nov 2026). Other kinds get no estimate, so they show no price rather than a guess. */
+const FOOD_TYPE_PRICE_KH = {"Khmer":[2, 6], "Street food":[1, 4], "Market food":[1, 4], "Noodles":[1, 4], "Rice dishes":[1, 4]};
+const FOOD_KIND_PRICE_KH = {fastfood:[1, 4], market:[1, 4], foodcourt:[2, 5], restaurant:[3, 10]};
+const DO_PRICE_KH = {bar:[1, 2, "A local beer."], market:[0, 0, "Free to walk round."]};
+const STAY_PRICE_KH = {hostel:[5, 10, "A dorm bed."], guesthouse:[10, 25]};
 // which tables each country uses (others use Thailand's, converted)
 const PRICE_TABLES = {
   TH:{cur:"THB", food:FOOD_TYPE_PRICE, kind:FOOD_KIND_PRICE, do:DO_PRICE, stay:STAY_PRICE, stars:STAY_STARS},
-  ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID}
+  ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID},
+  KH:{cur:"USD", food:FOOD_TYPE_PRICE_KH, kind:FOOD_KIND_PRICE_KH, do:DO_PRICE_KH, stay:STAY_PRICE_KH, stars:{}, only:true}
 };
 
 // {lo, hi, cur, per, est:true, why, note?}  or null when we can't sensibly guess
@@ -161,6 +171,7 @@ function estPrice(it){
   const grp = it.g || (it.c === "gaff" ? "stay" : it.c === "munch" ? "food" : it.c === "cool" ? "do" : null);
   if (grp === "food"){
     const b = brandOf(it);
+    if (b && T.only) return (it._ep = null);          // chains have no sourced Cambodian prices, so no estimate there
     if (b){
       const br = FOOD_BRANDS[b];
       if (it.cc === "ID" && BRAND_PRICE_ID[b]){ out = {lo:BRAND_PRICE_ID[b][0], hi:BRAND_PRICE_ID[b][1]}; cur = "IDR"; }
@@ -170,6 +181,7 @@ function estPrice(it){
       const ft = foodType(it);
       const byKind = T.kind[it.k];
       const byType = it.k === "restaurant" || !byKind ? T.food[ft] : null;
+      if (T.only && !byType && !byKind){ return (it._ep = null); }
       const r = byType || byKind;
       const ftl = ft && /^(Thai|Indonesian|Japanese|Korean|Chinese|Indian|Vietnamese|Mexican|Western|Asian|Middle Eastern)$/.test(ft) ? ft + " food" : (ft || "").toLowerCase();
       if (r) out = {lo:r[0], hi:r[1], why: byType ? `Typical for ${ftl} here` : `Typical for a ${(KIND[it.k] || {l:"place"}).l.toLowerCase()} here`};

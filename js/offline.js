@@ -149,7 +149,7 @@ async function packPhotoPlaces(city, cache, urls){
     } catch(e){}
   }
   const seen = new Set();
-  return found.filter(x => !seen.has(x.p.id) && seen.add(x.p.id))
+  return found.filter(x => !seen.has(x.p.id) && seen.add(x.p.id) && photoPlaceOk(x.p))     // no temple photos (see js/detail.js)
     .sort((a, b) => a.tier - b.tier || dist(pt, a.p) - dist(pt, b.p)).slice(0, PACK_PHOTO_MAX).map(x => x.p);
 }
 // place id -> Commons file name: the Wikipedia page's main picture, or the Wikidata "image"
@@ -194,7 +194,7 @@ async function savePackPhotos(city, cache, urls, onStep){
   const files = await packPhotoFiles(places);
   const info = await packPhotoInfo(files);
   const manifest = {};
-  places.forEach(p => { const f = files[p.id]; const v = f && info[String(f).replace(/_/g, " ")]; if (v) manifest[p.id] = v; });
+  places.forEach(p => { const f = files[p.id]; const v = f && photoFileOk(p, f) && info[String(f).replace(/_/g, " ")]; if (v) manifest[p.id] = v; });
   const pics = [...new Set(Object.values(manifest).map(v => v.s))];
   const got = await fetchInto(cache, pics, onStep);
   const okSet = new Set(got.ok);
@@ -209,7 +209,8 @@ const fmtBytes = b => b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math
 const agoText = t => { const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"; };
 
 /* ---------- backup and restore ---------- */
-const BACKUP_KEYS = ["saved", "budget", "stay", "design", "look", "focus", "countryMode", "country", "testLoc", "nearClosed", "rates"];
+// the testing-only pretend location is never restored from a backup (an old backup would bring back the Bangkok default)
+const BACKUP_KEYS = ["saved", "budget", "stay", "design", "look", "focus", "countryMode", "country", "nearClosed", "rates"];
 async function makeBackup(){
   const state = {}; BACKUP_KEYS.forEach(k => { if (S[k] !== undefined) state[k] = S[k]; });
   const docs = typeof Docs !== "undefined" ? await Docs.exportAll() : [];

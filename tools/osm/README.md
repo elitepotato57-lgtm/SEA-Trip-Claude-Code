@@ -9,8 +9,22 @@ The app's places (every gaff, munch spot, activity, essential and station) come 
 |---|---|---|
 | `places/th` | All of Thailand (built by an earlier version of this tool) | ~128,600 |
 | `places/id` | Indonesia: Lampung, South Sumatra and Bengkulu (Sumatra), Bali, and Lombok (+ the Gilis) | ~31,700 |
+| `places/kh` | All of Cambodia (all 25 provinces, islands included), OpenStreetMap of 11 Nov 2026 | ~16,500 |
 
 OpenStreetMap is much less detailed in Sumatra than in Thailand or Bali, so Sumatran towns have far fewer places.
+Cambodia is well mapped in Phnom Penh, Siem Reap and the coast, thinner in the north-east (Mondulkiri, Ratanakiri).
+
+## Rebuilding Cambodia
+
+```bash
+curl -LO https://download.geofabrik.de/asia/cambodia-latest.osm.pbf        # ~60 MB
+.venv/Scripts/python tools/osm/extract.py --pbf cambodia-latest.osm.pbf --cc KH --out places/kh \
+  --regions KH-1,KH-2,KH-3,KH-4,KH-5,KH-6,KH-7,KH-8,KH-9,KH-10,KH-11,KH-12,KH-13,KH-14,KH-15,KH-16,KH-17,KH-18,KH-19,KH-20,KH-21,KH-22,KH-23,KH-24,KH-25 \
+  --region-names "Banteay Meanchey,Battambang,Kampong Cham,Kampong Chhnang,Kampong Speu,Kampong Thom,Kampot,Kandal,Koh Kong,Kratie,Mondulkiri,Phnom Penh,Preah Vihear,Prey Veng,Pursat,Ratanakiri,Siem Reap,Preah Sihanouk,Stung Treng,Svay Rieng,Takeo,Oddar Meanchey,Kep,Pailin,Tbong Khmum" \
+  --dests "Phnom Penh:11.5683:104.9224;Siem Reap:13.3618:103.859;Kampot:10.6099:104.181;Kep:10.4846:104.3144;Battambang:13.0999:103.1967;Sihanoukville:10.622:103.5223;Koh Rong:10.674:103.288;Koh Rong Sanloem:10.584:103.2955;Kratie:12.489:106.0201;Sen Monorom:12.4569:107.1865;Banlung:13.7415:106.9874;Koh Kong:11.611:102.9819;Kampong Cham:11.9922:105.4628"
+```
+
+The province boxes in `PLACE_DBS` (`js/places.js`) were copied from the new `meta.json`; if a rebuild changes them, copy them again.
 
 ## Rebuilding Indonesia
 
@@ -46,7 +60,10 @@ It takes a couple of minutes.
      and pins taken from the new `places/<cc>/` files where the name matches (`osmid`); otherwise an approximate pin with `ap: true`;
    - hubs, stations and legs in `D.net` (plus `go12` names), each leg with a source or marked `verified: false` (shown as an estimate);
    - one Wikimedia Commons photo per destination: `img/dest-*.jpg` (440×270), `DEST_IMG` and `PHOTO_CREDITS` in `js/core.js`,
-     and the credit in `img/CREDITS.md` and `img/credits.json`.
+     and the credit in `img/CREDITS.md` and `img/credits.json`;
+   - a `wd` (Wikidata item) or `wp` (English Wikipedia page) on researched places, only when that item **is** the place
+     (never a town's item on a hostel). Temples get no photo unless the exact picture was looked at and listed in
+     `PHOTO_CHECKED` (`js/detail.js`): no Buddha imagery.
 7. Run `npm test`.
 
 ## What it keeps

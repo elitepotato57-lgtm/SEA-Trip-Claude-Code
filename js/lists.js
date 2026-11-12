@@ -346,7 +346,7 @@ function renderDiscover(){
   }
   html += `<div class="sect"><h2>Jump in</h2></div>
     <div class="entry">${[["gaffs","bed","Gaffs"],["munch","food","Munch"],["activities","compass","Activities"],["tools","grid","Tools"]].map(([h, ic, l]) => `<a class="ebtn" href="#${h}">${icon(ic)}${l}</a>`).join("")}</div>
-    ${[["Explore Thailand", THAI_DESTS], ["Explore Bali and Lombok", BALI_LOMBOK_DESTS], ["Explore Sumatra", SUMATRA_DESTS]].filter(([, list]) => list.length).map(([title, list]) => `
+    ${[["Explore Thailand", THAI_DESTS], ["Explore Bali and Lombok", BALI_LOMBOK_DESTS], ["Explore Sumatra", SUMATRA_DESTS], ["Explore Cambodia", KH_DESTS]].filter(([, list]) => list.length).map(([title, list]) => `
     <div class="sect"><h2>${title}</h2><span class="note">${list.length} destinations</span></div>
     <div class="dgrid">${list.map(c => `<button class="dcard ${DEST_IMG[c[0]] ? "pic" : ""}" type="button" data-dest="${esc(c[0])}">${DEST_IMG[c[0]] ? `<img src="${esc(DEST_IMG[c[0]])}" alt="" loading="lazy" decoding="async">` : ""}<span><b>${esc(c[0])}</b><small data-cov="${esc(c[0])}">${userLoc ? distText(dist(userLoc, {lat:c[1], lng:c[2]})) : ""}</small></span></button>`).join("")}</div>`).join("")}
     <p class="note" style="margin-top:12px">Places come from the app’s researched list and OpenStreetMap (© OpenStreetMap contributors).</p></div>`;

@@ -124,7 +124,12 @@ TOOL_PAGES.wifiList = root => {
 
 /* ---------- Thailand guide ---------- */
 const GUIDE_CHECKED = "10 Nov 2026";
-const DEST_NOTE = {Bangkok:"The capital: temples, street food, markets, nightlife, and the hub for trains, buses and flights.", "Chiang Mai":"Northern city with an old walled centre, temples, cooking classes and mountain day trips.",
+const DEST_NOTE = {"Kep":"Small seaside town known for its crab market.", "Battambang":"Relaxed river city with old colonial streets, the bamboo train and the bat cave.",
+  "Sihanoukville":"Port city and the jumping-off point for the islands.", "Koh Rong":"Big island with long white beaches; Koh Touch village by the pier is the busy, social end.",
+  "Koh Rong Sanloem":"Quieter island, with the long beach of Saracen Bay.", "Kratie":"Mekong river town, known for river dolphins.",
+  "Sen Monorom":"Cool hill town in Mondulkiri, with waterfalls nearby.", "Banlung":"Ratanakiri's main town, near the Yeak Laom crater lake.",
+  "Koh Kong":"Town on the Thai border side of the Cardamom Mountains and mangroves.", "Kampong Cham":"Mekong river town between Phnom Penh and Kratie.",
+  Bangkok:"The capital: temples, street food, markets, nightlife, and the hub for trains, buses and flights.", "Chiang Mai":"Northern city with an old walled centre, temples, cooking classes and mountain day trips.",
   Pai:"Small mountain town north of Chiang Mai, known for hot springs, canyons and a slow pace.", "Chiang Rai":"Far north: the White Temple, Blue Temple and the Golden Triangle.",
   Sukhothai:"Ruins of the first Thai capital, best seen by bicycle.", Ayutthaya:"Ruined temples of the old capital, an easy day trip from Bangkok.",
   Kanchanaburi:"River town with the Bridge on the River Kwai and Erawan waterfalls nearby.", "Hua Hin":"Beach town on the Gulf, a few hours south of Bangkok.", Pattaya:"Busy beach city close to Bangkok.",
@@ -145,7 +150,55 @@ const DEST_NOTE = {Bangkok:"The capital: temples, street food, markets, nightlif
   Bengkulu:"Quiet coastal city on Sumatra’s west coast with the old British Fort Marlborough.",
   Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations."};
 // the guide for the country you're in (Indonesia gets its own; everywhere else the Thailand one)
-TOOL_PAGES.guide = root => (S.country === "ID" ? guideID : guideTH)(root);
+TOOL_PAGES.guide = root => (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : guideTH)(root);
+
+/* Cambodia guide: entry rules, warnings and laws from gov.uk, checked 12 Nov 2026 */
+const GUIDE_KH_CHECKED = "12 Nov 2026";
+function guideKH(root){
+  const src = (label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+  const riel = Math.round(rate("KHR") / rate("USD") / 100) * 100;
+  root.innerHTML = toolHero("Cambodia guide", "The practical basics, with official sources") + `<div class="page">
+  <div class="callout">${icon("alert")}<div><b>The UK advises against all but essential travel within 20 km of Cambodia’s land border with Thailand</b> (after fighting there in 2025). Travelling against that advice can cancel your travel insurance. ${src("gov.uk warnings", "https://www.gov.uk/foreign-travel-advice/cambodia/warnings-and-insurance")}, updated 19 March 2026.</div></div>
+  <section class="block"><h2>Getting in (British passport)</h2>
+    <ul class="known"><li>You need a visa: an <b>e-visa</b> (apply at least 4 days ahead, on the official e-visa website or app) or a <b>visa on arrival</b> at airports and land borders, paid in US dollars, with a passport photo.</li>
+      <li>Tourist visas last <b>30 days</b> from the day you arrive and can be extended in Cambodia. Overstaying means a fine with no upper limit, and possibly detention.</li>
+      <li>Your passport needs <b>at least 6 months</b> left from the day you arrive, and must be undamaged with no missing pages.</li>
+      <li>Flying into Phnom Penh, Siem Reap or Sihanoukville? Fill in the free <b>e-Arrival card</b> at arrival.gov.kh within the 7 days before you land.</li>
+      <li>At land borders, officials or tour companies may ask for unofficial fees or inflate the visa price: know the real price before you go.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_KH_CHECKED}. Source: ${src("gov.uk entry requirements", "https://www.gov.uk/foreign-travel-advice/cambodia/entry-requirements")}. Other passports have different rules.</p></section>
+  <section class="block"><h2>Money</h2>
+    <ul class="known"><li>US dollars are used everywhere alongside the Cambodian riel; small change often comes in riel. At today’s rates $1 is about ${riel.toLocaleString("en-GB")} riel.</li>
+      <li>Fake dollar notes sometimes turn up in change, so check your notes.</li></ul>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/currency">Open the converter</a><button class="btn small" type="button" data-ess="atm">ATMs on the map</button></div></section>
+  <section class="block"><h2>Laws that catch travellers out</h2>
+    <ul class="known"><li><b>Drug penalties are severe</b>, including for cannabis: up to life in prison. Police raid venues popular with foreigners and may test for drugs.</li>
+      <li>You can be refused entry to temples, including Angkor Wat, in shorts or skirts above the knee or with bare shoulders.</li>
+      <li>Never photograph military sites. Ask before photographing people, especially monks.</li>
+      <li>Never leave your passport as a deposit for a scooter.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_KH_CHECKED}. Source: ${src("gov.uk safety and security", "https://www.gov.uk/foreign-travel-advice/cambodia/safety-and-security")}. This is a summary, not legal advice.</p></section>
+  <section class="block"><h2>Staying safe</h2>
+    <ul class="known"><li><b>Landmines and unexploded bombs</b> remain in rural areas, often unmarked: stay on main paths, including around temples, and never pick up metal objects.</li>
+      <li>Bag and phone snatching from motorbikes happens, notably on Phnom Penh’s riverfront and in BKK, and on Sihanoukville’s beaches. Carry bags on the side away from the road.</li>
+      <li>Methanol in drinks can kill, and drink spiking has been reported: don’t leave drinks unattended.</li>
+      <li>Roads are among the most dangerous in South East Asia, worst after dark; wear a helmet.</li>
+      <li>Boats to the islands sometimes sail despite weather warnings, and some are overloaded. Medical help on the islands is limited.</li>
+      <li>“Easy job, high pay” offers can be trafficking scams that end in guarded compounds.</li></ul>
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_KH_CHECKED}. Source: ${src("gov.uk safety and security", "https://www.gov.uk/foreign-travel-advice/cambodia/safety-and-security")}.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small primary" href="#tools/emergency">${icon("siren","i s")}Emergency numbers</a></div></section>
+  <section class="block"><h2>Language</h2>
+    <ul class="known"><li>Khmer is the language; English is common in Siem Reap, Phnom Penh and on the islands, less so elsewhere.</li></ul>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/translate">Open the Khmer phrasebook</a></div></section>
+  <section class="block"><h2>When to go</h2>
+    <p>The monsoon runs roughly June to October, with flooding and landslides on some roads. March to May is the hot dry season.</p>
+    <p class="note" style="margin-top:6px">Source: ${src("gov.uk safety and security", "https://www.gov.uk/foreign-travel-advice/cambodia/safety-and-security")}.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/weather">Check the forecast</a></div></section>
+  ${D.rides.KH ? `<section class="block"><h2>Getting around</h2><p>${esc(D.rides.KH)}</p></section>` : ""}
+  <div class="sect"><h2>Destinations</h2><span class="note">${KH_DESTS.length}</span></div>
+  ${KH_DESTS.map(c => `<div class="block" style="padding:11px 12px"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><h3>${esc(c[0])}</h3><p class="note" style="margin-top:2px">${esc(DEST_NOTE[c[0]] || "")}</p></div><button class="btn small" type="button" data-look="${esc(c[0])}">Look here</button></div></div>`).join("")}
+  </div>`;
+  root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
+  root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { const c = KH_DESTS.find(x => x[0] === b.dataset.look); setFocus({n:c[0], lat:c[1], lng:c[2]}); flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
+}
 
 /* Indonesia guide: entry rules and laws from gov.uk, checked 12 Nov 2026 */
 const GUIDE_ID_CHECKED = "12 Nov 2026";
@@ -246,13 +299,18 @@ function guideTH(root){
 const SOS = [["Police", "191", "General emergency line"], ["Tourist Police", "1155", "English-speaking help for visitors"], ["Ambulance", "1669", "Medical emergencies"], ["Fire", "199", ""]];
 // Indonesia, from gov.uk "Getting help" (checked 12 Nov 2026)
 const SOS_ID = [["Ambulance", "118", "Medical emergencies"], ["Police", "110", ""], ["Fire", "112", ""]];
+// Cambodia: gov.uk "Getting help", checked 12 Nov 2026
+const SOS_KH = [["Ambulance", "119", "Medical emergencies"], ["Police", "117", ""], ["Fire", "118", ""], ["Tourist police, Phnom Penh", "+85512942484", "Street 598. In Siem Reap the tourist police are next to the Angkor ticket office"]];
 TOOL_PAGES.emergency = root => {
-  const ID = S.country === "ID", list = ID ? SOS_ID : SOS;
-  root.innerHTML = toolHero("Emergency", `Numbers that work anywhere in ${ID ? "Indonesia" : "Thailand"}`) + `<div class="page">
+  const ID = S.country === "ID", KH = S.country === "KH", list = ID ? SOS_ID : KH ? SOS_KH : SOS;
+  const cname = ID ? "Indonesia" : KH ? "Cambodia" : "Thailand";
+  root.innerHTML = toolHero("Emergency", `Numbers that work anywhere in ${cname}`) + `<div class="page">
   <section class="block">${list.map(([n, tel, d], i) => `<div class="tel"><div><b>${n}</b><small>${d}</small></div><a class="btn${i ? "" : " primary"}" href="tel:${tel}">${icon("phone","i s")}${tel}</a></div>`).join("")}
-    <p class="note" style="margin-top:8px">Checked ${ID ? GUIDE_ID_CHECKED : GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/${ID ? "indonesia" : "thailand"}/getting-help" target="_blank" rel="noopener">gov.uk, getting help in ${ID ? "Indonesia" : "Thailand"}</a>.</p></section>
+    <p class="note" style="margin-top:8px">Checked ${ID ? GUIDE_ID_CHECKED : KH ? GUIDE_KH_CHECKED : GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/${cname.toLowerCase()}/getting-help" target="_blank" rel="noopener">gov.uk, getting help in ${cname}</a>.</p></section>
   <section class="block"><h2>British nationals</h2>
-    ${ID ? `<p>For consular help, contact the British Embassy in Jakarta (its phone line is answered 24 hours) or the British Consulate in Bali. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    ${KH ? `<p>For consular help, contact the British Embassy in Phnom Penh through the Foreign Office’s contact page. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.contact.service.csd.fcdo.gov.uk/posts/cambodia/british-embassy-phnom-penh" target="_blank" rel="noopener">British Embassy Phnom Penh ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`
+    : ID ? `<p>For consular help, contact the British Embassy in Jakarta (its phone line is answered 24 hours) or the British Consulate in Bali. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
     <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.gov.uk/world/organisations/british-embassy-jakarta" target="_blank" rel="noopener">British Embassy Jakarta ${icon("ext","i s")}</a><a class="btn small" href="tel:+622123565200">${icon("phone","i s")}+62 21 2356 5200</a>
       <a class="btn small" href="https://www.gov.uk/world/organisations/british-consulate-bali" target="_blank" rel="noopener">British Consulate Bali ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`
     : `<p>For consular help, contact the British Embassy in Bangkok. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>

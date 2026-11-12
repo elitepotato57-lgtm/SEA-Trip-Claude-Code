@@ -26,12 +26,13 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
 - `js/docs.js`: Tools › Documents.
-- `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). `js/boot.js`: starts the app.
+- `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). Temples get no photo
+  unless that exact picture was checked by eye (`PHOTO_CHECKED`); file names mentioning a Buddha are skipped. `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
 - `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
-- `places/th/` (all of Thailand) and `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok): the places
+- `places/th/` (all of Thailand), `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok) and `places/kh/` (all of Cambodia): the places
   databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.

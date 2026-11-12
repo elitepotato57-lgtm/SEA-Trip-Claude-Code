@@ -75,7 +75,10 @@ const P_MAP = {w:"web", v:"veg", vg:"vegan", d:"desc"};
 /* The places databases, one folder each in places/ (built by tools/osm/extract.py; see tools/osm/README.md).
    Thailand covers the whole country. Indonesia so far covers Lampung, South Sumatra and Bengkulu (Sumatra), Bali and Lombok:
    the boxes below match "regions" in places/id/meta.json. */
-const PLACE_DBS = [{dir:"th", cc:"TH"}, {dir:"id", cc:"ID", bbs:[[100.62, -6.455, 106.847, -1.514], [114.413, -9.05, 115.832, -7.463], [115.75, -9.0, 116.74, -8.15]]}];
+// Cambodia covers the whole country; its boxes are its 25 provinces (from places/kh/meta.json), so the islands off
+// Sihanoukville count as Cambodia even where the simplified country outline misses them. Thailand is checked first.
+const PLACE_DBS = [{dir:"th", cc:"TH"}, {dir:"id", cc:"ID", bbs:[[100.62, -6.455, 106.847, -1.514], [114.413, -9.05, 115.832, -7.463], [115.75, -9.0, 116.74, -8.15]]},
+  {dir:"kh", cc:"KH", bbs:[[102.3338, 13.3579, 103.4427, 14.2502], [102.3451, 12.3711, 103.9012, 13.4794], [104.8198, 11.7342, 105.7759, 12.5015], [104.1711, 11.7344, 104.902, 12.6074], [103.773, 11.0779, 104.7926, 12.0768], [104.1735, 12.1887, 105.7348, 13.4496], [103.839, 10.3536, 104.7271, 11.1722], [104.6562, 10.8967, 105.2972, 11.8943], [102.585, 10.6542, 104.0646, 12.1163], [105.5872, 11.9494, 106.802, 13.4073], [106.3386, 12.0615, 107.6087, 13.4175], [104.7204, 11.4201, 105.0374, 11.735], [104.358, 13.0553, 105.8992, 14.4374], [105.104, 10.8598, 105.8091, 11.8713], [102.7035, 11.8433, 104.3952, 13.0891], [106.5302, 13.1722, 107.6312, 14.6903], [103.3892, 12.772, 104.6832, 13.9719], [102.6296, 9.4111, 104.0773, 11.436], [105.5195, 13.1137, 106.7892, 14.5927], [105.5796, 10.79, 106.2058, 11.5996], [104.4102, 10.5189, 105.0983, 11.353], [103.0319, 13.8769, 104.5086, 14.4404], [104.071, 10.1548, 104.4259, 10.5909], [102.4854, 12.6639, 102.7533, 13.1167], [105.4084, 11.6007, 106.4675, 12.3005]]}];
 const inPlaceDb = (lat, lng) => !!placeDbCc(lat, lng);
 // which country's database covers a point (islands and coasts can fall outside the simplified country outlines, so the boxes win)
 function placeDbCc(lat, lng){
@@ -504,6 +507,7 @@ const THAI_DESTS = D.cities.filter(c => countryAt(c[1], c[2]) === "TH");
 const PLACE_DESTS = D.cities.filter(c => inPlaceDb(c[1], c[2]));
 const SUMATRA_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] < 110);
 const BALI_LOMBOK_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] >= 114);
+const KH_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "KH");
 function focusPt(){
   if (S.focus && isFinite(S.focus.lat)) return S.focus;
   if (userLoc) return {lat:userLoc.lat, lng:userLoc.lng, here:true};

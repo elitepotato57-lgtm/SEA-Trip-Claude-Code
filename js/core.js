@@ -9,6 +9,8 @@ const GOOGLE_KEY_IN_FILE = "";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// "A", "A and B", "A, B and C"
+const listAnd = xs => xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
 const enc = encodeURIComponent;
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -180,9 +182,14 @@ function mapStyleBase(){
 /* ---------- saved state ---------- */
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
-const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false,
+// v: the saved-state version (2 = the test location is off unless someone picked one)
+const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
   saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null};
-let S = Object.assign({}, S_DEFAULTS, loadState());
+const S_SAVED = loadState();
+let S = Object.assign({}, S_DEFAULTS, S_SAVED);
+// Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.
+// That default is switched off once; a different test city someone actually picked is kept.
+if (!(S_SAVED.v >= 2)){ if (S_SAVED.testLoc === "Bangkok" || S_SAVED.testLoc === undefined) S.testLoc = "off"; S.v = 2; try { localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, S_SAVED, {testLoc:S.testLoc, v:2}))); } catch(e){} }
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
 if (!S.budget || !Array.isArray(S.budget.items)) S.budget = {total:"", cur:"GBP", days:"", items:[]};
@@ -206,7 +213,7 @@ const ui = {
   mapSort:"near", mapFilters:false,
   mf:{move:{t:"all"}},      // the map's transport-type filter (maximum prices are in ui.pf, shared with the lists: js/estimate.js)
   mapSel:null, mapQ:"", mapSaved:false,
-  tp:{from:null, to:null, sort:"fast", sel:0}
+  tp:{from:null, to:null, sort:"fast", sel:0, date:"", people:1}
 };
 
 /* ---------- money ---------- */

@@ -556,7 +556,7 @@ function previewCard(it, filterNote = ""){
   if (it.r != null) bits.push(`${(it.r / 2).toFixed(1)} stars`);
   if (loc) bits.push(esc(withGBP(loc, it.p, it.cur)));
   return `<div class="preview" style="--c:${col}" id="preview">
-    <div class="ph">${icon(kindIcon(it))}</div>
+    <div class="ph" data-ph="${esc(it.id)}">${icon(kindIcon(it))}</div>
     <div class="body"><div class="eyebrow">${esc(kindLabel(it))}</div><h3>${esc(it.n)}</h3><div class="m">${bits.join(" · ")}</div>
       ${oh ? `<div class="m" style="color:${oh.open ? "var(--ok)" : "var(--faint)"}">${esc(oh.text)}</div>` : ""}${filterNote ? `<div class="m pv-filt">${icon("info","i xs")} ${esc(filterNote)}</div>` : ""}</div>
     ${saveBtn(it)}<button class="close" type="button" id="pvClose" aria-label="Close preview">${icon("x","i s")}</button>
@@ -577,6 +577,7 @@ function renderMapBottom(){
   if (sel){
     el.innerHTML = previewCard(sel, selFilterNote(sel));
     $("#pvClose").onclick = () => selectPlace(null);
+    watchCardPhotos(el);
     placeSide(el.offsetHeight); return;
   }
   let items = mapRun.items.slice();

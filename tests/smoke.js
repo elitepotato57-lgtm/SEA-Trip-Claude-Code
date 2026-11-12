@@ -36,7 +36,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 (async () => {
   const server = process.env.BASE ? null : await start(PORT);
   const browser = await chromium.launch(launchOpts);
-  const ctx = await browser.newContext({viewport:{width:393, height:852}});
+  // a phone in central Bangkok that allows location (the app no longer pretends: it uses the real position)
+  const ctx = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -46,7 +47,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
-  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 6, "each place summary downloads once, for Thailand and Indonesia " + JSON.stringify(sumHits));
+  const dbs = await page.evaluate(() => PLACE_DBS.length);
+  ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3 * dbs, `each place summary downloads once, for all ${dbs} countries ` + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
@@ -155,6 +157,31 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
   await page.evaluate(() => { ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
 
+  // Transport on the map: Airports counts only airports, zoomed out and in, and a selected airport stays selected through zooming
+  await page.evaluate(() => { ui.mapCats = new Set(["move"]); ui.mf.move.t = "airport"; renderMapUI(); map.jumpTo({center:[100.6, 13.8], zoom:8}); }); await page.waitForTimeout(3500);
+  const air = await page.evaluate(() => ({mode:mapRun.mode, total:mapRun.total, status:document.querySelector("#mapStatusTxt").textContent}));
+  ok(air.total > 0 && air.total < 20 && /airports here/.test(air.status), "zoomed out, Transport › Airports counts only airports " + JSON.stringify(air));
+  await page.evaluate(() => map.jumpTo({center:[100.65, 13.8], zoom:10})); await page.waitForTimeout(3500);
+  const airIn = await page.evaluate(() => ({mode:mapRun.mode, n:mapRun.items.length, kinds:[...new Set(mapRun.items.map(p => p.k))]}));
+  ok(airIn.mode === "detail" && airIn.n >= 2 && airIn.kinds.every(k => k === "airport"), "zoomed in, only airport pins " + JSON.stringify(airIn));
+  const pick = await page.evaluate(() => { const p = mapRun.items.find(x => x.k === "airport"); selectPlace(p.id); return {id:p.id, c:[p.lng, p.lat]}; });
+  await page.evaluate(c => map.jumpTo({center:c, zoom:7}), pick.c); await page.waitForTimeout(2500);
+  const outSel = await page.evaluate(id => ({sel:ui.mapSel === id, hl:mapRun.hl === id, prev:!!document.querySelector("#preview"), mode:mapRun.mode}), pick.id);
+  await page.evaluate(c => map.jumpTo({center:c, zoom:11}), pick.c); await page.waitForTimeout(3000);
+  const inSel = await page.evaluate(id => ({sel:ui.mapSel === id, hl:mapRun.hl === id, prev:!!document.querySelector("#preview"), pin:mapRun.items.some(p => p.id === id)}), pick.id);
+  ok(outSel.sel && outSel.hl && outSel.prev && inSel.sel && inSel.hl && inSel.prev && inSel.pin, "the selected airport stays selected after zooming out and back in " + JSON.stringify({outSel, inSel}));
+  await page.evaluate(() => { selectPlace(null); ui.mf.move.t = "all"; ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); map.jumpTo({center:[100.5018, 13.7563], zoom:14.5}); }); await page.waitForTimeout(2500);
+
+  // Journey planner: every leg's 12Go button matches that leg (mode and direction), with the date and group
+  await page.goto(BASE + "#tools/transport"); await page.waitForTimeout(1200);
+  await page.evaluate(() => { ui.tp.from = hubNode("bkk"); ui.tp.to = hubNode("gilit"); ui.tp.date = addDays(todayISO(), 20); ui.tp.people = 2; renderPage(); }); await page.waitForTimeout(1500);
+  const book = await page.evaluate(() => { const card = [...document.querySelectorAll(".trip")].find(c => c.querySelectorAll(".leg").length === 3); return card ? [...card.querySelectorAll(".leg")].map(l => { const a = l.querySelector("a[data-book]"); return a ? a.getAttribute("href") : ""; }) : null; });
+  const d20 = await page.evaluate(() => addDays(todayISO(), 20));
+  ok(book && /\/flights\/bangkok\/denpasar-airport\?date=/.test(book[0]) && /\/padang-bai\?/.test(book[1]) && /\/ferry\/padang-bai\/gili-trawangan\?/.test(book[2]) && book.every(h => h.includes("date=" + d20) && h.includes("people=2")), "Bangkok to Gili T: flight, transfer and ferry each link to their own 12Go page " + JSON.stringify(book));
+  ok(await page.evaluate(() => /12Go shows the real departures/.test(document.querySelector("#pageview").textContent)), "the planner says 12Go confirms the service, price and seats");
+  await page.evaluate(() => { ui.tp.from = null; ui.tp.to = null; ui.tp.date = ""; ui.tp.people = 1; });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+
   // questions in the search box: typed questions get an answer row; answers list nearby places
   await page.fill("#m-q", "toilets near me"); await page.waitForTimeout(600);
   ok(await page.evaluate(() => { const b = document.querySelector("#mapSugs button"); return !!b && b.hasAttribute("data-ask"); }), "a typed question offers an answer first");
@@ -182,7 +209,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.evaluate(() => goNearest("where's the closest pharmacy")); await page.waitForTimeout(4000);
   const den = await page.evaluate(() => { const p = ui.mapSel && findPlace(ui.mapSel); return {k:p && p.k, status:locStatus, toast:__toasts.join(" | ")}; });
   ok(den.k === "pharmacy" && den.status === "denied" && /location is off/.test(den.toast), "with location blocked, the nearest pharmacy to the map is shown and labelled honestly " + JSON.stringify(den));
-  await page.evaluate(() => { selectPlace(null); S.testLoc = "Bangkok"; applyTestLocation(); ui.essKinds.clear(); ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); });
+  await page.evaluate(() => { selectPlace(null); delete navigator.geolocation.getCurrentPosition; ui.essKinds.clear(); ui.mapCats = new Set(["gaff", "munch", "cool"]); renderMapUI(); });
+  await page.evaluate(() => new Promise(r => locate(false, r)));
 
   // Documents: a PDF boarding pass and a picture of a TDAC are read on the phone, named and sorted
   await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
@@ -231,6 +259,83 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click("#lab [data-labclose]"); await page.waitForTimeout(300);
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
   ok(w2 <= 393, `no sideways scroll after the Lab (width ${w2})`);
+
+  // Location on a new phone, anywhere the app covers: here, a friend in Ubud (Bali)
+  const ubudGeo = {latitude:-8.5069, longitude:115.2625};
+  const phoneIn = async (geo, opts = {}) => {
+    const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:geo, permissions:opts.deny ? [] : ["geolocation"]});
+    if (opts.saved) await c.addInitScript(st => { if (!sessionStorage.getItem("seeded")){ localStorage.setItem("sea-trip-app-v1", JSON.stringify(st)); sessionStorage.setItem("seeded", "1"); } }, opts.saved);
+    const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(7000);
+    return {c, pg};
+  };
+  const where = pg => pg.evaluate(() => ({cc:S.country, mode:S.countryMode, st:locStatus, test:S.testLoc, km:map ? dist({lat:map.getCenter().lat, lng:map.getCenter().lng}, {lat:-8.5069, lng:115.2625}) : null, near:(document.querySelector(".near-title") || {}).textContent || ""}));
+  {
+    const {c, pg} = await phoneIn(ubudGeo);
+    const w = await where(pg);
+    ok(w.cc === "ID" && w.st === "ok" && w.test === "off" && w.km < 3, "a fresh install in Ubud uses the real location: Indonesia, map on Ubud " + JSON.stringify(w));
+    await pg.goto(BASE + "#tools/currency"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => document.querySelector("#cv-cur").value === "IDR"), "the money converter starts on rupiah in Indonesia");
+    await c.close();
+  }
+  {
+    // someone who used an older version: the pretend Bangkok default and a map left on Bangkok
+    const {c, pg} = await phoneIn(ubudGeo, {saved:{countryMode:"auto", country:"TH", testLoc:"Bangkok", mapView:{c:[100.5393, 13.7466], z:13}, saved:{}}});
+    const w = await where(pg);
+    ok(w.cc === "ID" && w.st === "ok" && w.test === "off" && w.km < 3, "a returning user's old Bangkok test default no longer overrides the real GPS " + JSON.stringify(w));
+    await c.close();
+  }
+  {
+    // a country picked by hand stays picked; the dot still shows; Automatic follows the phone again
+    const {c, pg} = await phoneIn(ubudGeo, {saved:{v:2, countryMode:"manual", country:"TH", testLoc:"off", saved:{}}});
+    const w = await where(pg);
+    ok(w.cc === "TH" && w.mode === "manual" && w.st === "ok", "a manual country choice is respected " + JSON.stringify(w));
+    await pg.goto(BASE + "#tools/settings"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Picked by you: Thailand/.test(document.querySelector("#pageview").textContent)), "Settings says the country was picked by hand");
+    await pg.click('#pageview [data-cmode="auto"]'); await pg.waitForTimeout(2500);
+    ok(await pg.evaluate(() => S.country === "ID" && S.countryMode === "auto"), "choosing Automatic follows the phone to Indonesia");
+    await c.close();
+  }
+  {
+    // location refused: the map stays on the country, and nothing claims to be "closest to you"
+    const {c, pg} = await phoneIn(ubudGeo, {deny:true});
+    const w = await where(pg);
+    ok(w.st === "denied" && !/Closest to you/.test(w.near), "with location refused the app says so and doesn't pretend " + JSON.stringify(w));
+    await c.close();
+  }
+
+  // Cambodia: a new phone in Phnom Penh follows the real location; the map, lists, guide, emergency numbers and phrasebook switch
+  {
+    const {c, pg} = await phoneIn({latitude:11.5683, longitude:104.9224});
+    const k = await pg.evaluate(() => ({cc:S.country, st:locStatus, km:map ? dist({lat:map.getCenter().lat, lng:map.getCenter().lng}, {lat:11.5683, lng:104.9224}) : null}));
+    ok(k.cc === "KH" && k.st === "ok" && k.km < 3, "a fresh install in Phnom Penh picks Cambodia and centres on it " + JSON.stringify(k));
+    await pg.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.9224, 11.5683], zoom:14.5}); }); await pg.waitForTimeout(4000);
+    const km = await pg.evaluate(() => ({n:mapRun.items.length, kh:mapRun.items.filter(p => p.cc === "KH").length, cur:[...document.querySelectorAll("#mapFilt [data-pfcur] option")].map(o => o.textContent)}));
+    ok(km.kh > 20 && km.cur.includes("$"), "Phnom Penh food shows on the map, with a custom maximum in dollars " + JSON.stringify(km));
+    await pg.goto(BASE + "#munch"); await pg.waitForTimeout(3500);
+    const ml = await pg.evaluate(() => { const t = (document.querySelector("#pageview .cards") || {}).textContent || ""; return {cards:document.querySelectorAll("#pageview .card[data-open]").length, usd:/\$\d/.test(t), baht:/฿/.test(t)}; });
+    ok(ml.cards > 5 && ml.usd && !ml.baht, "the Munch list in Phnom Penh shows dollar estimates, never baht " + JSON.stringify(ml));
+    await pg.goto(BASE + "#tools/guide"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Cambodia guide/.test(document.querySelector("#pageview h1").textContent) && /landmine/i.test(document.querySelector("#pageview").textContent)), "the guide switches to Cambodia");
+    await pg.goto(BASE + "#tools/emergency"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => ["117", "118", "119"].every(n => document.querySelector(`#pageview a[href="tel:${n}"]`)) && /Phnom Penh/.test(document.querySelector("#pageview").textContent)), "Cambodia's emergency numbers (117, 118, 119) and the embassy in Phnom Penh");
+    await pg.goto(BASE + "#tools/translate"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Khmer phrasebook/.test(document.querySelector("#h-pb").textContent) && /អរគុណ/.test(document.querySelector("#pageview").textContent)), "the phrasebook switches to Khmer");
+    const w4 = await pg.evaluate(() => document.documentElement.scrollWidth);
+    ok(w4 <= 393, `no sideways scroll on the Cambodian pages (width ${w4})`);
+    // somewhere to stay, eat and visit near each destination the brief names, islands included
+    const near = await pg.evaluate(async () => {
+      const out = {};
+      for (const name of ["Phnom Penh", "Siem Reap", "Kampot", "Kep", "Battambang", "Sihanoukville", "Koh Rong", "Koh Rong Sanloem"]){
+        const d = KH_DESTS.find(x => x[0] === name), pt = {lat:d[1], lng:d[2]}, r = {};
+        for (const g of ["stay", "food", "do"]){ const f = await Places.nearest(g, pt, {maxKm:10}); r[g] = f && f.p ? +f.km.toFixed(1) : null; }
+        out[name] = r;
+      }
+      return out;
+    });
+    ok(Object.values(near).every(r => r.stay != null && r.food != null && r.do != null), "a stay, food and something to do within 10 km of all 8 Cambodian destinations " + JSON.stringify(near));
+    await c.close();
+  }
 
   // offline: the service worker should already have saved the app
   // (the app only registers its service worker on https, so register it by hand on localhost)
