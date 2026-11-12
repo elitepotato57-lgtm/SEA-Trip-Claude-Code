@@ -157,7 +157,16 @@ const PAPER_MAP = {
   highway_name_other:{"text-color":"#6B5340", "text-halo-color":PAPER_HALO}, highway_name_motorway:{"text-color":"#7A4A2C"},
   boundary_state:{"line-color":"#B9A27E"}, "boundary_country_z0-4":{"line-color":"#8F6F4E"}, "boundary_country_z5-":{"line-color":"#8F6F4E"}
 };
+/* the map style for the current look, plus any colours chosen in the Design Lab (js/design.js) */
 function mapStyle(){
+  const base = mapStyleBase();
+  const lab = typeof labMapPaint === "function" ? labMapPaint() : {};
+  if (!Object.keys(lab).length) return base;
+  const st = base === MAP_STYLE ? JSON.parse(JSON.stringify(MAP_STYLE)) : base;
+  st.layers.forEach(l => { if (lab[l.id]) Object.assign(l.paint = l.paint || {}, lab[l.id]); });
+  return st;
+}
+function mapStyleBase(){
   if (S.look !== "paper") return MAP_STYLE;
   const st = JSON.parse(JSON.stringify(MAP_STYLE)); st.name = "SEA Trip, Paper Atlas";
   st.layers.forEach(l => {
@@ -171,13 +180,14 @@ function mapStyle(){
 /* ---------- saved state ---------- */
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
-const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false, fillBottom:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night"};
+const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false,
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
 if (!S.budget || !Array.isArray(S.budget.items)) S.budget = {total:"", cur:"GBP", days:"", items:[]};
 if (!S.stay) S.stay = {cin:"", cout:"", guests:2};
+if (!S.design || typeof S.design !== "object") S.design = {on:true};
 applyLook();
 delete S.stay.rooms;                                    // rooms were dropped in 2.1: the booking sites pick rooms themselves
 function persist(){

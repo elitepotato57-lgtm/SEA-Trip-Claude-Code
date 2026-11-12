@@ -236,9 +236,10 @@ function setupPage(){
     <p class="note">Night is the standard dark look. Paper Atlas is a lighter, old-map style that is easier to read in bright sun. The app reloads to switch.</p>
     <div class="seg" role="group" aria-label="Look" style="margin-top:8px"><button data-look="night" aria-pressed="${S.look !== "paper"}">Night</button><button data-look="paper" aria-pressed="${S.look === "paper"}">Paper Atlas</button></div>
   </section>
-  <section class="block"><h2>Screen fit</h2>
-    <p class="note">On iPhone home-screen apps, iOS keeps a strip at the very bottom. This tries to draw the tab bar into it. If the tabs get cut off, switch it back off.</p>
-    <div class="seg" role="group" aria-label="Fill the bottom strip" style="margin-top:8px"><button data-fill="0" aria-pressed="${!S.fillBottom}">Standard</button><button data-fill="1" aria-pressed="${!!S.fillBottom}">Fill bottom strip (experimental)</button></div>
+  <section class="block"><h2>Design Lab</h2>
+    <p class="note">A place to try colours, map colours, fonts and sizes live on any screen. Open it from the palette tab on the left edge of the screen.</p>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-openlab>${icon("palette","i s")}Open the Design Lab</button>
+      <button class="switch" type="button" data-labtoggle aria-pressed="${S.design.on !== false}"><i></i>Show the palette tab</button></div>
   </section>
   <section class="block"><h2>Exchange rates</h2>
     <p class="note">How much £1 gets you. ${S.live ? `Live rates were last updated ${esc(S.live.date)}.` : "Live rates load when you open the Currency tool with signal."} Type your own rate to override one.</p>
@@ -265,8 +266,9 @@ function bindSetup(){
     else { applyTestLocation(); updateMe(); if (map) flyTo(userLoc, 12); toast(`Test location: ${S.testLoc}`); }
     rerender();
   };
+  root.querySelector("[data-openlab]").onclick = () => openLab();
+  root.querySelector("[data-labtoggle]").onclick = () => { S.design.on = S.design.on === false; persist(); renderLabButton(); renderPage(); };
   root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { if (S.look === b.dataset.look) return; S.look = b.dataset.look; persist(); location.reload(); });
-  root.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => { S.fillBottom = b.dataset.fill === "1"; persist(); fitStandalone(); renderPage(); toast(S.fillBottom ? "Trying the full-height layout" : "Back to the standard layout"); });
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);

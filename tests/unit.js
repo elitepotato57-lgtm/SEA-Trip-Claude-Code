@@ -99,5 +99,31 @@ test("rating filter: 4+ keeps 4.5 stars, drops 3.5 and unrated", () => {
   ok(A.passRating({}, 0), "no filter keeps everything");
 });
 
+/* ---------- Design Lab look codes ---------- */
+test("a look code round-trips", () => {
+  A.S.design = {on:true, cols:{stay:"#FF6B57", food:"#2ECC71"}, accent:"#14B8A6", ts:1.1, layout:"side", fontHead:"fraunces"};
+  const back = A.labImport(A.labExport());
+  eq(back, {cols:{stay:"#FF6B57", food:"#2ECC71"}, accent:"#14B8A6", fontHead:"fraunces", layout:"side", ts:1.1});
+});
+test("a pasted look code can't sneak in odd values", () => {
+  const d = A.labImport('SEALOOK:{"cols":{"stay":"red;}body{display:none","food":"#123456"},"accent":"url(x)","fontBody":"<script>","ts":99,"evil":1,"app":{"bg":"#000000"}}');
+  eq(d, {cols:{food:"#123456"}, ts:1.35}, "only the safe parts survive, numbers are clamped, half-set app colours are dropped");
+  eq(A.labImport("not a code"), null);
+  eq(A.labImport("[1,2]"), null);
+});
+test("colour maths", () => {
+  eq(A.cmix("#000000", "#ffffff", .5), "#808080");
+  ok(A.clum("#ffffff") > .99 && A.clum("#000000") < .01);
+  eq(A.asHex("#abc"), "#aabbcc");
+});
+test("map colour choices reach the right map layers", () => {
+  A.S.design = {on:true, map:{water:"#112233", labels:"#EEEEEE"}};
+  const p = A.labMapPaint();
+  eq(p.water["fill-color"], "#112233");
+  ok(p.place_city && p.place_city["text-color"] === "#EEEEEE", "city names recoloured");
+  ok(!p.background, "land untouched when not chosen");
+  A.S.design = {on:true};
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

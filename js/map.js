@@ -40,7 +40,7 @@ function addPinImages(){
     [["", "#20262B"], ["-r", "#F2F1ED"]].forEach(([suffix, ring]) => {
       const name = `pin-${k}${suffix}`;
       const img = new Image(68, 68);
-      img.onload = () => { try { if (map && !map.hasImage(name)) map.addImage(name, img, {pixelRatio:2}); } catch(e){} };
+      img.onload = () => { try { if (!map) return; if (map.hasImage(name)) map.updateImage(name, img); else map.addImage(name, img, {pixelRatio:2}); } catch(e){} };
       img.src = "data:image/svg+xml;charset=utf-8," + enc(pinSVG(KIND[k].ic, col[g], ring));
     });
   });
@@ -49,7 +49,7 @@ function addPinImages(){
    matching the chip colours. Circles grow with the number of places inside: 4 is small, 300 is big. */
 const MAP_GROUPS = ["stay", "food", "do", "ess", "move"];
 const grpOfItem = it => (it.g && MAP_GROUPS.includes(it.g)) ? it.g : (CAT[it.c] ? CAT[it.c].grp : "do");
-const CL_RADIUS = ["interpolate", ["linear"], ["ln", ["max", ["get", "w"], 1]], 0, 12, 2.303, 15, 4.605, 21, 6.908, 28, 9.21, 36];   // 1 → 12 px, 10 → 15, 100 → 21, 1,000 → 28, 10,000 → 36
+const CL_RADIUS = ["interpolate", ["linear"], ["ln", ["max", ["get", "w"], 1]], 0, 8, 2.303, 10, 4.605, 14, 6.908, 18, 9.21, 23];    // 1 → 8 px, 10 → 10, 100 → 14, 1,000 → 18, 10,000 → 23
 // where several categories bunch up in one spot, nudge each a few pixels so every colour shows
 const CL_NUDGE = {stay:[-5, -3], food:[5, -3], do:[0, 5], ess:[-5, 4], move:[5, 4]};
 const featOf = it => it._f || (it._f = {type:"Feature", geometry:{type:"Point", coordinates:[it.lng, it.lat]},
@@ -110,16 +110,16 @@ function onMapLoad(){
   MAP_GROUPS.forEach(g => {
     map.addSource("pts-" + g, {type:"geojson", data:fc([]), cluster:true, clusterRadius:46, clusterMaxZoom:16, clusterProperties:{w:["+", ["get", "w"]]}});
     map.addLayer({id:"cl-circle-" + g, type:"circle", source:"pts-" + g, filter:isGroup, paint:{
-      "circle-color":cssv("--" + g), "circle-stroke-color":cssv("--cl-ring"), "circle-stroke-width":2, "circle-opacity":.94, "circle-radius":CL_RADIUS, "circle-translate":CL_NUDGE[g]}});
+      "circle-color":cssv("--" + g), "circle-stroke-color":cssv("--cl-ring"), "circle-stroke-width":1.5, "circle-opacity":.72, "circle-stroke-opacity":.85, "circle-radius":CL_RADIUS, "circle-translate":CL_NUDGE[g]}});
     map.addLayer({id:"cl-count-" + g, type:"symbol", source:"pts-" + g, filter:isGroup, layout:{
       "text-field":["case", [">=", ["get", "w"], 10000], ["concat", ["to-string", ["round", ["/", ["get", "w"], 1000]]], "k"],
         [">=", ["get", "w"], 1000], ["concat", ["to-string", ["/", ["round", ["/", ["get", "w"], 100]], 10]], "k"], ["to-string", ["get", "w"]]],
-      "text-font":["Noto Sans Bold"], "text-size":12, "text-allow-overlap":true, "text-ignore-placement":true}, paint:{"text-color":cssv("--on-cat"), "text-translate":CL_NUDGE[g]}});
+      "text-font":["Noto Sans Bold"], "text-size":11, "text-allow-overlap":true, "text-ignore-placement":true}, paint:{"text-color":cssv("--on-cat"), "text-halo-color":"rgba(0,0,0,.35)", "text-halo-width":1, "text-translate":CL_NUDGE[g]}});
   });
   map.addSource("sel", {type:"geojson", data:fc([])});
   map.addLayer({id:"sel-ring", type:"circle", source:"sel", paint:{"circle-radius":21, "circle-color":"rgba(232,198,165,.18)", "circle-stroke-color":cssv("--accent-2"), "circle-stroke-width":2.5}});
   MAP_GROUPS.forEach(g => map.addLayer({id:"pt-icon-" + g, type:"symbol", source:"pts-" + g, filter:["all", ["!", ["has", "point_count"]], ["==", ["get", "w"], 1]], layout:{
-    "icon-image":["get", "ic"], "icon-size":["interpolate", ["linear"], ["zoom"], 9, .62, 14, .86, 17, 1], "icon-allow-overlap":true, "icon-ignore-placement":true,
+    "icon-image":["get", "ic"], "icon-size":["interpolate", ["linear"], ["zoom"], 9, .5, 14, .7, 17, .85], "icon-allow-overlap":true, "icon-ignore-placement":true,
     "text-field":["step", ["zoom"], "", 15.5, ["get", "n"]], "text-font":["Noto Sans Regular"], "text-size":11, "text-offset":[0, 1.45], "text-anchor":"top",
     "text-optional":true, "text-max-width":9}, paint:{"text-color":cssv("--ink"), "text-halo-color":cssv("--halo"), "text-halo-width":1.2}}));
   // the chosen place gets its own pin on top, so it stays visible even when its neighbours are bunched into a count
@@ -146,6 +146,7 @@ function onMapLoad(){
   if (navigator.onLine === false) setOfflineBase(true);
   window.addEventListener("offline", () => { if (!mapRun.tilesOk) setOfflineBase(true); });
   updateMe(); refreshMapData(); renderMapUI();
+  if (typeof applyDesignToMap === "function") applyDesignToMap();      // Design Lab sizes and colours (js/design.js)
   if (ui.mapSel) highlightPin(findPlace(ui.mapSel));
 }
 /* With no signal and no saved map tiles, fall back to the built-in country outlines so the pins still make sense */

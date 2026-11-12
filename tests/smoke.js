@@ -53,6 +53,25 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click('#pageview [data-look="night"]'); await page.waitForTimeout(2500);
   ok(await page.evaluate(() => !document.documentElement.dataset.look), "back to the night look");
 
+  // Design Lab: a colour preset recolours the chips and the map circles; text size and reset work
+  await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
+  await page.click("#labBtn"); await page.waitForTimeout(400);
+  ok(await page.evaluate(() => !!document.querySelector("#lab .lab-body")), "Design Lab opens");
+  await page.click('#lab [data-labpreset="cols"][data-name="Bold"]'); await page.waitForTimeout(900);
+  ok(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--stay").trim().toUpperCase() === "#FF6B57"), "colour preset changes the Gaffs colour");
+  ok(await page.evaluate(() => String(map.getPaintProperty("cl-circle-stay", "circle-color")).toUpperCase() === "#FF6B57"), "map circles follow the new colour");
+  await page.click('#lab [data-labtab="text"]'); await page.waitForTimeout(300);
+  await page.evaluate(() => { const r = document.querySelector('#lab [data-labnum="ts"]'); r.value = "1.2"; r.dispatchEvent(new Event("input", {bubbles:true})); });
+  await page.waitForTimeout(300);
+  ok(await page.evaluate(() => document.documentElement.style.getPropertyValue("--ts") === "1.2"), "text size knob works");
+  await page.click('#lab [data-labtab="save"]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => /^SEALOOK:\{/.test(document.querySelector("#labCode").value)), "look code is shown for copying");
+  await page.click("#lab [data-labreset]"); await page.waitForTimeout(900);
+  ok(await page.evaluate(() => !document.documentElement.style.getPropertyValue("--stay") && !document.documentElement.style.getPropertyValue("--ts")), "reset goes back to standard");
+  await page.click("#lab [data-labclose]"); await page.waitForTimeout(300);
+  const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
+  ok(w2 <= 393, `no sideways scroll after the Lab (width ${w2})`);
+
   // offline: the service worker should already have saved the app
   // (the app only registers its service worker on https, so register it by hand on localhost)
   await page.evaluate(() => Promise.race([navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready), new Promise(r => setTimeout(r, 15000))]));

@@ -164,7 +164,7 @@ function fitStandalone(){
   const sa = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
   const root = document.documentElement;
   root.classList.toggle("standalone", !!sa);
-  root.classList.toggle("fill-bottom", !!sa && !!S.fillBottom);
+  root.classList.toggle("fill-bottom", !!sa);      // fill the strip iOS leaves under the tabs (works well on iPhone)
 }
 fitStandalone();
 window.addEventListener("resize", fitStandalone);

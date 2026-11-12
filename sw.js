@@ -3,7 +3,7 @@ const APP = "sea-trip-app-v2-3";        // the app itself: bump this name when t
 const TILES = "sea-trip-tiles-v2";      // street-map and satellite tiles you have already looked at
 const PLACES = "sea-trip-places-v1";    // the parts of the places database you have already opened
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
-  "./css/app.css", "./js/data.js", "./js/core.js", "./js/places.js", "./js/shell.js", "./js/lists.js", "./js/map.js",
+  "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/shell.js", "./js/lists.js", "./js/map.js",
   "./js/transport.js", "./js/tools.js", "./js/tools-more.js", "./js/detail.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg"];

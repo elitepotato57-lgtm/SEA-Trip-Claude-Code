@@ -5,6 +5,7 @@
   makeArt();
   const tested = applyTestLocation();
   show();
+  renderLabButton();                    // the Design Lab's palette tab (Settings can hide it)
   if (tested){ updateMe(); }
   else if (S.countryMode === "auto") locate(false);
   Places.ready();                       // fetch the small index of the places database in the background
