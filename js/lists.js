@@ -37,9 +37,8 @@ function sortItems(items, how, pt = userLoc){
   else arr.sort((a, b) => nullLast(a, b, gbpOrEst, 1) || nullLast(a, b, x => x.r, -1) || byKm(a, b));
   return arr;
 }
-function passPrice(it, maxGBP){ if (!maxGBP) return true; const g = gbpOrEst(it); return g == null || g <= +maxGBP; }
-// a researched price in pounds, or the low end of the estimate
-const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, "THB") : null; };
+// a researched price in pounds, or the low end of the estimate (in its own currency: rupiah estimates are not baht)
+const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, e.cur || "THB") : null; };
 function passRating(it, minR){ return !minR || (it.r != null && it.r / 2 >= minR); }
 
 /* ---------- small renderers ---------- */
@@ -107,9 +106,10 @@ function placeCard(it, pt){
   const line = [];
   if (it.r != null) line.push(starsHTML(it.r));
   const loc = itemLocal(it);
-  if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small></span>`);
+  const per = it.c === "gaff" ? ` <small class="basis">${stayBasis(it) === "bed" ? "bed" : "room"}</small>` : "";
+  if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small>${per}</span>`);
   else if (it.cur_ && it.cost) line.push(`<span>${esc(it.cost)}</span>`);
-  else { const e = estPrice(it); if (e) line.push(`<span class="price est" title="${esc(e.why)}: an estimate">${esc(estText(e))}${estGBP(e) ? ` <small>${esc(estGBP(e))}</small>` : ""}</span>`); }
+  else { const e = estPrice(it); if (e) line.push(`<span class="price est" title="${esc(e.why)}: an estimate">${esc(estText(e))}${estGBP(e) ? ` <small>${esc(estGBP(e))}</small>` : ""}${per}</span>`); }
   if (it.st) line.push(`<span>${it.st}-star</span>`);
   const ft = it.c === "munch" ? foodType(it) : null;
   if (ft) line.push(`<span class="ftype">${esc(ft)}</span>`);
@@ -158,8 +158,8 @@ function listTest(cat){
     if (st.picks && !it.cur_) return false;
     if (st.open){ const o = isOpenNow(it); if (!o || !o.open) return false; }
     if (words.length){ const hay = foldText(`${it.n} ${it.nt || ""} ${it.area || ""} ${(it.cu || []).join(" ")} ${kindLabel(it)}`); if (!words.every(w => hay.includes(w))) return false; }
-    if (it.cur_ && !(passPrice(it, st.maxGBP) && passRating(it, st.minR))) return false;
-    if (!it.cur_ && (st.minR || (st.maxGBP && cat !== "munch"))) return false;       // no ratings or prices in OpenStreetMap, so those filters leave them out
+    if (!passPF(it, cat)) return false;                                            // the same maximum-price rule as the map (js/estimate.js)
+    if (it.cur_ ? !passRating(it, st.minR) : st.minR) return false;                // no ratings in OpenStreetMap, so a review filter leaves them out
     return true;
   };
 }
@@ -171,7 +171,7 @@ function listItems(cat){
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
   return sortItems(cur.concat(osm), how, pt.none ? null : pt);
 }
-function listKey(cat){ const st = ui.lists[cat], pt = focusPt(); return JSON.stringify([pt.lat, pt.lng, st.radius, st.chip, [...st.flags], st.q, st.open, st.picks, st.minR, st.maxGBP, st.sort === "top"]); }
+function listKey(cat){ const st = ui.lists[cat], pt = focusPt(); return JSON.stringify([pt.lat, pt.lng, st.radius, st.chip, [...st.flags], st.q, st.open, st.picks, st.minR, ui.pf[cat], st.sort === "top"]); }
 const isKnown = p => !!(p.wd || p.wp || p.wpx || p.x);
 async function loadListOsm(cat){
   const st = ui.lists[cat], run = listRun[cat], pt = focusPt(), key = listKey(cat);
@@ -208,6 +208,7 @@ function paintListBody(cat){
   html += `<p class="note" style="margin-top:10px"><b style="color:var(--ink)">${items.length.toLocaleString("en-GB")}${run.more ? "+" : ""}</b> ${items.length === 1 ? "place" : "places"}${esc(whereTxt)}. <span id="listStatus"></span></p>`;
   if (st.sort === "top" && !pt.none && items.length) html += `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`;
   if (chip && chip.note) html += `<p class="note" style="margin-top:4px">${esc(chip.note)}</p>`;
+  if (pfOn(cat)) html += `<p class="note pf-note" style="margin-top:4px">${esc(pfExplain(cat, []))} <button class="linkish" type="button" data-pfclear>Clear the maximum</button></p>`;
   if (st.open) html += `<p class="note" style="margin-top:4px">Open now only counts places whose opening hours are known (Thailand time). Places with unknown hours are left out.</p>`;
   if (pt.none) html += `<div class="callout">${icon("pin")}<div><b>Pick a place to see everything nearby.</b> You’re seeing the researched places only.<div class="row" style="margin-top:8px"><button class="btn small primary" type="button" data-where>Choose a place</button></div></div></div>`;
   if (!items.length){
@@ -224,7 +225,8 @@ function paintListBody(cat){
   paintListStatus(cat);
   const more = $("#listMore"); if (more) more.onclick = () => { st.shown += 30; paintListBody(cat); };
   const any = body.querySelector("[data-anywhere]"); if (any) any.onclick = () => { st.radius = 0; renderPage(); };
-  const clr = body.querySelector("[data-clear]"); if (clr) clr.onclick = () => { ui.lists[cat] = newList(cat); renderPage(); };
+  const pc = body.querySelector("[data-pfclear]"); if (pc) pc.onclick = () => { setPF(cat, null); renderPage(); };
+  const clr = body.querySelector("[data-clear]"); if (clr) clr.onclick = () => { ui.lists[cat] = newList(cat); ui.pf[cat] = newPF(); renderPage(); };
   watchCardPhotos(body);
 }
 const MAX_GUESTS = 30;
@@ -240,7 +242,7 @@ function stayStrip(){
 }
 function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");
-  const nFilters = (st.radius ? 1 : 0) + (st.sort !== DEFAULT_SORT[cat] ? 1 : 0) + (st.maxGBP ? 1 : 0) + (st.minR ? 1 : 0) + st.flags.size + (st.picks ? 1 : 0);
+  const nFilters = (st.radius ? 1 : 0) + (st.sort !== DEFAULT_SORT[cat] ? 1 : 0) + (pfOn(cat) ? 1 : 0) + (st.minR ? 1 : 0) + st.flags.size + (st.picks ? 1 : 0);
   const sorts = cat === "gaff" ? [["top","Recommended"],["near","Nearest"],["cheap","Cheapest first"],["rated","Best reviewed"],["dear","Priciest first"],["match","Best match"]]
               : cat === "munch" ? [["near","Nearest"],["top","Recommended"],["cheap","Cheapest first"],["dear","Priciest first"]]
               : [["top","Recommended"],["near","Nearest"],["az","A to Z"]];
@@ -249,12 +251,12 @@ function renderList(cat){
     fp = `<div class="fpanel" id="fpanel">
       <div><div class="note" style="margin-bottom:4px">Distance</div><div class="flags">${RADII.map(([r, l]) => `<button class="chip soft" type="button" data-radius="${r}" aria-pressed="${+st.radius === r}" ${focusPt().none ? "disabled" : ""}>${l}</button>`).join("")}</div></div>
       <div class="controls"><label class="field">Sort<select data-sort>${sorts.map(([v, l]) => `<option value="${v}" ${st.sort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      ${cat === "gaff" ? `<label class="field">Top price a night<select data-max>${[["","Any"],["5","£5"],["8","£8"],["10","£10"],["15","£15"],["20","£20"]].map(([v, l]) => `<option value="${v}" ${String(st.maxGBP) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-        <label class="field">Reviews<select data-minr>${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+st.minR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      ${cat === "munch" ? `<label class="field">Top price a dish<select data-max>${[["","Any"],["1","£1"],["2","£2"],["4","£4"]].map(([v, l]) => `<option value="${v}" ${String(st.maxGBP) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}</div>
+      ${cat === "gaff" ? `<label class="field">Reviews<select data-minr>${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+st.minR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
+</div>
+      <div class="map-chips mfilt pf-row">${pfControls(cat)}</div>
       ${cat === "gaff" ? `<div><div class="note" style="margin-bottom:4px">Rooms and facilities (only where the information exists)</div><div class="flags">${GAFF_FLAGS.map(f => `<button class="chip soft" type="button" data-flag="${f.id}" aria-pressed="${st.flags.has(f.id)}">${f.l}</button>`).join("")}</div></div>` : ""}
       <button class="switch" type="button" data-picks aria-pressed="${st.picks}"><i></i>Researched places only (with prices and sources)</button>
-      ${cat !== "cool" ? `<p class="note">Price and review filters use the researched places. OpenStreetMap places have no prices or ratings, so a review filter hides them.</p>` : ""}
+      <p class="note">A maximum price uses each place’s researched “from” price, or its typical estimate (est.) where nobody has published one. Places with no price are left out, never counted as cheap or free. ${cat === "gaff" ? "Dorm-bed and room prices are compared separately. OpenStreetMap places have no ratings, so a review filter hides them." : ""}</p>
     </div>`;
   }
   root.innerHTML = hero({title:copy.title, sub:`${copy.sub} ${focusPt().none ? "in " + D.countries[S.country].name : "around " + focusLabel()}`, img:copy.img}) + `<div class="page">
@@ -285,7 +287,7 @@ function bindList(cat){
   root.querySelectorAll("[data-radius]").forEach(b => b.onclick = () => { st.radius = +b.dataset.radius; renderPage(); });
   root.querySelectorAll("[data-flag]").forEach(b => b.onclick = () => { const f = b.dataset.flag; st.flags.has(f) ? st.flags.delete(f) : st.flags.add(f); renderPage(); });
   const so = root.querySelector("[data-sort]"); if (so) so.onchange = () => { st.sort = so.value; renderPage(); };
-  const mx = root.querySelector("[data-max]"); if (mx) mx.onchange = () => { st.maxGBP = mx.value; renderPage(); };
+  bindPF(root, cat, () => renderPage());
   const mr = root.querySelector("[data-minr]"); if (mr) mr.onchange = () => { st.minR = +mr.value; renderPage(); };
   const pk = root.querySelector("[data-picks]"); if (pk) pk.onclick = () => { st.picks = !st.picks; renderPage(); };
   if (cat === "gaff"){
@@ -330,7 +332,7 @@ let coverage = null, coverageWait = null;
 function renderDiscover(){
   const root = $("#pageview"), pt = focusPt();
   const b = S.budget, spent = budgetSpentGBP();
-  const haveBudget = +b.total > 0 || b.items.length > 0;
+  const haveBudget = false && (+b.total > 0 || b.items.length > 0);      // Budget is hidden for now (Tools); its data is kept
   let html = hero({title:"Thailand", sub:"Find where to go, stay, eat and what to do", img:HERO_IMG.discover}) + `<div class="page">
     <a class="sbar" href="#map" id="d-search" style="text-decoration:none">${icon("search")}<span style="flex:1;color:var(--faint);font-size:16px;line-height:42px">Search places, stays, food, activities</span></a>
     <div class="sect"><h2>${esc(focusLabel())}</h2><a href="#map">Open the map</a></div>

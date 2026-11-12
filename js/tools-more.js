@@ -110,7 +110,10 @@ function essList(el, r, emptyMsg){
   if (r.state === "off" || r.state === "error"){ el.innerHTML = emptyBlock("Needs signal", "<div>The places list hasn’t been saved on this phone yet. Open the map once with signal.</div>"); return; }
   el.innerHTML = r.items.length ? `<div class="cards" style="margin-top:0">${r.items.map(p => placeCard(p, r.pt)).join("")}</div>` : emptyBlock("None found nearby", `<div>${emptyMsg}</div>`);
 }
-TOOL_PAGES.wifi = root => {
+// Wi-Fi finder: the main map with only Wi-Fi showing, near the phone (its previews, saving and directions as usual).
+// The old list page below is kept for reference but no longer used.
+TOOL_PAGES.wifi = root => { root.innerHTML = ""; showEssentialOnMap("wifi", {nearMe:true}); };
+TOOL_PAGES.wifiList = root => {
   root.innerHTML = toolHero("Wi-Fi finder", `Places with Wi-Fi around ${focusPt().none ? "you" : focusLabel()}`) + `<div class="page">
     <div class="row" style="margin-bottom:10px"><button class="btn primary" type="button" id="wfMap">${icon("map","i s")}Show Wi-Fi on the map</button></div>
     <div id="wfBody"><div class="skel"></div></div>

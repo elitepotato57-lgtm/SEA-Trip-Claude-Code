@@ -212,7 +212,7 @@ const labResize = debounce(() => { applyDesign(); if (typeof map !== "undefined"
 const lab = {open:false, min:false, tab:"colours"};
 function renderLabButton(){
   let b = document.getElementById("labBtn");
-  const want = labD().on !== false && !lab.open;
+  const want = labD().on === true && !lab.open;           // hidden unless switched on in Settings
   if (!want){ if (b) b.remove(); return; }
   if (!b){
     b = document.createElement("button"); b.id = "labBtn"; b.className = "lab-btn"; b.type = "button";
@@ -240,7 +240,7 @@ function renderLab(){
   let p = document.getElementById("lab");
   if (!p){ p = document.createElement("section"); p.id = "lab"; p.className = "lab"; p.setAttribute("aria-label", "Design Lab"); document.body.appendChild(p); }
   p.classList.toggle("min", lab.min);
-  const tabs = [["colours", "Colours"], ["map", "Map"], ["text", "Text"], ["sizes", "Sizes"], ["save", "Save"]];
+  const tabs = [["look", "Look"], ["colours", "Colours"], ["map", "Map"], ["text", "Text"], ["sizes", "Sizes"], ["save", "Save"]];
   p.innerHTML = `<div class="lab-head">
       <span class="lab-title">${icon("palette", "i s")}Design Lab</span>
       <span class="lab-hint">${lab.min ? "Shrunk: tap + to carry on" : "Changes show straight away"}</span>
@@ -266,6 +266,10 @@ function labRange(label, key, min, max, step, fmt){
 const LAB_FMT = {pct:v => Math.round(v * 100) + "%", px:v => v + "px", pic:v => v <= 5 ? "short" : v >= 10 ? "tall" : "medium", plain:v => String(v)};
 function labTab(t){
   const d = labD();
+  if (t === "look") return `
+    <h3>Look</h3>
+    <p class="note">Night is the standard dark look. Paper Atlas is a lighter, old-map style that is easier to read in bright sun. The app reloads to switch.</p>
+    <div class="seg" role="group" aria-label="Look" style="margin-top:8px"><button type="button" data-look="night" aria-pressed="${S.look !== "paper"}">Night</button><button type="button" data-look="paper" aria-pressed="${S.look === "paper"}">Paper Atlas</button></div>`;
   if (t === "colours") return `
     <h3>Section colours</h3>
     <div class="lab-presets">${Object.entries(LAB_SECTION_PRESETS).map(([n, c]) => `<button type="button" class="lab-preset" data-labpreset="cols" data-name="${esc(n)}">${labSw(c ? LAB_GROUPS.map(g => c[g]) : LAB_GROUPS.map(g => cssvDefault(g)))}${esc(n)}</button>`).join("")}</div>
@@ -333,6 +337,7 @@ function setLabPath(path, v){
 const labSave = debounce(() => persist(), 300);
 
 function bindLab(p){
+  p.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { if (S.look === b.dataset.look) return; S.look = b.dataset.look; persist(); location.reload(); });
   p.querySelectorAll("[data-labcol]").forEach(inp => inp.oninput = () => {
     const key = inp.dataset.labcol;
     if (key.startsWith("app.")){                       // app colours need all three: fill the others from what's showing now

@@ -8,13 +8,13 @@ IC.mic = '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 
 
 // what someone might call each essential
 const ASK_ESS = [
-  ["toilet", /\b(toilets?|loos?|restrooms?|bathrooms?|wc|washrooms?|pee|wee)\b/],
-  ["atm", /\b(atms?|cash ?machines?|cash ?points?|withdraw|get (some )?cash|banks?)\b/],
+  ["toilet", /\b(toilets?|loos?|restrooms?|rest rooms?|bathrooms?|wc|washrooms?|lavator(y|ies)|ladies|gents|pee|wee|toilette)\b/],
+  ["atm", /\b(atms?|cash ?machines?|cash ?points?|money machines?|withdraw|get (some )?cash|banks?)\b/],
   ["exchange", /\b(exchange|change (some )?money|money changers?|currency)\b/],
-  ["pharmacy", /\b(pharmac(y|ies)|chemists?|medicine|paracetamol|plasters?|painkillers?|boots|watsons)\b/],
+  ["pharmacy", /\b(pharmac(y|ies)|farmac(y|ies)|chemists?|drug ?stores?|apotek|medicine|paracetamol|plasters?|painkillers?|boots|watsons)\b/],
   ["hospital", /\b(hospitals?|a ?& ?e|emergency room)\b/],
   ["clinic", /\b(clinics?|doctors?|gp|dentists?)\b/],
-  ["laundry", /\b(laundr(y|ies)|launderettes?|laundrettes?|wash(ing)? (my )?clothes)\b/],
+  ["laundry", /\b(laundr(y|ies)|laundromats?|launderettes?|laundrettes?|wash(ing)? (my )?clothes|dry clean(ers?|ing)?)\b/],
   ["shop", /\b(7-?(eleven|11)|seven ?eleven|convenience|minimarts?|corner shops?|snacks?|family ?mart)\b/],
   ["supermarket", /\b(supermarkets?|groceries|grocery|malls?|shopping centres?)\b/],
   ["sim", /\b(sim( cards?)?|e-?sim|mobile data|phone shops?)\b/],
@@ -37,18 +37,39 @@ const ASK_FOOD = /\b(eat|eats|food|restaurants?|hungry|lunch|dinner|breakfast|br
 const ASK_STAY = /\b(hostels?|hotels?|stay|sleep|beds?|guest ?houses?|rooms?|accommodation|dorms?|somewhere to stay)\b/;
 const ASK_DO_ANY = /\b(do|see|visit|activit(y|ies)|things?|sights?|attractions?|explore|fun)\b/;
 
+/* speech recognition and thumbs spell things oddly: tidy the question up first ("a t m" becomes "atm", full stops go) */
+function normAsk(text){
+  return " " + String(text || "").toLowerCase().replace(/[’']/g, "'").replace(/[.!,;:]+/g, " ")
+    .replace(/\ba\s?t\s?m'?s?\b/g, "atm").replace(/\bw\s?c\b/g, "wc").replace(/\bseven (eleven|11)\b/g, "7-eleven")
+    .replace(/\bwhere is\b/g, "where's").replace(/\s+/g, " ").trim() + " ";
+}
+/* "find me the nearest toilet", "where's the closest pharmacy", "take me to the nearest ATM", "bring me to the closest laundry":
+   one kind of place, and the single nearest one wanted. Returns parseAsk's answer with nearest:true, or null.
+   Not for "best"/"cheap" questions or vague ones ("things to do"), which get the list of answers instead. */
+const NEAREST_RE = /\b(nearest|closest)\b/;
+const GOTO_RE = /\b(take|bring|get|guide|lead|navigate|direct) (me|us)( over)? to\b|\b(directions|route|way) to\b|\bhow (do|can) (i|we) get to\b/;
+function nearestIntent(text){
+  const t = normAsk(text);
+  if (!NEAREST_RE.test(t) && !GOTO_RE.test(t)) return null;
+  if (!NEAREST_RE.test(t) && !/\b(to|find) (a|an|the|some) /.test(t)) return null;        // "take me to Wat Pho" is a place, not a kind of place
+  const a = parseAsk(t); if (!a || a.best || a.cheap) return null;
+  if (a.kind === "do" && !a.kinds) return null;                 // "nearest things to do": a list, not one place
+  if (a.kind === "stay" && !a.kinds) return null;
+  return Object.assign(a, {nearest:true});
+}
+
 /* does this text read like a question rather than a place name? */
 function isAsk(text){
   const t = String(text || "").toLowerCase().trim();
   if (t.length < 4) return false;
   if (/\?$/.test(t)) return true;
-  if (/^(where|what|which|find|show|any|is there|are there|nearest|closest|best|cheap|cheapest|good|great|i need|i want|i'?m|we need|we want|take me|how far|somewhere|anywhere|recommend|suggest|need a|need an|need some|looking for)\b/.test(t)) return true;
+  if (/^(where|what|which|find|show|any|is there|are there|nearest|closest|best|cheap|cheapest|good|great|i need|i want|i'?m|we need|we want|take me|take us|bring me|bring us|get me|navigate|directions|how far|somewhere|anywhere|recommend|suggest|need a|need an|need some|looking for)\b/.test(t)) return true;
   return /\b(near me|nearby|nearest|closest|around here|close by|near here|walking distance)\b|\b(not|isn'?t|aren'?t) (too |that |very )?far\b/.test(t);
 }
 
 /* what is being asked for: {kind, ess?, move?, kinds?, ft?, cheap, best, open, maxKm, what} or null */
 function parseAsk(text){
-  const t = " " + String(text || "").toLowerCase().replace(/[’']/g, "'") + " ";
+  const t = normAsk(text);
   const cheap = /\b(cheap(est)?|budget|inexpensive|affordable|not (too )?(expensive|pricey|dear)|on a budget|free)\b/.test(t);
   const best = /\b(best|good|great|top|nice|decent|recommended|popular|worth)\b/.test(t);
   const open = /\b(open|now|today|tonight|right now|late)\b/.test(t);
@@ -111,11 +132,13 @@ async function answerAsk(text){
 
 function askTitle(a){
   const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+  if (a.nearest) return "Go to the nearest " + nearestNoun(a);
   if (a.kind === "ess" || a.kind === "move") return cap(a.what) + " nearby";
   return cap((a.best ? "best " : "") + (a.cheap ? "cheap " : "") + a.what + (a.open ? ", open now" : ""));
 }
 /* a plain category word ("atm", "hostel", "food") gets an answer row too; a place name like "Wat Pho" doesn't */
 function askOffer(text){
+  const n = nearestIntent(text); if (n) return {a:n, first:true, nearest:true};
   const a = parseAsk(text); if (!a) return null;
   if (isAsk(text)) return {a, first:true};
   const t = " " + String(text).toLowerCase() + " ";
@@ -159,6 +182,79 @@ async function showAnswer(text){
       }
     }, 120);
   };
+}
+
+/* ---------- "take me to the nearest ...": find it, then select it on the map exactly as if it had been tapped ---------- */
+const NEAREST_NOUN = {toilet:"toilet", atm:"ATM", exchange:"money exchange", pharmacy:"pharmacy", hospital:"hospital", clinic:"clinic or doctor", laundry:"laundry",
+  shop:"7-Eleven or minimart", supermarket:"supermarket", sim:"SIM card shop", water:"water refill", wifi:"Wi-Fi spot", police:"police station", embassy:"embassy",
+  fuel:"petrol station", post:"post office", bus:"bus station", train:"train station", ferry:"pier", airport:"airport", taxi:"taxi or rental"};
+function nearestNoun(a){
+  if (a.ess || a.move) return NEAREST_NOUN[a.ess || a.move] || a.what;
+  if (a.what === "places to eat") return "place to eat";
+  if (a.what === "museums and galleries") return "museum or gallery";
+  return a.what.replace(/es$/, a.what === "beaches" ? "" : "es").replace(/s$/, "");
+}
+function nearestTest(a){
+  const essKinds = a.ess && ESS_BY_ID[a.ess] ? new Set(ESS_BY_ID[a.ess].kinds) : null;
+  return p => {
+    if (essKinds && !essKinds.has(p.k)) return false;
+    if (a.move && MOVE_KIND_TYPE[p.k] !== a.move) return false;
+    if (a.kinds && !a.kinds.includes(p.k)) return false;
+    if (a.ft && foodType(p) !== a.ft) return false;
+    if (p.unnamed && !["toilet", "atm", "water"].includes(a.ess)) return false;      // an unnamed "restaurant" is a poor answer
+    return true;
+  };
+}
+let nearestBusy = false;
+async function goNearest(text, a = nearestIntent(text)){
+  if (!a || nearestBusy) return false;
+  nearestBusy = true;
+  const noun = nearestNoun(a);
+  try {
+    toast(`Finding the nearest ${noun}...`);
+    const st = await locateNow();
+    const real = !!userLoc && (st === "ok" || st === "test" || st === "outside");
+    // without the phone's position, say so plainly and use the middle of the map (never pretend it's where you are)
+    const ref = real ? {lat:userLoc.lat, lng:userLoc.lng} : (map && mapLoaded ? {lat:map.getCenter().lat, lng:map.getCenter().lng} : focusPt());
+    if (ref.none){ toast("Turn on location, or pick a place to look around first"); return false; }
+    if (real && st === "outside"){ toast("You're outside the countries this app covers, so there's nothing near you in its data"); return false; }
+    const grp = {ess:"ess", move:"move", stay:"stay", food:"food", do:"do"}[a.kind], test = nearestTest(a);
+    const r = await Places.nearest(grp, ref, {test, maxKm:60});
+    // the app's own researched places count too (transport hubs, food, sights)
+    const cat = {stay:"gaff", food:"munch", do:"cool", move:"move"}[a.kind];
+    let best = r.p, km = r.km;
+    if (cat) for (const p of D.places) if (p.c === cat && test(p)){ const k = dist(ref, p); if (km == null || k < km){ best = p; km = k; } }
+    if (!best){
+      toast(r.state === "off" || r.state === "error" ? "Couldn't load the places data. It needs signal once, or a saved city" : `No ${noun} within 60 km in the app's map data`);
+      return false;
+    }
+    showNearestOnMap(best, a, ref, real);
+    const where = real ? (st === "test" ? "your test location" : "you") : "the middle of the map (your location is off)";
+    toast(`${r.complete ? "Nearest" : "Closest found"} ${noun}: ${distShort(km)} from ${where}${r.complete ? "" : ". Some map data couldn't load, so there may be one closer"}`);
+    return true;
+  } finally { nearestBusy = false; }
+}
+function showNearestOnMap(p, a, ref, real){
+  // show its section on the map (and only the essential asked for), so its pin is drawn like any other
+  if (a.kind === "ess"){ if (!ui.essKinds.size && !mapRun.stash) mapRun.stash = new Set(ui.mapCats); ui.mapCats.clear(); ui.essKinds = new Set([a.ess]); ui.essOpen = true; }
+  else { const c = {stay:"gaff", food:"munch", do:"cool", move:"move"}[a.kind]; ui.essKinds.clear(); ui.mapCats = new Set([c]); if (c === "move") ui.mf.move.t = a.move; }
+  ui.mapSaved = false; ui.mapMode = "map";
+  const done = () => {
+    renderMapUI();
+    selectPlace(p.id);
+    if (!map) return;
+    if (real && dist(ref, p) < 4){ const b = new maplibregl.LngLatBounds(); b.extend([p.lng, p.lat]); b.extend([ref.lng, ref.lat]); map.fitBounds(b, {padding:{top:200, bottom:260, left:60, right:80}, maxZoom:17, duration:reduceMotion ? 0 : 700}); }
+    else flyTo(p, 16);
+  };
+  if (location.hash !== "#map") go("#map");
+  // the map may still be starting: wait for it to exist, then for its load event (the preview still opens if it never loads)
+  const start = (n = 0) => {
+    if (!map){ if (n < 40) setTimeout(() => start(n + 1), 100); else done(); return; }
+    if (mapLoaded){ done(); return; }
+    let fired = false; const once = () => { if (!fired){ fired = true; done(); } };
+    map.once("load", () => setTimeout(once, 30)); setTimeout(once, 12000);
+  };
+  setTimeout(start, 60);
 }
 
 /* ---------- speaking the question ---------- */

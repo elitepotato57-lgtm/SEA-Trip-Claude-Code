@@ -35,7 +35,7 @@ const ESS = [
   {id:"shop", l:"7-Eleven and minimarts", ic:"cart", kinds:["convenience"]},
   {id:"supermarket", l:"Supermarkets", ic:"cart", kinds:["supermarket","mall"]},
   {id:"sim", l:"SIM cards", ic:"sim", kinds:["sim"]},
-  {id:"wifi", l:"Wi-Fi", ic:"wifi", kinds:["wifi","cowork"]},
+  {id:"wifi", l:"Wi-Fi", ic:"wifi", kinds:["wifi"]},          // only places whose map entry records Wi-Fi (internet access), not every coworking space
   {id:"water", l:"Water refill", ic:"drop", kinds:["water"]},
   {id:"hospital", l:"Hospitals", ic:"cross", kinds:["hospital"]},
   {id:"clinic", l:"Clinics", ic:"cross", kinds:["clinic","dentist"]},
@@ -155,6 +155,28 @@ const Places = {
     }
     out.sort((a, b) => a.km - b.km);
     return {items:out.slice(0, Math.max(want, 400)).map(x => x.p), state: failed && !out.length ? "error" : "ok", more};
+  },
+  /* The single nearest place that passes test, searched properly: tiles are opened nearest first, and the search only stops
+     once nothing still unopened could hold anything closer. complete is false when a tile that could have held a closer
+     place failed to load, or the search gave up (maxKm, maxLeaves), so the answer is never called "the nearest" on a guess. */
+  async nearest(g, pt, {test = null, maxKm = 60, maxLeaves = 80, signal = null} = {}){
+    const m = await this.ready(); if (!m) return {p:null, km:null, complete:false, state:"off"};
+    const cand = (this.leaves[g] || []).map(l => ({l, d:bboxDist(pt, l.bb)})).filter(x => x.d <= maxKm).sort((a, b) => a.d - b.d);
+    let best = null, bestKm = Infinity, failedNear = Infinity, used = 0, i = 0;
+    while (i < cand.length && cand[i].d < bestKm){
+      if (used >= maxLeaves) return {p:best, km:best ? bestKm : null, complete:false, state:"ok", searchedKm:cand[i].d};
+      const batch = []; while (i < cand.length && batch.length < 4 && cand[i].d < bestKm){ batch.push(cand[i]); i++; }
+      used += batch.length;
+      const res = await Promise.all(batch.map(x => this.leaf(x.l, signal).then(items => ({x, items})).catch(() => ({x, items:null}))));
+      if (signal && signal.aborted) return {p:null, km:null, complete:false, state:"aborted"};
+      for (const {x, items} of res){
+        if (!items){ failedNear = Math.min(failedNear, x.d); continue; }
+        for (const p of items){ if (test && !test(p)) continue; const k = dist(pt, p); if (k < bestKm){ bestKm = k; best = p; } }
+      }
+    }
+    // a tile that failed to load counts only if it could have held something closer than the answer
+    const complete = failedNear >= bestKm && (best != null || i >= cand.length);
+    return {p:best, km:best ? bestKm : null, complete, state:best ? "ok" : failedNear < Infinity ? "error" : "none", searchedKm:maxKm};
   },
   // The promise is stored straight away (before any await), so two early calls share one download.
   summary(g){

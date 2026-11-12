@@ -136,13 +136,15 @@ function applyTestLocation(){
   if (S.countryMode === "auto" && cc && cc !== S.country){ S.country = cc; persist(); }
   return true;
 }
-function locate(prompted){
+// done (optional) runs once the answer is in, whatever it is: used by "take me to the nearest …"
+function locate(prompted, done, quiet){
+  const fin = () => { if (done) done(locStatus); };
   if (applyTestLocation()){
     updateMe(); rerender();
-    if (prompted){ if (map && ui.view === "map") flyTo(userLoc, 13); toast(`Using your test location: ${S.testLoc}. Turn it off in Settings.`); }
-    return;
+    if (prompted && !quiet){ if (map && ui.view === "map") flyTo(userLoc, 13); toast(`Using your test location: ${S.testLoc}. Turn it off in Settings.`); }
+    return fin();
   }
-  if (!("geolocation" in navigator)){ locStatus = "unavailable"; rerender(); if (prompted) toast("Location isn’t available here. Pick a place instead."); return; }
+  if (!("geolocation" in navigator)){ locStatus = "unavailable"; rerender(); if (prompted && !quiet) toast("Location isn’t available here. Pick a place instead."); return fin(); }
   locStatus = "asking";
   navigator.geolocation.getCurrentPosition(pos => {
     userLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy};
@@ -150,14 +152,18 @@ function locate(prompted){
     locStatus = cc ? "ok" : "outside";
     if (S.countryMode === "auto" && cc && cc !== S.country) setCountry(cc, false);
     updateMe();
-    if (prompted && map && ui.view === "map" && cc) flyTo(userLoc, 13);
-    rerender();
+    if (prompted && !quiet && map && ui.view === "map" && cc) flyTo(userLoc, 13);
+    if (typeof Heading !== "undefined") Heading.sync();          // keep the dot following the phone while the map is open
+    rerender(); fin();
   }, err => {
     locStatus = err && err.code === 1 ? "denied" : "unavailable";
     rerender();
-    if (prompted) toast(locStatus === "denied" ? "Location is blocked. Pick a place instead." : "Couldn’t find you. Try again with signal.");
+    if (prompted && !quiet) toast(locStatus === "denied" ? "Location is blocked. Pick a place instead." : "Couldn’t find you. Try again with signal.");
+    fin();
   }, {enableHighAccuracy:false, timeout:12000, maximumAge:600000});
 }
+// the phone's position if it can be had (asks once if needed): resolves to locStatus
+const locateNow = () => (userLoc && (locStatus === "ok" || locStatus === "test" || locStatus === "outside")) ? Promise.resolve(locStatus) : new Promise(r => locate(true, r, true));
 
 /* ---------- full-height fix for home-screen mode ---------- */
 function fitStandalone(){

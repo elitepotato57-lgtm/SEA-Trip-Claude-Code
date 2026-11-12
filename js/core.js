@@ -181,13 +181,13 @@ function mapStyleBase(){
 const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 const S_DEFAULTS = {countryMode:"auto", country:"TH", rates:{}, testLoc:"Bangkok", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:true}, packs:{}, packPhotos:true, lastBackup:null};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null};
 let S = Object.assign({}, S_DEFAULTS, loadState());
 if (!D.countries[S.country]) S.country = "TH";
 if (!S.saved || typeof S.saved !== "object") S.saved = {};
 if (!S.budget || !Array.isArray(S.budget.items)) S.budget = {total:"", cur:"GBP", days:"", items:[]};
 if (!S.stay) S.stay = {cin:"", cout:"", guests:2};
-if (!S.design || typeof S.design !== "object") S.design = {on:true};
+if (!S.design || typeof S.design !== "object") S.design = {on:false};
 applyLook();
 delete S.stay.rooms;                                    // rooms were dropped in 2.1: the booking sites pick rooms themselves
 function persist(){
@@ -198,13 +198,14 @@ function persist(){
 let userLoc = null, locStatus = "idle";
 // Stays and activities open on "Recommended" (researched and well-known places first). Food opens on nearest, because lunch is local.
 const DEFAULT_SORT = {gaff:"top", munch:"near", cool:"top"};
-const newList = cat => ({radius:0, types:new Set(), sort:DEFAULT_SORT[cat] || "near", maxGBP:"", minR:0, q:"", chip:"all", open:false, flags:new Set(), picks:false, shown:30, filters:false});
+const newList = cat => ({radius:0, types:new Set(), sort:DEFAULT_SORT[cat] || "near", minR:0, q:"", chip:"all", open:false, flags:new Set(), picks:false, shown:30, filters:false});
 const ui = {
   view:"map", sub:"",
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
   mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
   mapSort:"near", mapFilters:false,
-  mf:{gaff:{b:null}, munch:{b:null}, cool:{b:null}, move:{t:"all"}},      // the map's filter row (price, or transport type) mapSel:null, mapQ:"", mapSaved:false,
+  mf:{move:{t:"all"}},      // the map's transport-type filter (maximum prices are in ui.pf, shared with the lists: js/estimate.js)
+  mapSel:null, mapQ:"", mapSaved:false,
   tp:{from:null, to:null, sort:"fast", sel:0}
 };
 
