@@ -321,7 +321,7 @@ function pfControls(cat, cc = S.country){
   return `<div class="pf" data-pf="${cat}" role="group" aria-label="Maximum price ${PF_PER[cat]}">
     <span class="mf-lab">Max ${PF_PER[cat]}</span>
     ${b('data-pfp=""', "Any", f.max == null, "No maximum")}${cat === "cool" ? b('data-pfp="0"', "Free", f.max === 0, "Free only") : ""}${PF_PRESETS[cat].map(v => b(`data-pfp="${v}"`, `£${v}`, f.max === v && f.cur === "GBP", `Up to £${v} ${PF_PER[cat]}`)).join("")}
-    <span class="pf-custom${custom ? " on" : ""}"><input type="text" inputmode="decimal" data-pfamt placeholder="Custom" value="${custom ? esc(f.amt) : ""}" aria-label="Custom maximum ${PF_PER[cat]}" size="6"><select data-pfcur aria-label="Currency of the custom amount">${[...new Set(["GBP", lc])].map(k => `<option value="${k}" ${(custom ? f.cur : "GBP") === k ? "selected" : ""}>${k === "GBP" ? "£" : SYM[k] ? SYM[k].trim() : k}</option>`).join("")}</select><button class="chip" type="button" data-pfset>Set</button></span>
+    <label class="chip pf-in${custom ? " on" : ""}">£<input type="text" inputmode="decimal" data-pfamt placeholder="…" value="${custom ? esc(fmtNum(f.max)) : ""}" aria-label="Your own maximum in pounds ${PF_PER[cat]}" maxlength="5"></label>
     ${cat === "gaff" ? `<span class="pf-sep"></span>${b('data-pfb="bed"', "Dorm bed", f.basis === "bed", "Compare dorm-bed and per-person prices")}${b('data-pfb="room"', "Private room", f.basis === "room", "Compare whole-room prices")}` : ""}
     <span class="pf-sep"></span>${b("data-pfest", "Include estimates", f.est, "Include typical estimated prices")}
   </div>`;
@@ -331,10 +331,11 @@ function bindPF(root, cat, onChange){
   const el = root.querySelector(`[data-pf="${cat}"]`); if (!el) return;
   const f = ui.pf[cat];
   el.querySelectorAll("[data-pfp]").forEach(x => x.onclick = () => { setPF(cat, x.dataset.pfp === "" ? null : +x.dataset.pfp); onChange(); });
-  const amt = el.querySelector("[data-pfamt]"), curSel = el.querySelector("[data-pfcur]");
-  const apply = () => { const msg = setPF(cat, amt.value.trim() === "" ? null : amt.value, curSel.value); if (msg){ toast(msg); amt.focus(); amt.setAttribute("aria-invalid", "true"); return; } onChange(); };
-  el.querySelector("[data-pfset]").onclick = apply;
-  amt.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); apply(); } };
+  // your own amount, in pounds: typed into the box, set by Enter / Done or by tapping away
+  const amt = el.querySelector("[data-pfamt]"), was = amt.value;
+  const apply = () => { if (amt.value.trim() === was.trim()) return; const msg = setPF(cat, amt.value.trim() === "" ? null : amt.value.replace(/£/g, "")); if (msg){ toast(msg); amt.setAttribute("aria-invalid", "true"); return; } onChange(); };
+  amt.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); amt.blur(); } };
+  amt.onchange = apply;
   el.querySelectorAll("[data-pfb]").forEach(x => x.onclick = () => { f.basis = x.dataset.pfb; onChange(); });
   el.querySelector("[data-pfest]").onclick = () => { f.est = !f.est; onChange(); };
 }

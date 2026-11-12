@@ -57,6 +57,54 @@ TOOL_PAGES.budget = root => {
   const clr = $("#bg-clear"); if (clr) clr.onclick = () => { const old = b.items; b.items = []; save(); renderPage(); toast("Spending cleared", () => { b.items = old; save(); renderPage(); }); };
 };
 
+/* ---------- surf forecast (Open-Meteo marine and weather models: free, no key) ----------
+   Surfline doesn't share its data with other apps, so the numbers here are an open wave model's: the wave height and
+   period just offshore, and the wind. That says how big it is, not how good the break is: the Surfline button has the full report. */
+const M_FT = 3.28084, surfCache = new Map();
+const surfSize = ft => ft < 1 ? "Flat" : ft < 2 ? "Small" : ft < 4 ? "Fun-size" : ft < 6 ? "Solid" : ft < 9 ? "Big" : "Very big";
+const windWord = k => k < 12 ? "light wind" : k < 25 ? "breezy" : "windy";
+const compass = d => ["N","NE","E","SE","S","SW","W","NW"][Math.round(((d % 360) + 360) % 360 / 45) % 8];
+function surfRead(marine, wx){
+  const c = (marine && marine.current) || {}, w = (wx && wx.current) || {};
+  if (c.wave_height == null) return null;                          // no sea at this point in the model
+  const ft = c.wave_height * M_FT;
+  return {m:c.wave_height, ft, per:c.wave_period, dir:c.wave_direction, swellFt:c.swell_wave_height != null ? c.swell_wave_height * M_FT : null, swellPer:c.swell_wave_period,
+    wind:w.wind_speed_10m, windDir:w.wind_direction_10m, size:surfSize(ft), at:Date.now()};
+}
+const surfShort = f => `${f.ft.toFixed(f.ft < 10 ? 1 : 0)} ft${f.per ? ` @ ${Math.round(f.per)} s` : ""} · ${f.size}`;
+function surfNow(pt){
+  const key = pt.lat.toFixed(2) + "," + pt.lng.toFixed(2), hit = surfCache.get(key);
+  if (hit && Date.now() - hit.at < 30 * 60e3) return hit.p;
+  const q = `latitude=${pt.lat.toFixed(3)}&longitude=${pt.lng.toFixed(3)}`;
+  const p = Promise.all([
+    getJSON(`https://marine-api.open-meteo.com/v1/marine?${q}&current=wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period&cell_selection=sea`, {timeout:10000}),
+    getJSON(`https://api.open-meteo.com/v1/forecast?${q}&current=wind_speed_10m,wind_direction_10m`, {timeout:10000}).catch(() => null)
+  ]).then(([m, w]) => surfRead(m, w)).catch(() => { surfCache.delete(key); return null; });
+  surfCache.set(key, {at:Date.now(), p});
+  return p;
+}
+// fills the wave line on surf cards, one after another (a handful of small requests, remembered for half an hour)
+async function paintSurf(root){
+  for (const el of [...root.querySelectorAll("[data-surf]")].slice(0, 30)){
+    const it = findPlace(el.dataset.surf); if (!it) continue;
+    const f = await surfNow(it); if (f && el.isConnected) el.textContent = surfShort(f);
+  }
+}
+const surfLink = it => `https://www.surfline.com/search/${enc(it.n.replace(/\s*\(.*?\)\s*/g, " ").trim())}`;
+const wantsSurf = it => isSurf(it) || it.k === "beach" || (!it.osm && hasT(it, "Beaches")) || (it.c === "cool" && /surf/i.test(it.n || ""));
+function surfBlock(it){
+  return `<div class="callout surfbox" id="surfBox" data-id="${esc(it.id)}">${icon("waves")}<div><b>Surf now</b><div id="surfTxt" class="note">Checking the waves…</div>
+    <div class="row" style="margin-top:8px">${ext(surfLink(it), "Open on Surfline " + icon("ext","i s"))}</div></div></div>`;
+}
+async function fillSurf(it){
+  const f = await surfNow(it), el = $("#surfTxt"), box = $("#surfBox");
+  if (!el || !box || box.dataset.id !== it.id) return;
+  if (!f){ el.textContent = navigator.onLine === false ? "The wave forecast needs signal." : "No wave forecast for this spot."; return; }
+  el.innerHTML = `<span style="color:var(--ink);font-weight:700">${esc(f.size)}: ${f.ft.toFixed(1)} ft</span> (${f.m.toFixed(1)} m) waves${f.per ? `, ${Math.round(f.per)} seconds apart` : ""}${f.dir != null ? `, from the ${compass(f.dir)}` : ""}.`
+    + (f.wind != null ? ` Wind ${Math.round(f.wind)} km/h from the ${compass(f.windDir)} (${windWord(f.wind)}).` : "")
+    + ` <br>Open-sea forecast just off this spot, by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. It shows size, not how well the break is working: check Surfline for that.`;
+}
+
 /* ---------- weather (Open-Meteo: free for non-commercial use, no key) ---------- */
 const WMO = c => c === 0 ? ["Clear", "sun"] : c <= 2 ? [c === 1 ? "Mostly clear" : "Partly cloudy", "cloudsun"] : c === 3 ? ["Cloudy", "cloud"] : c <= 48 ? ["Fog", "fog"]
   : c <= 57 ? ["Drizzle", "rain"] : c <= 67 ? ["Rain", "rain"] : c <= 77 ? ["Snow", "cloud"] : c <= 82 ? ["Showers", "rain"] : c <= 86 ? ["Snow showers", "cloud"] : ["Thunderstorms", "storm"];

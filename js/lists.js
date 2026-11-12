@@ -104,12 +104,13 @@ function placeCard(it, pt){
   const km = pt && !pt.none ? dist(pt, it) : null;
   const oh = isOpenNow(it);
   const line = [];
-  if (it.r != null) line.push(starsHTML(it.r));
+  const kr = knownRating(it);                              // a researched rating, or a Google one already looked up: never a guess
   const loc = itemLocal(it);
   const per = it.c === "gaff" ? ` <small class="basis">${stayBasis(it) === "bed" ? "bed" : "room"}</small>` : "";
   if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small>${per}</span>`);
   else if (it.cur_ && it.cost) line.push(`<span>${esc(it.cost)}</span>`);
   else { const e = estPrice(it); if (e) line.push(`<span class="price est" title="${esc(e.why)}: an estimate">${esc(estText(e))}${estGBP(e) ? ` <small>${esc(estGBP(e))}</small>` : ""}${per}</span>`); }
+  if (it.k === "surf" || (!it.osm && it.c === "cool" && /surf/.test(ptext(it)))) line.push(`<span class="surf-now" data-surf="${esc(it.id)}"></span>`);       // filled in with the wave forecast
   if (it.st) line.push(`<span>${it.st}-star</span>`);
   const ft = it.c === "munch" ? foodType(it) : null;
   if (ft) line.push(`<span class="ftype">${esc(ft)}</span>`);
@@ -132,7 +133,7 @@ function placeCard(it, pt){
   }
   return `<article class="card" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
     <div class="ph" data-ph="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
-    <div class="body"><h3>${esc(it.n)}</h3>${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
+    <div class="body"><h3>${esc(it.n)}</h3>${kr != null ? `<div class="rate">${starsHTML(kr)}</div>` : ""}${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>
       ${line.length ? `<div class="line">${line.join("")}</div>` : ""}
       ${blurb ? `<div class="blurb">${esc(blurb)}</div>` : ""}
@@ -140,7 +141,15 @@ function placeCard(it, pt){
 }
 
 /* ---------- list pages ---------- */
-const RADII = [[2, "Within 2 km"], [10, "10 km"], [50, "50 km"], [0, "Anywhere"]];
+const RADIUS_MAX = 50;                                   // the distance slider runs 1 to 50 km, then "50+" (0 = any distance)
+const radiusLabel = r => r ? `Within ${r} km` : "50+ km (any distance)";
+// a place we expect to show a real photo: a free photo link that passes the photo rules, one saved with a city, or one seen before
+const likelyPhoto = it => !!(((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
+// the list opens on a card with a photo: the first such place in the current order moves to the top, the rest keep their order
+function photoFirst(items){
+  const i = items.slice(0, 80).findIndex(likelyPhoto);
+  return i > 0 ? [items[i]].concat(items.slice(0, i), items.slice(i + 1)) : items;
+}
 const LIST_COPY = {
   gaff:{title:"Gaffs", sub:"Hostels, guesthouses and hotels", ph:"Search stays by name", img:HERO_IMG.gaffs},
   munch:{title:"Munch", sub:"Street food, markets, cafés and restaurants", ph:"Search food, restaurants, street food", img:HERO_IMG.munch},
@@ -168,8 +177,11 @@ function listItems(cat){
   let cur = D.places.filter(p => p.c === cat && test(p));
   if (!pt.none && st.radius) cur = cur.filter(p => dist(pt, p) <= st.radius);
   const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius));
+  // surf spots are few and far between, so the Surf chip looks much further than the usual 40 km
+  const surfKm = st.radius || (st.chip === "surf" ? 400 : 40), have = new Set(osm.map(p => p.id));
+  if (cat === "cool") SURF.forEach(p => { if (!have.has(p.id) && test(p) && (pt.none ? p.cc === S.country : dist(pt, p) <= surfKm)) osm.push(p); });
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
-  return sortItems(cur.concat(osm), how, pt.none ? null : pt);
+  return photoFirst(sortItems(cur.concat(osm), how, pt.none ? null : pt));
 }
 function listKey(cat){ const st = ui.lists[cat], pt = focusPt(); return JSON.stringify([pt.lat, pt.lng, st.radius, st.chip, [...st.flags], st.q, st.open, st.picks, st.minR, ui.pf[cat], st.sort === "top"]); }
 const isKnown = p => !!(p.wd || p.wp || p.wpx || p.x);
@@ -208,7 +220,6 @@ function paintListBody(cat){
   html += `<p class="note" style="margin-top:10px"><b style="color:var(--ink)">${items.length.toLocaleString("en-GB")}${run.more ? "+" : ""}</b> ${items.length === 1 ? "place" : "places"}${esc(whereTxt)}. <span id="listStatus"></span></p>`;
   if (st.sort === "top" && !pt.none && items.length) html += `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`;
   if (chip && chip.note) html += `<p class="note" style="margin-top:4px">${esc(chip.note)}</p>`;
-  if (pfOn(cat)) html += `<p class="note pf-note" style="margin-top:4px">${esc(pfExplain(cat, []))} <button class="linkish" type="button" data-pfclear>Clear the maximum</button></p>`;
   if (st.open) html += `<p class="note" style="margin-top:4px">Open now only counts places whose opening hours are known (Thailand time). Places with unknown hours are left out.</p>`;
   if (pt.none) html += `<div class="callout">${icon("pin")}<div><b>Pick a place to see everything nearby.</b> You’re seeing the researched places only.<div class="row" style="margin-top:8px"><button class="btn small primary" type="button" data-where>Choose a place</button></div></div></div>`;
   if (!items.length){
@@ -225,9 +236,8 @@ function paintListBody(cat){
   paintListStatus(cat);
   const more = $("#listMore"); if (more) more.onclick = () => { st.shown += 30; paintListBody(cat); };
   const any = body.querySelector("[data-anywhere]"); if (any) any.onclick = () => { st.radius = 0; renderPage(); };
-  const pc = body.querySelector("[data-pfclear]"); if (pc) pc.onclick = () => { setPF(cat, null); renderPage(); };
   const clr = body.querySelector("[data-clear]"); if (clr) clr.onclick = () => { ui.lists[cat] = newList(cat); ui.pf[cat] = newPF(); renderPage(); };
-  watchCardPhotos(body);
+  watchCardPhotos(body); paintSurf(body);
 }
 const MAX_GUESTS = 30;
 function stayStrip(){
@@ -249,14 +259,13 @@ function renderList(cat){
   let fp = "";
   if (st.filters){
     fp = `<div class="fpanel" id="fpanel">
-      <div><div class="note" style="margin-bottom:4px">Distance</div><div class="flags">${RADII.map(([r, l]) => `<button class="chip soft" type="button" data-radius="${r}" aria-pressed="${+st.radius === r}" ${focusPt().none ? "disabled" : ""}>${l}</button>`).join("")}</div></div>
+      <div class="dist"><div class="note"><span>Distance</span><b id="l-distlab">${radiusLabel(st.radius)}</b></div><input type="range" id="l-dist" min="1" max="${RADIUS_MAX + 1}" step="1" value="${st.radius ? Math.min(st.radius, RADIUS_MAX) : RADIUS_MAX + 1}" aria-label="Distance in kilometres, up to 50 plus" ${focusPt().none ? "disabled" : ""}><div class="dist-ends"><span>0</span><span>25 km</span><span>50+</span></div></div>
       <div class="controls"><label class="field">Sort<select data-sort>${sorts.map(([v, l]) => `<option value="${v}" ${st.sort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       ${cat === "gaff" ? `<label class="field">Reviews<select data-minr>${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+st.minR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
 </div>
       <div class="map-chips mfilt pf-row">${pfControls(cat)}</div>
       ${cat === "gaff" ? `<div><div class="note" style="margin-bottom:4px">Rooms and facilities (only where the information exists)</div><div class="flags">${GAFF_FLAGS.map(f => `<button class="chip soft" type="button" data-flag="${f.id}" aria-pressed="${st.flags.has(f.id)}">${f.l}</button>`).join("")}</div></div>` : ""}
       <button class="switch" type="button" data-picks aria-pressed="${st.picks}"><i></i>Researched places only (with prices and sources)</button>
-      <p class="note">A maximum price uses each place’s researched “from” price, or its typical estimate (est.) where nobody has published one. Places with no price are left out, never counted as cheap or free. ${cat === "gaff" ? "Dorm-bed and room prices are compared separately. OpenStreetMap places have no ratings, so a review filter hides them." : ""}</p>
     </div>`;
   }
   root.innerHTML = hero({title:copy.title, sub:`${copy.sub} ${focusPt().none ? "in " + D.countries[S.country].name : "around " + focusLabel()}`, img:copy.img}) + `<div class="page">
@@ -284,7 +293,12 @@ function bindList(cat){
   $("#l-filters").onclick = () => { st.filters = !st.filters; renderPage(); };
   const op = $("#l-open"); if (op) op.onclick = () => { st.open = !st.open; op.setAttribute("aria-pressed", st.open); refresh(); };
   $("#l-map").onclick = () => { ui.mapCats = new Set([cat]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); };
-  root.querySelectorAll("[data-radius]").forEach(b => b.onclick = () => { st.radius = +b.dataset.radius; renderPage(); });
+  const ds = $("#l-dist");
+  if (ds){
+    const val = () => +ds.value > RADIUS_MAX ? 0 : +ds.value;            // the far end of the slider means "50 km and beyond"
+    ds.oninput = () => { $("#l-distlab").textContent = radiusLabel(val()); };
+    ds.onchange = () => { st.radius = val(); renderPage(); };
+  }
   root.querySelectorAll("[data-flag]").forEach(b => b.onclick = () => { const f = b.dataset.flag; st.flags.has(f) ? st.flags.delete(f) : st.flags.add(f); renderPage(); });
   const so = root.querySelector("[data-sort]"); if (so) so.onchange = () => { st.sort = so.value; renderPage(); };
   bindPF(root, cat, () => renderPage());

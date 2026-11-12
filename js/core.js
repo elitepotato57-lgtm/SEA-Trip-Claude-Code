@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.6.0";
+const VERSION = "2.7.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 

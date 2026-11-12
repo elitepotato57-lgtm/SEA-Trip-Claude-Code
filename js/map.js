@@ -286,7 +286,7 @@ function activeGroups(){
 }
 const essKindSet = () => new Set([...ui.essKinds].flatMap(id => ESS_BY_ID[id].kinds));
 function curatedForMap(){
-  return D.places.filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
+  return D.places.concat(SURF).filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
 }
 
 /* ---------- the filter row: shown when one section is picked ---------- */
@@ -433,18 +433,8 @@ function renderMapStatus(){
   let txt = "";
   if (Places.state === "off" && activeGroups().length && !ui.mapSaved) txt = "Showing researched places only (the full list needs signal once)";
   else if (mapRun.failed && !ui.mapSaved && activeGroups().length) txt = "Some places couldn’t load. Check your signal, then move the map";
-  else if (mapRun.loading) txt = "Loading places…";
-  else if (mapRun.mode === "summary" && mapRun.total){
-    const priced = shownFilterCats().some(k => k !== "move");
-    const what = ui.mapCats.size === 1 && ui.mapCats.has("move") && ui.mf.move.t !== "all" ? MOVE_TYPES.find(t => t[0] === ui.mf.move.t)[1].toLowerCase() : "places";
-    txt = `${mapRun.total.toLocaleString("en-GB")} ${what} here. ${priced ? "Counts are before the price filter: zoom in to filter" : "Zoom in to see them"}`;
-  }
-  else if (mapFilterOn()){
-    const n = mapRun.items.length, h = mapRun.hidden || {};
-    const why = [h.unknown ? `${h.unknown} with no known price hidden` : "", h.basis ? `${h.basis} priced per ${ui.pf.gaff.basis === "bed" ? "room" : "bed"} hidden` : ""].filter(Boolean).join(", ");
-    txt = n ? `${n.toLocaleString("en-GB")} ${n === 1 ? "match" : "matches"}${why ? " · " + why : ""}` : `Nothing here matches${why ? " (" + why + ")" : ""}. Try another price or zoom out`;
-  }
-  else if (ui.mapSaved) txt = `${Object.keys(S.saved).length} saved`;
+  // no running count of places (it only took up room): this spot speaks up only when something needs saying
+  else if (mapRun.mode !== "summary" && !mapRun.loading && mapFilterOn() && !mapRun.items.length) txt = "Nothing here matches. Try another price or zoom out";
   const el = $("#mapStatusTxt"); if (el){ el.textContent = txt; el.hidden = !txt; }
 }
 
