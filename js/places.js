@@ -9,7 +9,7 @@ const KIND = {
   apartment:{l:"Apartment",ic:"bed"}, motel:{l:"Motel",ic:"bed"}, campsite:{l:"Campsite",ic:"tree"}, hut:{l:"Park hut",ic:"tree"},
   restaurant:{l:"Restaurant",ic:"food"}, cafe:{l:"Café",ic:"coffee"}, fastfood:{l:"Quick eats",ic:"food"}, foodcourt:{l:"Food court",ic:"food"},
   bakery:{l:"Bakery",ic:"coffee"}, dessert:{l:"Dessert",ic:"coffee"}, market:{l:"Market",ic:"cart"},
-  beach:{l:"Beach",ic:"waves"}, temple:{l:"Temple",ic:"temple"}, worship:{l:"Shrine or place of worship",ic:"temple"}, historic:{l:"Historic site",ic:"temple"},
+  beach:{l:"Beach",ic:"waves"}, surf:{l:"Surf spot",ic:"waves"}, surfschool:{l:"Surf school or hire",ic:"waves",biz:1}, temple:{l:"Temple",ic:"temple"}, worship:{l:"Shrine or place of worship",ic:"temple"}, historic:{l:"Historic site",ic:"temple"},
   attraction:{l:"Attraction",ic:"camera"}, viewpoint:{l:"Viewpoint",ic:"camera"}, museum:{l:"Museum or gallery",ic:"temple"}, zoo:{l:"Zoo or aquarium",ic:"fish"},
   themepark:{l:"Theme or water park",ic:"ticket"}, waterfall:{l:"Waterfall",ic:"drop"}, peak:{l:"Peak",ic:"mountain"}, cave:{l:"Cave",ic:"mountain"},
   hotspring:{l:"Hot spring",ic:"drop"}, park:{l:"Park",ic:"tree"}, nationalpark:{l:"National park or reserve",ic:"tree"}, dive:{l:"Dive centre",ic:"fish",biz:1},
@@ -404,6 +404,14 @@ function thaiPair(s, sayId){
 }
 const romName = it => thaiRom.has(it.n) ? thaiRom.text(it.n) : "";
 
+/* ---------- surf: the places OpenStreetMap tags for surfing (D.surf, built by tools/osm/surf.js) ---------- */
+const isSurf = it => it.k === "surf" || it.k === "surfschool";
+const SURF = (D.surf || []).map(([id, lat, lng, n, kind, cc]) => {
+  const k = kind === "spot" ? "surf" : "surfschool", near = D.cities.reduce((b, c) => { const d = dist({lat, lng}, {lat:c[1], lng:c[2]}); return d < b[1] ? [c[0], d] : b; }, ["", 60]);
+  const place = near[0] || (D.countries[cc] || {name:""}).name;
+  return {id:"o:" + id, osm:true, surf:true, g:"do", c:"cool", k, n, cc, city:place, area:place, lat, lng, ap:false, t:[KIND[k].l], p:null, cur:null, r:null, s:[], tips:[], verified:false};
+});
+SURF.forEach(p => Places.byId.set(p.id, p));
 function findPlace(id){
   return CUR_BY_ID[id] || Places.byId.get(id) || (S.saved[id] && S.saved[id].snap) || null;
 }
@@ -563,6 +571,7 @@ const CHIPS = {
     {id:"beaches", l:"Beaches", ic:"waves", f:it => it.k === "beach" || hasT(it, "Beaches")},
     {id:"temples", l:"Temples", ic:"temple", f:it => it.osm ? it.k === "temple" || it.k === "worship" : hasT(it, "Temples")},
     {id:"markets", l:"Markets", ic:"cart", f:it => it.k === "market" || hasT(it, "Markets")},
+    {id:"surf", l:"Surf", ic:"waves", f:it => isSurf(it) || /\bsurf/.test(ptext(it))},
     {id:"diving", l:"Diving", ic:"fish", f:it => it.k === "dive" || hasT(it, "Diving")},
     {id:"snorkel", l:"Snorkelling", ic:"fish", f:it => /snorkel/.test(ptext(it))},
     {id:"hiking", l:"Hiking", ic:"mountain", f:it => it.osm ? ["peak","nationalpark"].includes(it.k) : hasT(it, "Hikes")},

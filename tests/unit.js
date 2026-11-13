@@ -516,6 +516,42 @@ test("researched places matched to Wikidata are the place itself", () => {
   ok(!A.D.places.some(p => p.c === "gaff" && p.wd && !p.wp && /^Q(476320|375819|511957|1026424)$/.test(p.wd)), "no hostel shows its town's photo");
 });
 
+/* ---------- list polish and surf ---------- */
+test("the list opens on a place with a photo and keeps the rest in order", () => {
+  const a = {id:"a", n:"A"}, b = {id:"b", n:"B"}, c = {id:"c", n:"Melasti", wd:"Q116269439"}, d = {id:"d", n:"D", wd:"Q1"};
+  eq(A.photoFirst([a, b, c, d]).map(x => x.id), ["c", "a", "b", "d"]);
+  eq(A.photoFirst([c, a]).map(x => x.id), ["c", "a"], "already first: untouched");
+  eq(A.photoFirst([a, b]).map(x => x.id), ["a", "b"], "nothing with a photo: untouched");
+  ok(!A.likelyPhoto({id:"t", osm:1, k:"temple", n:"Wat X", wd:"Q5"}), "a temple's held-back photo doesn't count");
+});
+test("the distance slider's far end means any distance", () => {
+  eq(A.radiusLabel(7), "Within 7 km"); ok(/50\+/.test(A.radiusLabel(0))); eq(A.RADIUS_MAX, 50);
+});
+test("your own maximum price is typed in pounds", () => {
+  eq(A.setPF("munch", "3.5"), ""); eq([A.ui.pf.munch.max, A.ui.pf.munch.cur], [3.5, "GBP"]);
+  ok(A.setPF("munch", "-3") !== "", "a negative amount is refused"); ok(A.setPF("munch", "abc") !== "");
+  const html = A.pfControls("munch");
+  ok(/class="chip pf-in on"/.test(html) && !/data-pfset|data-pfcur|Custom/.test(html), "one chip-sized box, no Set button, no currency menu");
+  A.setPF("munch", null);
+});
+test("surf spots come from OpenStreetMap and sit in Activities", () => {
+  ok(A.SURF.length >= 20 && A.SURF.every(p => /^o:[nwr]\d+$/.test(p.id) && p.c === "cool" && A.isSurf(p) && A.ccAt(p.lat, p.lng) === p.cc), "every surf place is inside a covered country");
+  ok(A.SURF.some(p => p.k === "surf" && /Gerupuk/.test(p.n)), "Gerupuk (Lombok) is a surf spot");
+  ok(A.SURF.filter(p => /school|shop|hire|rental/i.test(p.n)).every(p => p.k === "surfschool"), "schools and shops aren't called surf spots");
+  const chip = A.CHIPS.cool.find(c => c.id === "surf");
+  ok(chip.f(A.SURF[0]) && !chip.f({osm:true, k:"temple", n:"Wat X"}));
+  eq(A.findPlace(A.SURF[0].id), A.SURF[0]);
+});
+test("the wave forecast is turned into feet and plain words, never a guess when the sea model has nothing", () => {
+  const f = A.surfRead({current:{wave_height:1.4, wave_period:11, wave_direction:208, swell_wave_height:1.36, swell_wave_period:9.3}}, {current:{wind_speed_10m:9, wind_direction_10m:95}});
+  near(f.ft, 4.59, 0.01); eq(f.size, "Solid"); eq(A.surfShort(f), "4.6 ft @ 11 s · Solid");
+  eq([A.surfSize(0.5), A.surfSize(1.5), A.surfSize(3), A.surfSize(7), A.surfSize(12)], ["Flat", "Small", "Fun-size", "Big", "Very big"]);
+  eq(A.surfRead({current:{wave_height:null}}, null), null, "inland or no data: nothing shown");
+  eq([A.compass(208), A.compass(0), A.compass(359)], ["SW", "N", "N"]);
+  ok(/^https:\/\/www\.surfline\.com\/search\/Gerupuk%20Inside$/.test(A.surfLink({n:"Gerupuk Inside"})));
+  ok(A.wantsSurf({osm:true, k:"beach"}) && A.wantsSurf(A.SURF[0]) && !A.wantsSurf({osm:true, k:"museum"}));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};

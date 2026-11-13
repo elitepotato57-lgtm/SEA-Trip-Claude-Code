@@ -119,3 +119,17 @@ npm test                      # unit tests, then the browser run
 PORT=8766 npm run test:smoke  # if 8765 is busy
 node tests/photos-perf.js     # photo timings (needs signal)
 ```
+
+## 13 Nov 2026: polish and surf (branch `claude/polish-and-surf`)
+
+- Price filter: one box the size of the price buttons for your own amount in pounds (no "Custom" box, currency menu or Set button).
+- Distance filter: a slider from 1 to 50 km, then 50+ (any distance), on Gaffs, Munch and Activities.
+- Removed: the long price explanation in Filters and under the lists; the place count beside Map / List on the map.
+- Stars sit directly under the name on cards, wherever a rating is known (researched places; nothing is invented).
+- Each list opens on a card that has a photo; the rest keep their order.
+- The page can no longer be double-tapped or pinched to zoom (the map still pinches).
+- Surf: a Surf chip in Activities; 18 surf spots and 17 schools/shops from OpenStreetMap (also on the map); live wave height,
+  period and wind from Open-Meteo on surf cards and on every beach's details; an "Open on Surfline" button.
+  Surfline offers no data to other apps, so its ratings and spot list are not copied. The Surfline link could not be
+  checked from here (Surfline blocks automated visits).
+- Tests: unit 71 passed; browser suite 98 passed.

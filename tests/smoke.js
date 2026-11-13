@@ -118,12 +118,29 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   // the same filter, the same answer in the Munch list
   await page.goto(BASE + "#munch"); await page.waitForTimeout(3000);
   const lst = await page.evaluate(() => ({max:ui.pf.munch.max, all:listItems("munch").every(p => passPF(p, "munch")), note:!!document.querySelector(".pf-note")}));
-  ok(lst.max === 2 && lst.all && lst.note, "the Munch list keeps the £2 maximum from the map and applies the same rule " + JSON.stringify(lst));
+  ok(lst.max === 2 && lst.all && !lst.note, "the Munch list keeps the £2 maximum from the map and applies the same rule, with no explanation taking up room " + JSON.stringify(lst));
+  // list polish: the distance slider (1 to 50 km, then 50+), a photo card first, stars under the name, no long price note
+  await page.goto(BASE + "#activities"); await page.waitForTimeout(3500);
+  await page.click("#l-filters"); await page.waitForTimeout(400);
+  const sl = await page.evaluate(() => { const d = document.querySelector("#l-dist"); return {min:d.min, max:d.max, val:d.value, lab:document.querySelector("#l-distlab").textContent, chips:document.querySelectorAll("[data-radius]").length, note:/A maximum price uses/.test(document.querySelector("#fpanel").textContent)}; });
+  ok(sl.min === "1" && sl.max === "51" && sl.val === "51" && /50\+/.test(sl.lab) && !sl.chips && !sl.note, "Filters has a distance slider up to 50+ km and no long price note " + JSON.stringify(sl));
+  await page.evaluate(() => { const d = document.querySelector("#l-dist"); d.value = "7"; d.dispatchEvent(new Event("input", {bubbles:true})); d.dispatchEvent(new Event("change", {bubbles:true})); }); await page.waitForTimeout(2500);
+  const sl2 = await page.evaluate(() => { const pt = focusPt(); return {r:ui.lists.cool.radius, lab:document.querySelector("#l-distlab").textContent, far:listItems("cool").filter(p => dist(pt, p) > 7).length}; });
+  ok(sl2.r === 7 && /Within 7 km/.test(sl2.lab) && sl2.far === 0, "sliding to 7 km keeps only places within 7 km " + JSON.stringify(sl2));
+  await page.evaluate(() => { ui.lists.cool.radius = 0; ui.lists.cool.filters = false; renderPage(); }); await page.waitForTimeout(2500);
+  const top = await page.evaluate(() => { const it = listItems("cool"); const c = document.querySelector("#pageview .card"); const r = c.querySelector(".rate"), h = c.querySelector("h3");
+    return {first:likelyPhoto(it[0]), anyRate:!!document.querySelector("#pageview .card .rate"), under:!r || h.nextElementSibling === r}; });
+  ok(top.first && top.under, "the first Activities card is one with a photo, and stars sit right under the name " + JSON.stringify(top));
+  await page.goto(BASE + "#gaffs"); await page.waitForTimeout(3000);
+  ok(await page.evaluate(() => { const r = document.querySelector("#pageview .card .rate"); return !!r && r.previousElementSibling.tagName === "H3" && !!r.querySelector(".stars"); }), "researched hostels show their stars directly under the name");
+  ok(await page.evaluate(() => /user-scalable=no/.test(document.querySelector('meta[name="viewport"]').content) && getComputedStyle(document.documentElement).touchAction === "pan-x pan-y"), "the page can't be double-tapped or pinched to zoom like a website");
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
-  // a custom amount in baht is converted at the app's rate; a nonsense amount is refused
-  await page.fill('#mapFilt [data-pfamt]', "60"); await page.selectOption('#mapFilt [data-pfcur]', "THB"); await page.click('#mapFilt [data-pfset]'); await page.waitForTimeout(1200);
-  ok(await page.evaluate(() => Math.abs(ui.pf.munch.max - Math.round(toGBP(60, "THB") * 100) / 100) < 0.011), "a custom maximum of ฿60 is converted to pounds at the app's rate");
-  await page.fill('#mapFilt [data-pfamt]', "-3"); await page.click('#mapFilt [data-pfset]'); await page.waitForTimeout(500);
+  // your own amount: one box the size of the preset buttons, in pounds; a nonsense amount is refused
+  const box = await page.evaluate(() => { const b = document.querySelector("#mapFilt .pf-in"), c = document.querySelector('#mapFilt [data-pfp="2"]'); return {h:b.offsetHeight, ch:c.offsetHeight, w:b.offsetWidth, old:!!document.querySelector("#mapFilt [data-pfset], #mapFilt [data-pfcur]")}; });
+  ok(box.h === box.ch && box.w < 80 && !box.old, "the own-amount box is the size of a price button, with no Set button or currency menu " + JSON.stringify(box));
+  await page.fill('#mapFilt [data-pfamt]', "3.5"); await page.press('#mapFilt [data-pfamt]', "Enter"); await page.waitForTimeout(1200);
+  ok(await page.evaluate(() => ui.pf.munch.max === 3.5 && ui.pf.munch.cur === "GBP" && document.querySelector("#mapFilt .pf-in").classList.contains("on") && mapRun.items.every(p => passPF(p, "munch"))), "typing 3.5 sets a £3.50 maximum");
+  await page.fill('#mapFilt [data-pfamt]', "-3"); await page.press('#mapFilt [data-pfamt]', "Enter"); await page.waitForTimeout(500);
   ok(await page.evaluate(() => ui.pf.munch.max > 0 && document.querySelector('#mapFilt [data-pfamt]').getAttribute("aria-invalid") === "true"), "a negative custom amount is refused");
   ok(await page.evaluate(() => !document.querySelector("#mapFilt [data-mr]")), "no star filter (places have no ratings to filter on)");
   await page.click('#mapFilt [data-pfp=""]'); await page.waitForTimeout(600);
@@ -137,8 +154,25 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.evaluate(() => { setFocus({n:"Palembang", lat:-2.9888, lng:104.7569}); setCountry("ID", true); });
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
   await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.7569, -2.9888], zoom:14.5}); }); await page.waitForTimeout(4000);
-  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, lab:(document.querySelector('#mapFilt [data-pfcur]') || {}).textContent}));
-  ok(idMap.id > 20 && /Rp/.test(idMap.lab || ""), "Palembang food shows on the map, with a custom maximum in rupiah " + JSON.stringify(idMap));
+  const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, box:!!document.querySelector('#mapFilt [data-pfamt]')}));
+  ok(idMap.id > 20 && idMap.box, "Palembang food shows on the map, with the price filter " + JSON.stringify(idMap));
+  // Surf: the Activities chip lists surf spots with a live wave forecast; a spot's details link to Surfline
+  await page.evaluate(() => { setFocus({n:"Kuta Lombok", lat:-8.8853, lng:116.2757}); });
+  await page.goto(BASE + "#activities"); await page.waitForTimeout(2500);
+  await page.click('[data-chip="surf"]'); await page.waitForTimeout(6000);
+  const surf = await page.evaluate(() => ({n:listItems("cool").filter(p => p.k === "surf").length, all:listItems("cool").every(p => isSurf(p) || /\bsurf/.test(ptext(p))), wave:[...document.querySelectorAll("[data-surf]")].map(e => e.textContent).filter(Boolean)[0] || ""}));
+  ok(surf.n >= 3 && surf.all, "the Surf chip lists surf spots near Kuta Lombok " + JSON.stringify(surf));
+  ok(/ft/.test(surf.wave) || surf.wave === "", "surf cards show the wave height when the forecast answers " + JSON.stringify(surf.wave));
+  const spot = await page.evaluate(() => listItems("cool").find(p => p.k === "surf").id);
+  await page.click(`.card[data-open="${spot}"]`); await page.waitForTimeout(3500);
+  const sb = await page.evaluate(() => ({box:!!document.querySelector("#surfBox"), link:(document.querySelector('#surfBox a[href*="surfline.com"]') || {}).href || "", txt:document.querySelector("#surfTxt").textContent.slice(0, 80)}));
+  ok(sb.box && /surfline\.com\/search\//.test(sb.link), "a surf spot's details show Surf now and an Open on Surfline button " + JSON.stringify(sb));
+  await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(500);
+  await page.evaluate(() => { ui.lists.cool.chip = "all"; ui.mapCats = new Set(["cool"]); });
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => { renderMapUI(); map.jumpTo({center:[116.2757, -8.8853], zoom:12}); }); await page.waitForTimeout(4000);
+  ok(await page.evaluate(() => mapRun.items.some(p => p.k === "surf")), "surf spots show on the map with Activities");
+  await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); });
   const pem = await page.evaluate(async () => (await Places.search("pempek", {lat:-2.9888, lng:104.7569})).map(s => s.n));
   ok(pem.length > 0 && pem.every(n => /pempek|empek/i.test(n)), "search finds pempek places in Palembang " + JSON.stringify(pem.slice(0, 3)));
   await page.evaluate(() => { setFocus({n:"Ubud", lat:-8.5069, lng:115.2625}); });
@@ -160,7 +194,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   // Transport on the map: Airports counts only airports, zoomed out and in, and a selected airport stays selected through zooming
   await page.evaluate(() => { ui.mapCats = new Set(["move"]); ui.mf.move.t = "airport"; renderMapUI(); map.jumpTo({center:[100.6, 13.8], zoom:8}); }); await page.waitForTimeout(3500);
   const air = await page.evaluate(() => ({mode:mapRun.mode, total:mapRun.total, status:document.querySelector("#mapStatusTxt").textContent}));
-  ok(air.total > 0 && air.total < 20 && /airports here/.test(air.status), "zoomed out, Transport › Airports counts only airports " + JSON.stringify(air));
+  ok(air.total > 0 && air.total < 20 && !/\d/.test(air.status), "zoomed out, Transport › Airports counts only airports, and no place count is shown beside Map / List " + JSON.stringify(air));
   await page.evaluate(() => map.jumpTo({center:[100.65, 13.8], zoom:10})); await page.waitForTimeout(3500);
   const airIn = await page.evaluate(() => ({mode:mapRun.mode, n:mapRun.items.length, kinds:[...new Set(mapRun.items.map(p => p.k))]}));
   ok(airIn.mode === "detail" && airIn.n >= 2 && airIn.kinds.every(k => k === "airport"), "zoomed in, only airport pins " + JSON.stringify(airIn));
@@ -310,8 +344,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const k = await pg.evaluate(() => ({cc:S.country, st:locStatus, km:map ? dist({lat:map.getCenter().lat, lng:map.getCenter().lng}, {lat:11.5683, lng:104.9224}) : null}));
     ok(k.cc === "KH" && k.st === "ok" && k.km < 3, "a fresh install in Phnom Penh picks Cambodia and centres on it " + JSON.stringify(k));
     await pg.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.9224, 11.5683], zoom:14.5}); }); await pg.waitForTimeout(4000);
-    const km = await pg.evaluate(() => ({n:mapRun.items.length, kh:mapRun.items.filter(p => p.cc === "KH").length, cur:[...document.querySelectorAll("#mapFilt [data-pfcur] option")].map(o => o.textContent)}));
-    ok(km.kh > 20 && km.cur.includes("$"), "Phnom Penh food shows on the map, with a custom maximum in dollars " + JSON.stringify(km));
+    const km = await pg.evaluate(() => ({n:mapRun.items.length, kh:mapRun.items.filter(p => p.cc === "KH").length, box:!!document.querySelector("#mapFilt [data-pfamt]")}));
+    ok(km.kh > 20 && km.box, "Phnom Penh food shows on the map, with the price filter " + JSON.stringify(km));
     await pg.goto(BASE + "#munch"); await pg.waitForTimeout(3500);
     const ml = await pg.evaluate(() => { const t = (document.querySelector("#pageview .cards") || {}).textContent || ""; return {cards:document.querySelectorAll("#pageview .card[data-open]").length, usd:/\$\d/.test(t), baht:/฿/.test(t)}; });
     ok(ml.cards > 5 && ml.usd && !ml.baht, "the Munch list in Phnom Penh shows dollar estimates, never baht " + JSON.stringify(ml));

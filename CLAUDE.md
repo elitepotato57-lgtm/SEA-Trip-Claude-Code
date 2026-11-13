@@ -19,6 +19,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   OpenStreetMap has no ratings and only researched hostels do, so the map filters on price, not stars.
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
 - `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
+- Surf: `D.surf` (surf spots and schools from OpenStreetMap, rebuilt by `node tools/osm/surf.js`) becomes `SURF` in `js/places.js`;
+  the wave forecast (`surfNow`, Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
 - `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta).
   Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.

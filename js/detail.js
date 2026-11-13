@@ -414,6 +414,7 @@ function openDetail(id){
   if (it.nt) facts.push(fact("Name in Thai (show a driver)", `<span lang="th" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button><div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>`, true));
   body += `<div class="facts">${facts.join("")}<div class="fact wide" id="gFacts" hidden></div></div>`;
   if (roomGaps) body += `<p class="note" style="margin:-2px 0 8px">More details (breakfast, beds, bathrooms, room types) on the booking site: <a href="${esc(L_booking(it.n + " " + it.city))}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(L_agoda(it.n + " " + it.city))}" target="_blank" rel="noopener">Agoda</a></p>`;
+  if (wantsSurf(it)) body += surfBlock(it);
   if (it.desc) body += `<p style="margin:8px 0">${esc(it.desc)}</p>`;
   if (it.k === "water") body += `<div class="callout">${icon("alert")}<div><b>Check before you drink.</b> A refill point on the map is not proof the water is safe. Look for a filtered or reverse-osmosis machine${it.paid ? " (usually ฿1–2 a litre)" : ""}, and ask locally if unsure.</div></div>`;
   if (isBiz(it) && it.osm) body += `<div class="callout">${icon("info")}<div><b>This is a business, not a public sight.</b> Prices and availability are theirs to confirm. Contact them or check their website before you go.</div></div>`;
@@ -445,6 +446,7 @@ function openDetail(id){
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
+  if (wantsSurf(it)) fillSurf(it);
   const box0 = $("#photoBox");
   // the photo loads by itself: Google first when there's a key (within today's allowance), then a free Wikimedia photo
   const viaGoogle = () => googlePlace(it, ["photos"]).then(pl => {
