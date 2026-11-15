@@ -62,15 +62,24 @@ function showGoogleFacts(it, g){
   el.hidden = false;
   el.innerHTML = `<span class="l">On Google Maps</span>${g.r ? `${starsHTML(g.r * 2)} <span class="note">${g.n ? g.n.toLocaleString("en-GB") + " reviews" : ""}</span>` : ""}${g.pl && G_PRICE[g.pl] ? `<div class="note">Price level: ${esc(G_PRICE[g.pl])}</div>` : ""}`;
 }
+/* Hostels: the first of Google's reviews (they come most relevant first) that is 30 characters or fewer, with its author,
+   so a card can show it whole. Long reviews are never cut down; no short one means nothing is shown. */
+function shortReview(reviews){
+  for (const r of reviews || []){
+    const t = String((r && (typeof r.text === "string" ? r.text : r.text && r.text.text)) || "").replace(/\s+/g, " ").trim();
+    if (t && t.length <= 30){ const a = r.authorAttribution || r.author_attribution || {}; return {t, by:String(a.displayName || a.display_name || "").slice(0, 40), r:r.rating || null}; }
+  }
+  return null;
+}
 /* rating, review count and price level: one small Google lookup per place, then kept on the phone for a week */
 async function googleFacts(it){
   const key = "gfacts:" + it.id, hit = lsGet(key);
   if (hit && Date.now() - hit.at < 7 * 864e5){ showGoogleFacts(it, hit); return; }
   if (!gAllow("details")) return;
-  const fields = ["rating", "userRatingCount", "priceLevel"].concat(it.cur_ ? ["location"] : []);
+  const fields = ["rating", "userRatingCount", "priceLevel"].concat(it.cur_ ? ["location"] : [], it.c === "gaff" ? ["reviews"] : []);
   const pl = await googlePlace(it, fields); if (!pl) return;
   gSpend("details");
-  const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, at:Date.now()};
+  const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, rev:shortReview(pl.reviews), at:Date.now()};
   lsSet(key, g); if (g.r) G_RATINGS.set(it.id, g.r); showGoogleFacts(it, g);
   applyGoogleExtras(it, pl);
 }

@@ -31,12 +31,12 @@ function rerender(){ if (ui.view === "map") renderMapUI(); else renderPage(); }
 function go(hash){ if (location.hash === hash) show(); else location.hash = hash; }
 
 /* ---------- page header ---------- */
-function hero({title, sub = "", img = "", back = null, where = true}){
+function hero({title, sub = "", img = "", back = null, where = true, action = ""}){
   const n = Object.keys(S.saved).length;
   const left = back ? `<a class="crumb" href="${back[0]}">${icon("back","i s")}${esc(back[1])}</a>`
     : where ? `<button class="where" type="button" data-where aria-label="Change where you are looking">${icon("pin","i s")}<span>${esc(focusLabel())}</span>${icon("chevd","i xs")}</button>` : "";
   return `<header class="hero ${back ? "slim" : ""}" ${img ? `style="--hero:url('${img}')"` : ""}>
-    <div class="hero-top">${left}<span class="sp"></span>
+    <div class="hero-top">${left}<span class="sp"></span>${action}
       <a class="hbtn" href="#saved" aria-label="Saved places${n ? `, ${n}` : ""}">${icon("bookmark")}${n ? `<span class="n" id="savedCount">${n}</span>` : ""}</a>
       <a class="hbtn" href="#tools/settings" aria-label="Settings">${icon("cog")}</a></div>
     <h1>${esc(title)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</header>`;

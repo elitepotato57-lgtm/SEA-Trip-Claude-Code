@@ -22,7 +22,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
   Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
-- `js/friends.js`: Tools › Friends (location sharing) over Firebase REST (anonymous sign-in + Realtime Database, free Spark plan).
+- `js/friends.js`: Tools › Friends: friends list, a friends map (`frMapI`, glides with flyTo), live split (embedded `splitSectionHTML`),
+  Rock Paper Scissors (`games/`, live via `frListen` event stream with polling fallback). Firebase REST (anonymous sign-in + Realtime Database, free Spark plan).
+  Sharing uses its own GPS watch (`frHere`), never the pretend test location. Developer phone (7 taps on Settings › About the data,
+  then claim; `admins/`) is the only one that can set friends' photos (`photos/`, small JPEGs).
   Dylan adds `window.SEA_FIREBASE = {apiKey, databaseURL}` to `config.js` himself (FIREBASE-SETUP.md); rules in `firebase/database.rules.json`
   (keep them and `tests/fakefirebase.js` in step). Sharing is off until switched on, per friend; only real GPS is sent, only while open.
 - `js/split.js`: Tools › Split costs: "On this phone" (`S.split`, shared by link) or a live group with friends (bottom of

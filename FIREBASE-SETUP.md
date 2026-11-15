@@ -45,6 +45,12 @@ Commit it. In a minute or two, close and reopen the app twice. **Tools › Frien
 New features sometimes need new rules (live split groups did). If something says "Firebase said no", open
 **Realtime Database › Rules**, replace everything with the latest `firebase/database.rules.json` and **Publish** again.
 
+## Developer phone (faces for everyone)
+
+On your iPhone: **Settings**, tap the **About the data** heading 7 times ("Developer mode on"). Then **Tools › Friends ›
+Add friend › Make this phone the developer**. Only the first phone to do this gets it; the database refuses anyone else.
+The developer phone gets a **Photo** button next to each friend (and **My photo**); the faces show for everyone.
+
 ## Using it
 
 - Add your name, then **Send it** to share your 6-letter friend code in the group chat.

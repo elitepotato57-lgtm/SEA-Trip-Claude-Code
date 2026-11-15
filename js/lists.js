@@ -104,7 +104,8 @@ function placeCard(it, pt){
   const km = pt && !pt.none ? dist(pt, it) : null;
   const oh = isOpenNow(it);
   const line = [];
-  const kr = knownRating(it);                              // a researched rating, or a Google one already looked up: never a guess
+  const kr = knownRating(it);
+  const rev = it.c === "gaff" ? (lsGet("gfacts:" + it.id, {}) || {}).rev : null;     // a short Google review, once the hostel's Google details have been looked up                              // a researched rating, or a Google one already looked up: never a guess
   const loc = itemLocal(it);
   const per = it.c === "gaff" ? ` <small class="basis">${stayBasis(it) === "bed" ? "bed" : "room"}</small>` : "";
   if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small>${per}</span>`);
@@ -133,7 +134,7 @@ function placeCard(it, pt){
   }
   return `<article class="card" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
     <div class="ph" data-ph="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
-    <div class="body"><h3>${esc(it.n)}</h3>${kr != null ? `<div class="rate">${starsHTML(kr)}</div>` : ""}${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
+    <div class="body"><h3>${esc(it.n)}</h3>${kr != null ? `<div class="rate">${starsHTML(kr)}</div>` : ""}${rev ? `<div class="rev">“${esc(rev.t)}” <small>${esc(rev.by ? rev.by + ", " : "")}Google review</small></div>` : ""}${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>
       ${line.length ? `<div class="line">${line.join("")}</div>` : ""}
       ${blurb ? `<div class="blurb">${esc(blurb)}</div>` : ""}

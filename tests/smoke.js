@@ -319,8 +319,9 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => /needs switching on once/.test(document.querySelector("#pageview").textContent)), "Friends explains how to switch it on when Firebase isn't set up");
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase"), fb = makeFake();
-    const phone = async (geo) => {
+    const phone = async (geo, saved) => {
       const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:geo, permissions:["geolocation"]});
+      if (saved) await c.addInitScript(st => { if (!localStorage.getItem("sea-trip-app-v1")) localStorage.setItem("sea-trip-app-v1", JSON.stringify(st)); }, saved);
       await c.addInitScript(([k, u]) => { window.SEA_FIREBASE = {apiKey:k, databaseURL:u}; }, [API_KEY, DB_URL]);
       await c.route(/identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firebasedatabase\.app/, async route => {
         const r = route.request(), res = await fb.fetch(r.url(), {method:r.method(), body:r.postData()});
@@ -329,39 +330,78 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
       const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
       return {c, pg};
     };
-    const A = await phone({latitude:-8.5069, longitude:115.2625}), B = await phone({latitude:-8.52, longitude:115.27});
+    // Dylan's phone has the pretend Bangkok test location switched on: sharing must still send his real GPS (Ubud)
+    const A = await phone({latitude:-8.5069, longitude:115.2625}, {v:2, testLoc:"Bangkok", countryMode:"auto", country:"TH", saved:{}});
+    const B = await phone({latitude:-8.52, longitude:115.27});
+    const sheetName = async (P, n) => { await P.pg.click("#fr-open"); await P.pg.waitForTimeout(600); await P.pg.fill("#sheetRoot #fr-name", n); await P.pg.press("#sheetRoot #fr-name", "Tab"); await P.pg.waitForTimeout(1200); };
     await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1500);
-    await B.pg.fill("#fr-name", "Sam"); await B.pg.press("#fr-name", "Tab"); await B.pg.waitForTimeout(1200);
-    const codeB = await B.pg.evaluate(() => document.querySelector("#fr-code").textContent);
-    await A.pg.goto(BASE + "#map"); await A.pg.waitForTimeout(3000);
+    const top = await B.pg.evaluate(() => { const b = document.querySelector("#fr-open"), c = document.querySelector(".hero .crumb:not(#fr-open)"); return {h1:document.querySelector("#pageview h1").textContent, sub:document.querySelector("#pageview .sub").textContent, add:b ? b.textContent.trim() : "", same:b && c ? b.offsetHeight === c.offsetHeight : false, green:b ? getComputedStyle(b).backgroundColor : "", youOnPage:!!document.querySelector("#pageview #fr-name")}; });
+    ok(top.h1 === "Friends" && /See your mates on the map and choose who sees you/.test(top.sub) && /Add friend/.test(top.add) && top.same && !top.youOnPage, "Friends page: title, a green Add friend button the size of Tools, and You / adding kept off the main page " + JSON.stringify(top));
+    await sheetName(B, "Sam");
+    const codeB = await B.pg.evaluate(() => document.querySelector("#sheetRoot #fr-code").textContent);
+    await A.pg.goto(BASE + "#map"); await A.pg.waitForTimeout(2500);
     await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1500);
-    await A.pg.fill("#fr-name", "Dylan"); await A.pg.press("#fr-name", "Tab"); await A.pg.waitForTimeout(800);
-    await A.pg.fill("#fr-add", codeB); await A.pg.click("#fr-addb"); await A.pg.waitForTimeout(2000);
-    await A.pg.click("#fr-on"); await A.pg.waitForTimeout(2500);
-    const a = await A.pg.evaluate(() => ({list:Object.values(S.friends.list).map(x => [x.n, x.share]), on:S.friends.on, w:document.documentElement.scrollWidth}));
-    ok(/^[A-Z2-9]{6}$/.test(codeB) && JSON.stringify(a.list) === '[["Sam",true]]' && a.on && a.w <= 393, "Friends: Dylan adds Sam by code and shares his location " + JSON.stringify({codeB, ...a}));
-    await B.pg.reload(); await B.pg.waitForTimeout(2500);
-    ok(await B.pg.evaluate(() => /Added you/.test(document.querySelector("#fr-reqs").textContent) && /Dylan/.test(document.querySelector("#fr-reqs").textContent)), "Sam sees that Dylan added him");
-    await B.pg.click("[data-frback]"); await B.pg.waitForTimeout(2500);
-    await B.pg.goto(BASE + "#map"); await B.pg.waitForTimeout(4500);
+    await sheetName(A, "Dylan");
+    await A.pg.fill("#sheetRoot #fr-add", codeB); await A.pg.click("#sheetRoot #fr-addb"); await A.pg.waitForTimeout(2200);
+    await A.pg.click("#sheetRoot #fr-on"); await A.pg.waitForTimeout(3000);
+    const a = await A.pg.evaluate(() => ({list:Object.values(S.friends.list).map(x => [x.n, x.share]), on:S.friends.on, test:locStatus, st:frSendStatus(), w:document.documentElement.scrollWidth}));
+    const sentLoc = fb.root.loc && Object.values(fb.root.loc)[0];
+    ok(JSON.stringify(a.list) === '[["Sam",true]]' && a.on && a.st.ok && a.w <= 393, "Friends: Dylan adds Sam by code, shares, and the page says it's working " + JSON.stringify(a));
+    ok(a.test === "test" && sentLoc && Math.abs(sentLoc.lat - -8.5069) < 0.001 && Math.abs(sentLoc.lng - 115.2625) < 0.001, "with the pretend test location on, sharing still sends the phone's real GPS (the 'Not sharing right now' bug) " + JSON.stringify(sentLoc));
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(400);
+    await B.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.reload(); await B.pg.waitForTimeout(2500);
+    ok(await B.pg.evaluate(() => /Dylan/.test(document.querySelector("#fr-alerts").textContent) && /added you/.test(document.querySelector("#fr-alerts").textContent)), "Sam sees that Dylan added him, at the top of Friends");
+    await B.pg.click("#fr-alerts [data-frback]"); await B.pg.waitForTimeout(2500);
+    await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(1500);
+    const uidA = await A.pg.evaluate(() => frMyId()), uidB = await B.pg.evaluate(() => frMyId());
+    const fb1 = await B.pg.evaluate(uid => ({row:(document.querySelector(`[data-frloc="${uid}"]`) || {}).textContent || "", pin:[...document.querySelectorAll("#frMap .fr-pin")].map(p => p.getAttribute("aria-label")), col:getComputedStyle(document.querySelector(`[data-frav="${uid}"] .fr-av`)).getPropertyValue("--c").trim()}), uidA);
+    ok(/Seen just now/.test(fb1.row) && fb1.pin.some(l => /Dylan/.test(l)) && /^#/.test(fb1.col), "Sam's Friends page: Dylan in the list (seen just now), on the friends map in his own colour " + JSON.stringify(fb1));
+    await B.pg.click(`[data-frgo="${uidA}"]`); await B.pg.waitForTimeout(3200);
+    ok(await B.pg.evaluate(uid => { const b = frMapI.getBounds(), d = frLocs[uid], me = frMeHere(); return b.contains([d.lng, d.lat]) && b.contains([me.lng, me.lat]); }, uidA), "tapping Dylan glides the map to show both of them");
+    await B.pg.goto(BASE + "#map"); await B.pg.waitForTimeout(4000);
     await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(800);
-    const pin = await B.pg.evaluate(() => { const p = document.querySelector(".fr-pin"); return p ? p.textContent : ""; });
-    ok(/Dylan/.test(pin), "Dylan shows on Sam's map " + JSON.stringify(pin));
+    ok(await B.pg.evaluate(() => [...document.querySelectorAll("#map .fr-pin")].some(p => /Dylan/.test(p.getAttribute("aria-label")) && p.offsetWidth <= 32)), "Dylan also shows on Sam's main map, as a small face-sized pin");
+    // developer mode: only on Dylan's phone (7 taps), and only that phone can set faces
+    await A.pg.goto(BASE + "#tools/settings"); await A.pg.waitForTimeout(800);
+    for (let i = 0; i < 7; i++) await A.pg.click("#aboutData h2");
+    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1500);
+    await A.pg.click("#fr-open"); await A.pg.waitForTimeout(1500);
+    await A.pg.click("#sheetRoot #fr-claim"); await A.pg.waitForTimeout(2000);
+    await A.pg.setInputFiles(`#sheetRoot [data-frphoto="${uidB}"]`, path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(2500);
+    ok(typeof (fb.root.photos || {})[uidB] === "string" && fb.root.photos[uidB].startsWith("data:image/jpeg") && fb.root.photos[uidB].length < 40000, "the developer phone sets Sam's photo (a small square JPEG)");
+    await B.pg.evaluate(() => { S.dev = true; }); await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1200);
+    const bClaim = await B.pg.evaluate(async () => { try { await frClaimAdmin(); return "claimed"; } catch(e){ return e.message; } });
+    await B.pg.evaluate(() => frLoadPhotos(true).then(paintFriendsLive)); await B.pg.waitForTimeout(800);
+    ok(bClaim === "permission" && await B.pg.evaluate(uid => !!document.querySelector(`[data-frav="${uid}"] img`) || !!frPhotos[uid], uidB), "no other phone can become the developer, and everyone sees the photo " + bClaim);
+    // live split inside Friends: Dylan starts a group and adds a taxi; Sam's Friends page shows it straight away, with history
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    await A.pg.click("#fr-split #sp-newg"); await A.pg.waitForTimeout(500);
+    await A.pg.fill("#fr-split #sp-gname", "Bali crew"); await A.pg.click("#fr-split #sp-gcreate"); await A.pg.waitForTimeout(2500);
+    await A.pg.fill("#fr-split #sp-what", "Taxi"); await A.pg.fill("#fr-split #sp-amt", "300"); await A.pg.selectOption("#fr-split #sp-cur", "THB");
+    await A.pg.click("#fr-split #sp-add"); await A.pg.waitForTimeout(2000);
+    const la = await A.pg.evaluate(() => ({rows:[...document.querySelectorAll("#fr-split .sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " ")), w:document.documentElement.scrollWidth}));
+    ok(la.rows.length === 2 && /Dylan gets back ฿150 £3\.3\d/.test(la.rows[0]) && la.w <= 393, "Friends › Split costs: Dylan starts a live group with Sam and adds a ฿300 taxi " + JSON.stringify(la));
+    await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(2500);         // what the page does every 20 seconds
+    const lb = await B.pg.evaluate(() => ({rows:[...document.querySelectorAll("#fr-split .sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " ")), box:document.querySelector("#fr-split").innerText.slice(0, 300), groups:liveGroupsCached(), cur:S.split.cur}));
+    ok(lb.rows.some(t => /Sam owes Rp [\d,]+ £3\.3\d/.test(t)), "Sam's Friends page shows the same live tally " + JSON.stringify(lb));
+    await B.pg.click('#fr-split [data-sptab="history"]'); await B.pg.waitForTimeout(600);
+    const hist = await B.pg.evaluate(() => [...document.querySelectorAll("#fr-split .sp-hist")].map(r => ({who:r.querySelector(".who b").textContent, face:!!r.querySelector(".who .fr-av"), amt:r.querySelector(".amt b").textContent, detail:r.innerText.replace(/\s+/g, " ")})));
+    ok(hist.length === 1 && hist[0].who === "Dylan" && hist[0].face && hist[0].amt === "฿300" && /Total ฿300 · ฿150 each for everyone/.test(hist[0].detail), "History: who paid (face and name) on the left, the amount on the right, and how it was split " + JSON.stringify(hist));
+    await A.pg.fill("#fr-split #sp-what", "Beers"); await A.pg.fill("#fr-split #sp-amt", "200"); await A.pg.click("#fr-split #sp-add"); await A.pg.waitForTimeout(3500);
+    ok(await B.pg.evaluate(() => /Beers/.test(document.querySelector("#fr-split").textContent)), "a payment Dylan adds appears on Sam's open page by itself");
+    // Rock Paper Scissors: Dylan challenges Sam; both pick; both phones agree on the result
+    await A.pg.click(`.fr-game ~ .flags [data-frplay="${uidB}"]`); await A.pg.waitForTimeout(1500);
+    await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(800);
+    await B.pg.click(`#fr-alerts [data-frplay="${uidA}"]`); await B.pg.waitForTimeout(1500);
+    await A.pg.click('#rpsBox [data-rps="rock"]'); await A.pg.waitForTimeout(400);
+    await B.pg.click('#rpsBox [data-rps="scissors"]'); await B.pg.waitForTimeout(3500);
+    const ra = await A.pg.evaluate(() => [document.querySelector("#rps-msg").textContent, document.querySelector("#rps-me").textContent, document.querySelector("#rps-them").textContent]);
+    const rb = await B.pg.evaluate(() => [document.querySelector("#rps-msg").textContent, document.querySelector("#rps-me").textContent, document.querySelector("#rps-them").textContent]);
+    ok(/You win/.test(ra[0]) && ra[1] === "1" && ra[2] === "0" && /Dylan wins/.test(rb[0]) && rb[1] === "0" && rb[2] === "1", "Rock Paper Scissors: rock beats scissors on both phones " + JSON.stringify({ra, rb}));
+    await A.pg.waitForTimeout(3500);
+    ok(await A.pg.evaluate(() => /Round 2/.test(document.querySelector("#rps-round").textContent)) && await B.pg.evaluate(() => /Round 2/.test(document.querySelector("#rps-round").textContent)), "and both move on to round 2 by themselves");
     await B.pg.goto(BASE + "#tools/settings"); await B.pg.waitForTimeout(800);
     ok(await B.pg.evaluate(() => /Friends and location sharing/.test(document.querySelector("#pageview").textContent) && !!document.querySelector('#pageview a[href="#tools/friends"]')), "Settings has Friends and location sharing");
-    // live split: Dylan starts a group with Sam and adds a taxi; it appears on Sam's phone with the right tally
-    await A.pg.goto(BASE + "#tools/split"); await A.pg.waitForTimeout(1200);
-    await A.pg.click("#sp-newg"); await A.pg.waitForTimeout(500);
-    await A.pg.fill("#sp-gname", "Bali crew"); await A.pg.click("#sp-gcreate"); await A.pg.waitForTimeout(2500);
-    await A.pg.fill("#sp-what", "Taxi"); await A.pg.fill("#sp-amt", "300"); await A.pg.selectOption("#sp-cur", "THB");
-    await A.pg.click("#sp-add"); await A.pg.waitForTimeout(2000);
-    const la = await A.pg.evaluate(() => ({live:!!document.querySelector(".live-dot"), rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " ")), w:document.documentElement.scrollWidth}));
-    ok(la.live && la.rows.length === 2 && /Dylan gets back Rp [\d,]+ £3\.3\d/.test(la.rows[0]) && la.w <= 393, "Split costs: Dylan starts a live group with Sam and adds a ฿300 taxi (half each, shown in rupiah in Bali) " + JSON.stringify(la));
-    await B.pg.goto(BASE + "#tools/split"); await B.pg.waitForTimeout(2500);
-    await B.pg.evaluate(() => liveListGroups()); await B.pg.goto(BASE + "#tools"); await B.pg.goto(BASE + "#tools/split"); await B.pg.waitForTimeout(1500);
-    await B.pg.click('[data-tally^="g"]'); await B.pg.waitForTimeout(2500);
-    const lb = await B.pg.evaluate(() => ({title:(document.querySelector(".live-dot") || {}).parentNode ? document.querySelector(".live-dot").parentNode.textContent : "", pay:[...document.querySelectorAll(".sp-item")].map(r => r.innerText.replace(/\s+/g, " ")), rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " "))}));
-    ok(/Bali crew/.test(lb.title) && lb.pay.some(t => /Taxi/.test(t)) && lb.rows.some(t => /Sam owes Rp [\d,]+ £3\.3\d/.test(t)), "Sam sees the same live tally on his phone " + JSON.stringify(lb));
     await A.c.close(); await B.c.close();
   }
 
