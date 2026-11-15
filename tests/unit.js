@@ -601,6 +601,61 @@ test("split costs: merging another phone's tally adds new payments once and keep
     ok(/^[zj][A-Za-z0-9_-]+$/.test(code), "link-safe: " + code.slice(0, 20));
     eq(back, {people:["A", "B"], items:[{id:"x1", w:"Bus", a:7.5, c:"GBP", by:"A", to:["A", "B"], t:5}], del:["old"]});
   });
+  // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
+  {
+    const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");
+    const fb = makeFake(), cfg = {SEA_FIREBASE:{apiKey:API_KEY, databaseURL:DB_URL}, fetch:fb.fetch};
+    const P1 = load(undefined, cfg), P2 = load(undefined, cfg), P3 = load(undefined, cfg);
+    P1.S.friends.name = "Dylan"; P2.S.friends.name = "Sam"; P3.S.friends.name = "Stranger";
+    const me1 = await P1.frMe(), me2 = await P2.frMe(), me3 = await P3.frMe();
+    test("friends: every phone gets its own private ID and a 6-letter code", () => {
+      ok(me1.uid !== me2.uid && /^[A-Z2-9]{6}$/.test(me1.code) && me1.code !== me2.code);
+      eq(fb.root.codes[me1.code], me1.uid); eq(fb.root.users[me2.uid].n, "Sam");
+    });
+    const added = await P1.frAdd(me2.code.toLowerCase().split("").join(" "));        // typed sloppily: lower case, spaces
+    let reqs = await P2.frRequests();
+    test("friends: adding by code finds them and asks them to add you back", () => {
+      eq(added, "Sam"); eq(P1.S.friends.list[me2.uid].share, true);
+      eq(reqs.map(r => [r.n, r.c]), [["Dylan", me1.code]]);
+    });
+    await P2.frAdd(reqs[0].c, false);                      // Sam adds Dylan back but keeps himself hidden
+    let err = ""; try { await P1.frAdd("ZZZZZZ"); } catch(e){ err = e.message; }
+    let err2 = ""; try { await P1.frAdd(me1.code); } catch(e){ err2 = e.message; }
+    test("friends: an unknown code or your own code is refused", () => { ok(/No one has that code/.test(err), err); ok(/your own/.test(err2), err2); });
+    const ubud = {lat:-8.50691234, lng:115.26251234, acc:12};
+    const off = await P1.frSendNow(true, ubud, "ok");                 // sharing is off until turned on
+    await P1.frSetOn(true);
+    const fake = await P1.frSendNow(true, ubud, "test");               // the pretend test location is never sent
+    const sent = await P1.frSendNow(true, ubud, "ok");
+    const again = await P1.frSendNow(false, ubud, "ok");               // nothing new to send a moment later
+    await P2.frPoll(); await P3.frPoll();
+    test("friends: your position goes only to friends you share with, only once you switch sharing on", () => {
+      eq([off, fake, sent, again], [false, false, true, false]);
+      eq([fb.root.loc[me1.uid].lat, fb.root.loc[me1.uid].lng, fb.root.loc[me1.uid].t], [-8.50691, 115.26251, fb.now]);
+      eq(P2.frLocs[me1.uid].lat, -8.50691, "Sam sees Dylan");
+    });
+    let strangerErr = 0; try { await P3.frDb("GET", `loc/${me1.uid}`); } catch(e){ strangerErr = e.status; }
+    let samLoc = null; await P1.frPoll(); samLoc = P1.frLocs[me2.uid];
+    test("friends: someone you haven't shared with can't read your location, even with your ID", () => {
+      eq(strangerErr, 401); ok(samLoc && samLoc.hidden, "Sam chose to stay hidden, so Dylan can't see him " + JSON.stringify(samLoc));
+    });
+    await P1.frSetShare(me2.uid, false); await P2.frPoll();
+    const hiddenNow = P2.frLocs[me1.uid];
+    await P1.frSetShare(me2.uid, true); await P1.frSetOn(false);
+    test("friends: hiding from a friend, or turning sharing off, stops them seeing you (and deletes your last position)", () => {
+      ok(hiddenNow && hiddenNow.hidden, JSON.stringify(hiddenNow));
+      ok(!fb.root.loc || !fb.root.loc[me1.uid], "position deleted when sharing is switched off");
+    });
+    let forged = 0; try { await P3.frDb("PUT", `loc/${me1.uid}`, {lat:0, lng:0, t:1}); } catch(e){ forged = e.status; }
+    let stolen = 0; try { await P3.frDb("PUT", `codes/${me1.code}`, me3.uid); } catch(e){ stolen = e.status; }
+    test("friends: nobody can write someone else's location or take their code", () => eq([forged, stolen], [401, 401]));
+    const P1b = load(undefined, cfg);                                  // a new phone (or cleared data) is a new person
+    test("friends: with Firebase not set up the page explains instead of failing", () => {
+      const P0 = load(); eq(P0.frCfg(), null);
+      eq(P1b.frCfg().databaseURL, DB_URL);
+      eq(load(undefined, {SEA_FIREBASE:{apiKey:"x", databaseURL:"https://evil.example.com"}}).frCfg(), null, "only a Firebase database address is accepted");
+    });
+  }
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })();

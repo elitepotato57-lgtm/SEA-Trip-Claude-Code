@@ -22,6 +22,9 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
   Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
+- `js/friends.js`: Tools › Friends (location sharing) over Firebase REST (anonymous sign-in + Realtime Database, free Spark plan).
+  Dylan adds `window.SEA_FIREBASE = {apiKey, databaseURL}` to `config.js` himself (FIREBASE-SETUP.md); rules in `firebase/database.rules.json`
+  (keep them and `tests/fakefirebase.js` in step). Sharing is off until switched on, per friend; only real GPS is sent, only while open.
 - `js/split.js`: Tools › Split costs (`S.split`): payments, a running tally, settle-up, and sharing the tally as a link (no server).
 - Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`): no lookup on the phone.
   Re-run it after rebuilding any `places/` folder. Place field `ph` is a phone number; a stored photo is `pic`.

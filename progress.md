@@ -148,3 +148,9 @@ node tests/photos-perf.js     # photo timings (needs signal)
   (first photo ~0.6–0.7 s, was ~0.74 s; lists preload photos further ahead while scrolling).
 - Fixed: the old Surf filter's word match was broken by a stray control character.
 - Tests: unit 75 passed; browser suite 103 passed.
+- Friends (Tools › Friends, and Settings › Friends and location sharing): each phone gets a private ID and a 6-letter friend code;
+  add mates by code (they get "Added you" with Add back); a master "Share my location" switch (off by default) and a switch per
+  friend; friends appear on the map with their initials and "seen x min ago". Uses a free Firebase project that Dylan creates
+  (FIREBASE-SETUP.md); database rules make a location readable only by the friends it's shared with. Tested against a pretend
+  Firebase applying the same rules (two and three phones); not yet run against a real Firebase project.
+- Tests: unit 83 passed; browser suite 109 passed.

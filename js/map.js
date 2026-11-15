@@ -104,6 +104,7 @@ function hideMapLoading(){
 }
 function onMapLoad(){
   mapLoaded = true;
+  if (typeof drawFriends === "function") drawFriends();
   hideMapLoading();
   addPinImages();
   const first = MAP_STYLE.layers.find(l => l.id !== "background");

@@ -53,7 +53,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
 
-  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "saved"]){
+  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "tools/friends", "saved"]){
     await page.goto(BASE + "#" + tab); await page.waitForTimeout(1500);
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     ok(w <= 393, `${tab}: no sideways scroll (width ${w})`);
@@ -310,6 +310,44 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await c2.close();
   }
   await page.evaluate(() => { S.split = {people:[], items:[], del:[]}; persist(); });
+
+  // Friends: not set up, the page explains; with a (pretend) Firebase, two phones add each other and one appears on the other's map
+  await page.goto(BASE + "#tools/friends"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /needs switching on once/.test(document.querySelector("#pageview").textContent)), "Friends explains how to switch it on when Firebase isn't set up");
+  {
+    const {makeFake, DB_URL, API_KEY} = require("./fakefirebase"), fb = makeFake();
+    const phone = async (geo) => {
+      const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:geo, permissions:["geolocation"]});
+      await c.addInitScript(([k, u]) => { window.SEA_FIREBASE = {apiKey:k, databaseURL:u}; }, [API_KEY, DB_URL]);
+      await c.route(/identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firebasedatabase\.app/, async route => {
+        const r = route.request(), res = await fb.fetch(r.url(), {method:r.method(), body:r.postData()});
+        await route.fulfill({status:res.status, contentType:"application/json", body:await res.text(), headers:{"access-control-allow-origin":"*"}});
+      });
+      const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+      return {c, pg};
+    };
+    const A = await phone({latitude:-8.5069, longitude:115.2625}), B = await phone({latitude:-8.52, longitude:115.27});
+    await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1500);
+    await B.pg.fill("#fr-name", "Sam"); await B.pg.press("#fr-name", "Tab"); await B.pg.waitForTimeout(1200);
+    const codeB = await B.pg.evaluate(() => document.querySelector("#fr-code").textContent);
+    await A.pg.goto(BASE + "#map"); await A.pg.waitForTimeout(3000);
+    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1500);
+    await A.pg.fill("#fr-name", "Dylan"); await A.pg.press("#fr-name", "Tab"); await A.pg.waitForTimeout(800);
+    await A.pg.fill("#fr-add", codeB); await A.pg.click("#fr-addb"); await A.pg.waitForTimeout(2000);
+    await A.pg.click("#fr-on"); await A.pg.waitForTimeout(2500);
+    const a = await A.pg.evaluate(() => ({list:Object.values(S.friends.list).map(x => [x.n, x.share]), on:S.friends.on, w:document.documentElement.scrollWidth}));
+    ok(/^[A-Z2-9]{6}$/.test(codeB) && JSON.stringify(a.list) === '[["Sam",true]]' && a.on && a.w <= 393, "Friends: Dylan adds Sam by code and shares his location " + JSON.stringify({codeB, ...a}));
+    await B.pg.reload(); await B.pg.waitForTimeout(2500);
+    ok(await B.pg.evaluate(() => /Added you/.test(document.querySelector("#fr-reqs").textContent) && /Dylan/.test(document.querySelector("#fr-reqs").textContent)), "Sam sees that Dylan added him");
+    await B.pg.click("[data-frback]"); await B.pg.waitForTimeout(2500);
+    await B.pg.goto(BASE + "#map"); await B.pg.waitForTimeout(4500);
+    await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(800);
+    const pin = await B.pg.evaluate(() => { const p = document.querySelector(".fr-pin"); return p ? p.textContent : ""; });
+    ok(/Dylan/.test(pin), "Dylan shows on Sam's map " + JSON.stringify(pin));
+    await B.pg.goto(BASE + "#tools/settings"); await B.pg.waitForTimeout(800);
+    ok(await B.pg.evaluate(() => /Friends and location sharing/.test(document.querySelector("#pageview").textContent) && !!document.querySelector('#pageview a[href="#tools/friends"]')), "Settings has Friends and location sharing");
+    await A.c.close(); await B.c.close();
+  }
 
   // Location on a new phone, anywhere the app covers: here, a friend in Ubud (Bali)
   const ubudGeo = {latitude:-8.5069, longitude:115.2625};
