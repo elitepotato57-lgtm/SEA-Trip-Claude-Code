@@ -9,7 +9,7 @@ function fakeElement(){
     setAttribute(){}, removeAttribute(){}, getAttribute(){ return null; }, appendChild(){}, addEventListener(){}, querySelector(){ return null; },
     querySelectorAll(){ return []; }, innerHTML:"", textContent:""};
 }
-function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "map", "ask", "tools", "camera", "tools-more", "offline", "docs", "detail"], extra = {}){
+function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "map", "ask", "tools", "camera", "tools-more", "split", "friends", "offline", "docs", "detail"], extra = {}){
   const store = new Map();
   const ctx = {
     console, setTimeout, clearTimeout, setInterval, clearInterval, URL, URLSearchParams, Intl, Date, Math, JSON, Promise,
@@ -22,7 +22,7 @@ function load(files = ["data", "core", "design", "places", "estimate", "shell", 
     document:{documentElement:fakeElement(), body:fakeElement(), head:fakeElement(), querySelector:() => null, querySelectorAll:() => [],
       createElement:() => fakeElement(), addEventListener(){}, getElementById:() => null},
     addEventListener(){}, removeEventListener(){}, requestAnimationFrame:f => setTimeout(f, 0),
-    fetch:() => Promise.reject(new Error("no network in unit tests")), Image:function(){}, AbortController, TextEncoder,
+    fetch:() => Promise.reject(new Error("no network in unit tests")), Image:function(){}, AbortController, TextEncoder, TextDecoder, Blob, Response, CompressionStream, DecompressionStream, btoa, atob, crypto,
     MutationObserver:function(){ this.observe = () => {}; this.disconnect = () => {}; },
     IntersectionObserver:function(){ this.observe = () => {}; this.unobserve = () => {}; this.disconnect = () => {}; },
     ResizeObserver:function(){ this.observe = () => {}; this.disconnect = () => {}; },

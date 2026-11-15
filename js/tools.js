@@ -10,6 +10,8 @@ const TOOLS = [
   {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
   // Budget is hidden for now: its page and everyone's saved spending are kept (js/tools-more.js), it just has no tile
   {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1, hidden:true},
+  {id:"split", l:"Split costs", d:"Who paid, who owes, settle up", ic:"cash", alt:1},
+  {id:"friends", l:"Friends", d:"See mates on the map, choose who sees you", ic:"users"},
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
@@ -23,7 +25,8 @@ function renderTools(){
   const root = $("#pageview"), sub = ui.sub;
   if (sub === "transport"){ root.innerHTML = transportPage(); bindTransport(); return; }
   if (sub === "settings"){ root.innerHTML = setupPage(); bindSetup(); return; }
-  if (sub && TOOL_PAGES[sub]){ TOOL_PAGES[sub](root); return; }
+  const [page, arg] = (sub || "").split("?");
+  if (page && TOOL_PAGES[page]){ TOOL_PAGES[page](root, arg || ""); return; }
   const c = D.countries[S.country];
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
     <div class="tgrid">${TOOLS.filter(t => !t.hidden).map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
@@ -302,6 +305,10 @@ function setupPage(){
     <label class="field">Google Maps API key<input type="text" id="gkey" autocomplete="off" spellcheck="false" placeholder="Paste your key here" value="${esc(S.gkey)}"></label>
     <div class="row" style="margin-top:10px"><button class="btn small primary" id="gkeySave" type="button">Save key</button><button class="btn small" id="gkeyTest" type="button">Test it</button></div>
     <p class="note" style="margin-top:10px">Photos only load with signal; Google doesn’t allow saving them for offline use.</p>
+  </section>
+  <section class="block"><h2>Friends and location sharing</h2>
+    <p class="note">${frCfg() ? (frState().on ? `Sharing your location with ${Object.values(frState().list).filter(x => x.share).length} of ${Object.keys(frState().list).length} friends.` : "You aren’t sharing your location.") + " Choose who sees you, one by one." : "Not switched on yet (needs a free Firebase project, see FIREBASE-SETUP.md)."}</p>
+    <a class="btn small" href="#tools/friends" style="margin-top:8px">${icon("users","i s")}Friends and sharing</a>
   </section>
   <section class="block"><h2>Design Lab</h2>
     <p class="note">For trying looks (Night or Paper Atlas), colours, fonts and sizes. It’s hidden unless you switch it on here.</p>

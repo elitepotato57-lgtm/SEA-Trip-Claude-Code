@@ -91,7 +91,21 @@ async function paintSurf(root){
   }
 }
 const surfLink = it => `https://www.surfline.com/search/${enc(it.n.replace(/\s*\(.*?\)\s*/g, " ").trim())}`;
-const wantsSurf = it => isSurf(it) || it.k === "beach" || (!it.osm && hasT(it, "Beaches")) || (it.c === "cool" && /surf/i.test(it.n || ""));
+const wantsSurf = it => isSurf(it) || it.k === "beach" || (!it.osm && hasT(it, "Beaches"));
+// Activities › Surf: straight to the map with only the researched surf spots near you (or in this country)
+function openSurfMap(){
+  const pt = userLoc || focusPt(), spots = surfNear(pt, S.country);
+  if (!spots.length){ toast(`No surf spots researched in ${D.countries[S.country].name} yet. Bali, Lombok, Krui and Phuket have them.`); return; }
+  ui.mapSurf = true; ui.mapCats = new Set(); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = null;
+  go("#map");
+  const fit = () => {
+    if (spots.length === 1) map.jumpTo({center:[spots[0].lng, spots[0].lat], zoom:12});
+    else map.fitBounds([[Math.min(...spots.map(p => p.lng)), Math.min(...spots.map(p => p.lat))], [Math.max(...spots.map(p => p.lng)), Math.max(...spots.map(p => p.lat))]], {padding:{top:150, bottom:80, left:40, right:60}, maxZoom:13, duration:0});
+    refreshMapData();
+  };
+  const wait = () => { if (!map) return setTimeout(wait, 100); if (map.loaded() || mapLoaded) fit(); else map.once("load", fit); };
+  wait();
+}
 function surfBlock(it){
   return `<div class="callout surfbox" id="surfBox" data-id="${esc(it.id)}">${icon("waves")}<div><b>Surf now</b><div id="surfTxt" class="note">Checking the waves…</div>
     <div class="row" style="margin-top:8px">${ext(surfLink(it), "Open on Surfline " + icon("ext","i s"))}</div></div></div>`;

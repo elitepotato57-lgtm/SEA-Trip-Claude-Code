@@ -133,3 +133,24 @@ node tests/photos-perf.js     # photo timings (needs signal)
   Surfline offers no data to other apps, so its ratings and spot list are not copied. The Surfline link could not be
   checked from here (Surfline blocks automated visits).
 - Tests: unit 71 passed; browser suite 98 passed.
+
+## 15 Nov 2026: surf spots, split costs, faster photos (branch `claude/surf-split-photos`)
+
+- Surf: 21 researched surf breaks (Bali's Bukit, Canggu, Kuta, Keramas, Medewi; Lombok's Gerupuk bay, Mawi, Ekas; Krui; Phuket's
+  Kata and Karon), each with its sources; 11 with a photo stored in the app (checked by eye). Schools, shops and indoor waves are gone.
+  Activities › Surf goes straight to the map showing only surf spots; a spot shows its photo, live waves and Open on Surfline.
+  Not included: Desert Point (no reliable pin found), anything in Cambodia or Bengkulu (no surf break sources).
+- Split costs (Tools): add the group once, log who paid what and for whom, running tally, fewest payments to settle, "Paid"
+  buttons, and "Send to the group" (a link that adds the payments on friends' phones; kept on each phone, no server).
+- Map: the "Closest to you" strip and the map's sort panel are gone; the map credit is a small (i) that opens on tap.
+- No zoom: tap-to-zoom off everywhere, iPhone's zoom-on-typing stopped (boxes are 16 px on iPhone), double-tap blocked.
+- Photos: places/photos.json lists the photo of all 1,351 places that have one, so phones fetch pictures directly
+  (first photo ~0.6–0.7 s, was ~0.74 s; lists preload photos further ahead while scrolling).
+- Fixed: the old Surf filter's word match was broken by a stray control character.
+- Tests: unit 75 passed; browser suite 103 passed.
+- Friends (Tools › Friends, and Settings › Friends and location sharing): each phone gets a private ID and a 6-letter friend code;
+  add mates by code (they get "Added you" with Add back); a master "Share my location" switch (off by default) and a switch per
+  friend; friends appear on the map with their initials and "seen x min ago". Uses a free Firebase project that Dylan creates
+  (FIREBASE-SETUP.md); database rules make a location readable only by the friends it's shared with. Tested against a pretend
+  Firebase applying the same rules (two and three phones); not yet run against a real Firebase project.
+- Tests: unit 83 passed; browser suite 109 passed.
