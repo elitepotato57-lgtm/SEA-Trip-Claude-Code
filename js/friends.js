@@ -229,3 +229,79 @@ TOOL_PAGES.friends = async root => {
 };
 // start quietly: the map shows friends once it's ready
 if (typeof window !== "undefined" && frCfg()) setTimeout(frLoop, 4000);
+
+/* ---------- live split groups: one tally the whole group adds to (Split costs) ----------
+   groups/{gid} {n, members:{uid:name}, items:{id:{w,a,c,by,to:{uid:true},t,s,add}}}   mygroups/{uid}/{gid} name
+   Only members can read or write a group (firebase/database.rules.json). The last copy of each group is kept on the phone,
+   so the tally still shows with no signal. */
+const LIVE_KEY = "live-groups-v1";
+const liveSplitReady = () => !!frCfg();
+const liveStore = () => lsGet(LIVE_KEY, {}) || {};
+const liveGroupsCached = () => Object.entries(liveStore()).map(([id, g]) => ({id, n:g.n || "Group"})).sort((a, b) => a.n.localeCompare(b.n));
+const liveNewId = () => { const b = new Uint32Array(3); crypto.getRandomValues(b); return "g" + [...b].map(x => x.toString(36)).join("").slice(0, 14); };
+function liveKeep(id, g){ const st = liveStore(); if (g) st[id] = Object.assign({}, g, {at:frNow()}); else delete st[id]; lsSet(LIVE_KEY, st); }
+async function liveCreateGroup(name, friendUids){
+  const f = frState(), me = await frMe(), id = liveNewId(), nm = String(name).slice(0, 30);
+  await frDb("PUT", `groups/${id}/members/${me.uid}`, f.name || "Me");          // the first member creates the group
+  await frDb("PUT", `groups/${id}/n`, nm);
+  await frDb("PUT", `mygroups/${me.uid}/${id}`, nm);
+  for (const uid of friendUids) await liveAddMember(id, uid, nm);
+  await liveFetch(id);
+  return id;
+}
+async function liveAddMember(id, uid, groupName){
+  const f = frState(), fr = f.list[uid]; if (!fr) throw new Error("Add them as a friend first");
+  const n = groupName || (liveStore()[id] || {}).n || "Group";
+  await frDb("PUT", `groups/${id}/members/${uid}`, fr.n);
+  await frDb("PUT", `mygroups/${uid}/${id}`, n);
+  await liveFetch(id).catch(() => {});
+}
+// the groups this phone is in (other people can add you to theirs)
+async function liveListGroups(){
+  const me = await frMe(), mine = await frDb("GET", `mygroups/${me.uid}`) || {}, st = liveStore();
+  Object.entries(mine).forEach(([id, n]) => { if (!st[id]) st[id] = {n:String(n || "Group"), members:{}, items:{}}; });
+  Object.keys(st).forEach(id => { if (!mine[id]) delete st[id]; });          // removed from a group: it goes
+  lsSet(LIVE_KEY, st);
+  return liveGroupsCached();
+}
+async function liveFetch(id){
+  const g = await frDb("GET", `groups/${id}`);
+  if (!g){ liveKeep(id, null); return null; }
+  liveKeep(id, {n:g.n || "Group", members:g.members || {}, items:g.items || {}});
+  return liveStore()[id];
+}
+// the same shape the Split page uses for this phone's tally, but stored in the group
+async function liveSplitModel(id){
+  let g = liveStore()[id], stale = "";
+  try { g = await liveFetch(id) || null; } catch(e){ if (e.status === 401 || e.status === 403){ liveKeep(id, null); throw e; } stale = g && g.at ? frAgo(g.at) : "earlier"; }
+  if (!g) throw new Error("gone");
+  const me = (frAuthSaved() || {}).uid, people = Object.keys(g.members || {}).sort((a, b) => (a === me ? -1 : b === me ? 1 : String(g.members[a]).localeCompare(g.members[b])));
+  const names = Object.assign({}, g.members);
+  const items = Object.entries(g.items || {}).map(([iid, x]) => ({id:iid, w:x.w, a:+x.a, c:x.c, by:x.by, to:Object.keys(x.to || {}), t:x.t, s:x.s ? 1 : 0, add:x.add}));
+  const f = frState(), addable = Object.entries(f.list).filter(([uid]) => !names[uid]);
+  const write = async x => { await frDb("PUT", `groups/${id}/items/${x.id}`, x); };
+  return {live:true, id, title:g.n || "Group", me, people, name:p => names[p] || "Someone", items, addable, stale,
+    add:async ({what, amount, cur, by, to}) => {
+      const a = parseFloat(String(amount).replace(/[, ]/g, ""));
+      if (!isFinite(a) || a <= 0) return "Type how much it cost";
+      if (a > 1e9) return "That amount looks wrong";
+      if (!people.includes(by)) return "Pick who paid";
+      const who = (to || []).filter(p => people.includes(p)); if (!who.length) return "Pick who it was for";
+      await write({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:Object.fromEntries(who.map(p => [p, true])), t:{".sv":"timestamp"}, add:me});
+      return "";
+    },
+    paid:async (from, to, gbp) => { const c = splitLocal(); await write({id:splitId(), w:"Paid back", a:r2(gbp * rate(c)), c, by:from, to:{[to]:true}, t:{".sv":"timestamp"}, s:1, add:me}); },
+    del:async iid => { await frDb("DELETE", `groups/${id}/items/${iid}`); }};
+}
+// while the Split page is open, check the group list and the shown group every 15 seconds and redraw when something changed
+let liveTimer = null;
+function liveSplitRefresh(root){
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(async () => {
+    if (!root.isConnected || ui.view !== "tools" || !/^split/.test(ui.sub || "") || document.hidden){ return; }
+    const before = JSON.stringify(liveStore());
+    try { await liveListGroups(); const cur = splitData().cur; if (cur) await liveFetch(cur); } catch(e){}
+    const busy = document.activeElement && root.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+    if (JSON.stringify(liveStore()) !== before && !busy) TOOL_PAGES.split(root, ""); else liveSplitRefresh(root);
+  }, 15e3);
+}

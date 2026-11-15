@@ -40,6 +40,11 @@ window.SEA_FIREBASE = {apiKey: "PASTE-API-KEY", databaseURL: "PASTE-DATABASE-ADD
 
 Commit it. In a minute or two, close and reopen the app twice. **Tools › Friends** now works.
 
+## When the rules change
+
+New features sometimes need new rules (live split groups did). If something says "Firebase said no", open
+**Realtime Database › Rules**, replace everything with the latest `firebase/database.rules.json` and **Publish** again.
+
 ## Using it
 
 - Add your name, then **Send it** to share your 6-letter friend code in the group chat.

@@ -655,6 +655,35 @@ test("split costs: merging another phone's tally adds new payments once and keep
       eq(P1b.frCfg().databaseURL, DB_URL);
       eq(load(undefined, {SEA_FIREBASE:{apiKey:"x", databaseURL:"https://evil.example.com"}}).frCfg(), null, "only a Firebase database address is accepted");
     });
+    // live split groups: Dylan starts one with Sam; both add payments and see the same tally; a stranger can't get in
+    const gid = await P1.liveCreateGroup("Bali crew", [me2.uid]);
+    const m1 = await P1.liveSplitModel(gid);
+    eq(await m1.add({what:"Taxi", amount:"300000", cur:"IDR", by:me1.uid, to:[me1.uid, me2.uid]}), "");
+    const g2 = await P2.liveListGroups(), m2 = await P2.liveSplitModel(gid);
+    eq(await m2.add({what:"Dinner", amount:"200000", cur:"IDR", by:me2.uid, to:[me1.uid, me2.uid]}), "");
+    const m1b = await P1.liveSplitModel(gid), bal = P1.splitBalances({people:m1b.people, items:m1b.items});
+    test("live split: a group started with a friend shows up on their phone, and both add to one tally", () => {
+      eq(g2.map(g => g.n), ["Bali crew"]);
+      eq(m1b.people.map(m1b.name), ["Dylan", "Sam"], "you first, by name");
+      eq(m1b.items.length, 2); ok(m1b.items.some(x => x.w === "Dinner" && x.add === me2.uid), "Sam's payment is on Dylan's phone");
+      near(bal[me1.uid], P1.toGBP(50000, "IDR"), 0.02, "Dylan is owed half the difference");
+      near(bal[me2.uid], -P1.toGBP(50000, "IDR"), 0.02);
+    });
+    const plan = P1.splitSettle(bal); await m1b.paid(plan[0].from, plan[0].to, plan[0].gbp);
+    const m2b = await P2.liveSplitModel(gid), bal2 = P2.splitBalances({people:m2b.people, items:m2b.items});
+    test("live split: Paid settles it for everyone", () => ok(Object.values(bal2).every(v => Math.abs(v) < 0.02), JSON.stringify(bal2)));
+    const bad = await m2b.add({what:"x", amount:"5", cur:"GBP", by:me3.uid, to:[me1.uid]});
+    let peek = 0; try { await P3.frDb("GET", `groups/${gid}`); } catch(e){ peek = e.status; }
+    let sneak = 0; try { await P3.frDb("PUT", `groups/${gid}/members/${me3.uid}`, "Stranger"); } catch(e){ sneak = e.status; }
+    let post = 0; try { await P3.frDb("PUT", `groups/${gid}/items/zz`, {w:"x", a:1, c:"GBP", by:me3.uid, to:{}, t:1}); } catch(e){ post = e.status; }
+    test("live split: only members can see or add to a group, and only members can be the payer", () => {
+      ok(/who paid/.test(bad), bad); eq([peek, sneak, post], [401, 401, 401]);
+    });
+    await m2b.del(m2b.items.find(x => x.w === "Taxi").id);
+    const m1c = await P1.liveSplitModel(gid);
+    test("live split: a deleted payment goes from everyone's phone, and the last copy is kept for no signal", () => {
+      ok(!m1c.items.some(x => x.w === "Taxi")); ok(P1.liveStore()[gid].items && Object.keys(P1.liveStore()[gid].items).length === 2);
+    });
   }
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
