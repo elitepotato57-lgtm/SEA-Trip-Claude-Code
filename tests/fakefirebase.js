@@ -19,6 +19,8 @@ function makeFake(){
     if (top === "users" || top === "codes") return p.length >= 2;
     if (top === "requests" || top === "share") return a === uid;
     if (top === "loc") return a === uid || get(["share", a, uid]) === true;
+    if (top === "groups") return p.length >= 2 && !!get(["groups", a, "members", uid]);
+    if (top === "mygroups") return a === uid;
     return false;
   }
   function canWrite(uid, p, val){
@@ -27,6 +29,13 @@ function makeFake(){
     if (top === "users" || top === "share" || top === "loc") return a === uid && (top !== "loc" || p.length === 2);
     if (top === "codes") { if (!/^[A-Z2-9]{6}$/.test(a)) return false; const cur = get(p); return (cur === undefined && val === uid) || (cur === uid && val == null); }
     if (top === "requests") return p.length === 3 && (uid === b || uid === a);
+    if (top === "groups"){
+      const isMember = !!get(["groups", a, "members", uid]);
+      if (p[2] === "members" && p.length === 4) return isMember || (get(["groups", a]) === undefined && p[3] === uid);
+      if ((p[2] === "n" && p.length === 3) || (p[2] === "items" && p.length === 4)) return isMember;
+      return false;
+    }
+    if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));
     return false;
   }
   const json = (status, body) => ({ok:status >= 200 && status < 300, status, json:async () => body, text:async () => JSON.stringify(body)});

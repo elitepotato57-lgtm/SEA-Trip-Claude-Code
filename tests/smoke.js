@@ -36,6 +36,9 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 (async () => {
   const server = process.env.BASE ? null : await start(PORT);
   const browser = await chromium.launch(launchOpts);
+  // the real config.js holds Dylan's keys: tests never use it (no real Google or Firebase calls)
+  const newCtx = browser.newContext.bind(browser);
+  browser.newContext = async (...args) => { const c = await newCtx(...args); await c.route(/\/config\.js(\?|$)/, r => r.fulfill({status:200, contentType:"text/javascript", body:"/* config.js is blocked in tests */"})); return c; };
   // a phone in central Bangkok that allows location (the app no longer pretends: it uses the real position)
   const ctx = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
   const page = await ctx.newPage();
@@ -346,6 +349,19 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(/Dylan/.test(pin), "Dylan shows on Sam's map " + JSON.stringify(pin));
     await B.pg.goto(BASE + "#tools/settings"); await B.pg.waitForTimeout(800);
     ok(await B.pg.evaluate(() => /Friends and location sharing/.test(document.querySelector("#pageview").textContent) && !!document.querySelector('#pageview a[href="#tools/friends"]')), "Settings has Friends and location sharing");
+    // live split: Dylan starts a group with Sam and adds a taxi; it appears on Sam's phone with the right tally
+    await A.pg.goto(BASE + "#tools/split"); await A.pg.waitForTimeout(1200);
+    await A.pg.click("#sp-newg"); await A.pg.waitForTimeout(500);
+    await A.pg.fill("#sp-gname", "Bali crew"); await A.pg.click("#sp-gcreate"); await A.pg.waitForTimeout(2500);
+    await A.pg.fill("#sp-what", "Taxi"); await A.pg.fill("#sp-amt", "300"); await A.pg.selectOption("#sp-cur", "THB");
+    await A.pg.click("#sp-add"); await A.pg.waitForTimeout(2000);
+    const la = await A.pg.evaluate(() => ({live:!!document.querySelector(".live-dot"), rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " ")), w:document.documentElement.scrollWidth}));
+    ok(la.live && la.rows.length === 2 && /Dylan gets back Rp [\d,]+ £3\.3\d/.test(la.rows[0]) && la.w <= 393, "Split costs: Dylan starts a live group with Sam and adds a ฿300 taxi (half each, shown in rupiah in Bali) " + JSON.stringify(la));
+    await B.pg.goto(BASE + "#tools/split"); await B.pg.waitForTimeout(2500);
+    await B.pg.evaluate(() => liveListGroups()); await B.pg.goto(BASE + "#tools"); await B.pg.goto(BASE + "#tools/split"); await B.pg.waitForTimeout(1500);
+    await B.pg.click('[data-tally^="g"]'); await B.pg.waitForTimeout(2500);
+    const lb = await B.pg.evaluate(() => ({title:(document.querySelector(".live-dot") || {}).parentNode ? document.querySelector(".live-dot").parentNode.textContent : "", pay:[...document.querySelectorAll(".sp-item")].map(r => r.innerText.replace(/\s+/g, " ")), rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.innerText.replace(/\s+/g, " "))}));
+    ok(/Bali crew/.test(lb.title) && lb.pay.some(t => /Taxi/.test(t)) && lb.rows.some(t => /Sam owes Rp [\d,]+ £3\.3\d/.test(t)), "Sam sees the same live tally on his phone " + JSON.stringify(lb));
     await A.c.close(); await B.c.close();
   }
 

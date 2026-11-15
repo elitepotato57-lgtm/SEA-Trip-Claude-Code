@@ -34,6 +34,35 @@
         ".write": "auth != null && auth.uid === $uid",
         ".validate": "!newData.exists() || (newData.hasChildren(['lat', 'lng', 't']) && newData.child('lat').isNumber() && newData.child('lng').isNumber() && newData.child('t').val() <= now)"
       }
+    },
+    "groups": {
+      "$gid": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        "n": {
+          ".write": "auth != null && root.child('groups').child($gid).child('members').child(auth.uid).exists()",
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && (root.child('groups').child($gid).child('members').child(auth.uid).exists() || (!root.child('groups').child($gid).exists() && $uid === auth.uid))",
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 30)"
+          }
+        },
+        "items": {
+          "$iid": {
+            ".write": "auth != null && root.child('groups').child($gid).child('members').child(auth.uid).exists()",
+            ".validate": "!newData.exists() || (newData.hasChildren(['w', 'a', 'c', 'by', 'to', 't']) && newData.child('a').isNumber() && newData.child('a').val() > 0 && newData.child('t').val() <= now)"
+          }
+        }
+      }
+    },
+    "mygroups": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$gid": {
+          ".write": "auth != null && (auth.uid === $uid || root.child('groups').child($gid).child('members').child(auth.uid).exists())"
+        }
+      }
     }
   }
 }

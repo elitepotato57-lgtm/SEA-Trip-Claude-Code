@@ -154,3 +154,12 @@ node tests/photos-perf.js     # photo timings (needs signal)
   (FIREBASE-SETUP.md); database rules make a location readable only by the friends it's shared with. Tested against a pretend
   Firebase applying the same rules (two and three phones); not yet run against a real Firebase project.
 - Tests: unit 83 passed; browser suite 109 passed.
+
+## Live split groups (branch `claude/live-split`)
+
+- Split costs can now be a **live group** with friends from Tools › Friends: start one, pick who's in it, and everyone adds
+  payments (choosing who paid and who it was for); the tally, settle-up and deletions update on every member's phone
+  (checked every 15 seconds while the page is open). The last copy is kept on the phone for no signal; adding needs signal.
+  "On this phone" tallies work as before. Firebase rules: only members can read or write a group.
+- Dylan must re-publish `firebase/database.rules.json` in Firebase for groups to work.
+- Tests: unit 87 passed; browser suite 111 passed (two phones sharing a live group, against the pretend Firebase).
