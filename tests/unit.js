@@ -585,6 +585,11 @@ test("split costs: merging another phone's tally adds new payments once and keep
   A.S.split = {people:[], items:[], del:[]};
 });
 
+test("hostel cards: a Google review is shown only if it's 30 characters or fewer, never cut down", () => {
+  eq(A.shortReview([{text:"This hostel was absolutely brilliant, the staff were lovely", rating:5}, {text:{text:"Great vibes, great staff!"}, rating:5, authorAttribution:{displayName:"Jo"}}]), {t:"Great vibes, great staff!", by:"Jo", r:5});
+  eq(A.shortReview([{text:"x".repeat(31)}]), null); eq(A.shortReview(null), null); eq(A.shortReview([{text:"  Clean   and quiet  "}]).t, "Clean and quiet");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
@@ -654,6 +659,38 @@ test("split costs: merging another phone's tally adds new payments once and keep
       const P0 = load(); eq(P0.frCfg(), null);
       eq(P1b.frCfg().databaseURL, DB_URL);
       eq(load(undefined, {SEA_FIREBASE:{apiKey:"x", databaseURL:"https://evil.example.com"}}).frCfg(), null, "only a Firebase database address is accepted");
+    });
+    // developer phone: the first to claim it gets it, nobody else; only it can set faces, and only small JPEGs
+    const claim3 = await P3.frClaimAdmin().then(() => "ok", e => e.message);
+    const claim1 = await P1.frClaimAdmin().then(() => "ok", e => e.message);
+    const jpeg = "data:image/jpeg;base64," + "A".repeat(200);
+    const set3 = await P3.frSetPhoto(me2.uid, jpeg).then(() => "ok", e => e.message);
+    const set1 = await P1.frSetPhoto(me1.uid, "data:image/png;base64,AAAA").then(() => "ok", e => e.message);
+    test("friends: only the first phone to claim developer gets it, and photos can only be set by it", () => {
+      eq(claim3, "ok", "the stranger's phone claimed first in this test"); eq(claim1, "permission");
+      eq(set3, "ok"); eq(set1, "permission", "a non-developer can't set photos");
+      eq(fb.root.photos[me2.uid], jpeg);
+    });
+    const big = await P3.frSetPhoto(me1.uid, "data:image/jpeg;base64," + "A".repeat(50000)).then(() => "ok", e => e.message);
+    const ph1 = await P1.frLoadPhotos(true);
+    test("friends: photos are small JPEGs, and every friend's phone loads them", () => { eq(big, "permission"); eq(ph1[me2.uid], jpeg); ok(/<img src="data:image\/jpeg/.test(P1.frAvatar(me2.uid, 24))); });
+    test("friends: each friend gets their own colour, you are blue", () => {
+      P1.S.friends.list = {a:{n:"A", at:1}, b:{n:"B", at:2}, c:{n:"C", at:3}};
+      const cs = ["a", "b", "c"].map(P1.frColor); eq(new Set(cs).size, 3); eq(P1.frColor(me1.uid), "#7FB2D2");
+    });
+    // the location bug: with the pretend test location on, the app's own GPS position is what's sent
+    P1.S.friends.list = {[me2.uid]:{n:"Sam", share:true, at:1}}; P1.S.friends.on = true;
+    const sentFake = await P1.frSendNow(true, {lat:13.7, lng:100.5}, "test");
+    test("friends: the pretend test location is never sent to friends", () => eq(sentFake, false));
+    test("rock paper scissors: scores, draws and unfinished rounds", () => {
+      const g = {r:{1:{x:"rock", y:"scissors"}, 2:{x:"paper", y:"paper"}, 3:{x:"scissors", y:"rock"}, 4:{x:"paper", y:"rock"}, 5:{x:"rock"}}};
+      eq(P1.rpsScore(g, "x", "y"), [2, 1]); eq(P1.rpsScore(g, "y", "x"), [1, 2]);
+      eq(P1.rpsRoom("b", "a"), "a_b"); eq(P1.rpsRoom("a", "b"), "a_b");
+    });
+    let otherGame = 0; try { await P3.frDb("GET", `games/${P1.rpsRoom(me1.uid, me2.uid)}`); } catch(e){ otherGame = e.status; }
+    test("rock paper scissors: only the two players can see their game", () => eq(otherGame, 401));
+    test("frListen falls back to checking every second when there's no live stream", () => {
+      eq(P1.frSetIn({a:{b:1}}, "/a/c", 2), {a:{b:1, c:2}}); eq(P1.frSetIn({a:{b:1}}, "/", {z:1}), {z:1}); eq(P1.frSetIn({a:{b:1}}, "/a/b", null), {a:{}});
     });
     // live split groups: Dylan starts one with Sam; both add payments and see the same tally; a stranger can't get in
     const gid = await P1.liveCreateGroup("Bali crew", [me2.uid]);

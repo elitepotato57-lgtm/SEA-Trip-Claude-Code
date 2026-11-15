@@ -21,6 +21,10 @@ function makeFake(){
     if (top === "loc") return a === uid || get(["share", a, uid]) === true;
     if (top === "groups") return p.length >= 2 && !!get(["groups", a, "members", uid]);
     if (top === "mygroups") return a === uid;
+    if (top === "admins") return p.length === 2;
+    if (top === "photos") return true;
+    if (top === "invites") return a === uid;
+    if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));
     return false;
   }
   function canWrite(uid, p, val){
@@ -36,6 +40,10 @@ function makeFake(){
       return false;
     }
     if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));
+    if (top === "admins") return p.length === 2 && (get(["admins", uid]) === true || (a === uid && get(["admins"]) === undefined));
+    if (top === "photos") return p.length === 2 && get(["admins", uid]) === true && (val == null || (typeof val === "string" && val.length < 40000 && val.startsWith("data:image/jpeg;base64,")));
+    if (top === "invites") return p.length === 3 && (uid === b || uid === a);
+    if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));
     return false;
   }
   const json = (status, body) => ({ok:status >= 200 && status < 300, status, json:async () => body, text:async () => JSON.stringify(body)});

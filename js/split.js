@@ -96,15 +96,23 @@ function splitSummary(){
 }
 
 /* ---------- the page ----------
-   One screen for two kinds of tally: "On this phone" (S.split, shared by link) and live groups with friends (Firebase,
-   js/friends.js: everyone in the group adds payments and sees the same tally). Both go through a small "model". */
-const splitUi = {to:null, by:"", cur:"", what:"", amt:"", key:"", newGroup:false};
+   One section for two kinds of tally: "On this phone" (S.split, shared by link) and live groups with friends (Firebase,
+   js/friends.js: everyone in the group adds payments and sees the same tally). Both go through a small "model".
+   It shows on Tools › Split costs (with its own header) and inside Tools › Friends (live groups only). */
+const splitUi = {to:null, by:"", cur:"", what:"", amt:"", key:"", newGroup:false, tab:"tally"};
 const showAmt = gbp => { const lc = splitLocal(); return lc === "GBP" ? `£${Math.abs(gbp).toFixed(2)}` : `${money(niceRound(Math.abs(gbp) * rate(lc), lc), lc)} <small>£${Math.abs(gbp).toFixed(2)}</small>`; };
+const SP_COLORS = ["#7FB2D2", "#F2C14E", "#7FD1AE", "#F28B82", "#A8B8FF", "#E39FF6", "#6FD0E6", "#FFB37A"];
 function localSplitModel(){
   const sp = splitData();
   return {live:false, people:sp.people, name:p => p, items:sp.items,
     add:async o => splitAdd(o), paid:async (f, t, g) => splitPaid(f, t, g), del:async id => splitDelete(id),
     addPerson:async n => { sp.people.push(n); persist(); }, removePerson:async p => { sp.people = sp.people.filter(x => x !== p); persist(); }};
+}
+// a face (live groups, from Friends) or coloured initials
+function splitAvatar(m, p, size = 28){
+  if (m.live && typeof frAvatar === "function") return frAvatar(p, size, m.name(p));
+  const n = m.name(p), i = Math.max(0, m.people.indexOf(p));
+  return `<span class="fr-av" style="--c:${SP_COLORS[i % SP_COLORS.length]};--s:${size}px" aria-hidden="true">${esc(String(n).trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase())}</span>`;
 }
 TOOL_PAGES.split = async (root, arg) => {
   if (arg && arg.startsWith("g=")){
@@ -123,27 +131,31 @@ TOOL_PAGES.split = async (root, arg) => {
   if (live) liveSplitRefresh(root);
 };
 function renderSplit(root, m, groups, live){
-  const lc = splitLocal();
+  root.innerHTML = hero({title:"Split costs", sub:"Who paid, who owes, and how to settle up", back:["#tools", "Tools"]}) + `<div class="page split">${splitSectionHTML(m, groups, live, {})}</div>`;
+  bindSplit(root, m, () => TOOL_PAGES.split(root, ""));
+}
+function splitSectionHTML(m, groups, live, opt = {}){
+  const lc = splitLocal(), embedded = !!opt.embedded;
   const key = (m.live ? m.id : "phone") + ":" + m.people.join(",");
   if (splitUi.key !== key){ splitUi.key = key; splitUi.to = new Set(m.people); if (!m.people.includes(splitUi.by)) splitUi.by = m.me && m.people.includes(m.me) ? m.me : m.people[0] || ""; }
   if (!splitUi.cur) splitUi.cur = lc;
   const nm = p => esc(m.name(p)), bal = splitBalances({people:m.people, items:m.items}), plan = splitSettle(bal);
   const curs = [...new Set([lc, "GBP", ...Object.keys(D.rates)])].filter(k => k === "GBP" || D.rates[k]);
   const items = m.items.slice().sort((a, b) => b.t - a.t);
-  let html = hero({title:"Split costs", sub:"Who paid, who owes, and how to settle up", back:["#tools", "Tools"]}) + `<div class="page split">`;
+  let html = "";
   // which tally: this phone, or a live group shared with friends
   if (live || groups.length){
     html += `<div class="scroller" role="group" aria-label="Which tally" style="margin-bottom:10px">
-      <button class="chip" type="button" data-tally="" aria-pressed="${!m.live}">On this phone</button>
+      ${embedded ? "" : `<button class="chip" type="button" data-tally="" aria-pressed="${!m.live}">On this phone</button>`}
       ${groups.map(g => `<button class="chip" type="button" data-tally="${esc(g.id)}" aria-pressed="${!!m.live && m.id === g.id}">${icon("users","i xs")}${esc(g.n)}</button>`).join("")}
       <button class="chip" type="button" id="sp-newg" aria-pressed="${splitUi.newGroup}">+ Live group</button></div>`;
   }
   if (splitUi.newGroup) html += newGroupHTML();
   if (m.live){
-    html += `<div class="block"><h2>${esc(m.title)} <small class="live-dot">live</small></h2>
-      <div class="flags">${m.people.map(p => `<span class="chip soft">${nm(p)}${p === m.me ? " (you)" : ""}</span>`).join("")}</div>
-      ${m.addable.length ? `<div class="note" style="margin:8px 0 4px">Add a friend to this group</div><div class="flags">${m.addable.map(([uid, f]) => `<button class="chip soft" type="button" data-gadd="${esc(uid)}">+ ${esc(f.n)}</button>`).join("")}</div>` : ""}
-      <p class="note">Everyone in the group can add payments, and the tally updates on all your phones (with signal).${m.stale ? ` <b>No signal: showing the tally as it was ${esc(m.stale)}.</b>` : ""}</p></div>`;
+    html += `<div class="sp-members">${m.people.map(p => `<span class="sp-mem">${splitAvatar(m, p, 26)}<small>${nm(p)}${p === m.me ? " (you)" : ""}</small></span>`).join("")}
+      ${embedded ? "" : `<small class="live-dot">live</small>`}</div>
+      ${m.addable.length ? `<div class="flags" style="margin:6px 0">${m.addable.map(([uid, f]) => `<button class="chip soft" type="button" data-gadd="${esc(uid)}">+ ${esc(f.n)}</button>`).join("")}</div>` : ""}
+      ${m.stale ? `<p class="note"><b>No signal: showing the tally as it was ${esc(m.stale)}.</b></p>` : ""}`;
   } else {
     html += `<div class="block"><h2>Who’s splitting</h2>
       <div class="flags" id="sp-people">${m.people.map(p => `<span class="chip soft">${nm(p)}<button type="button" class="x" data-rm="${esc(p)}" aria-label="Remove ${nm(p)}">${icon("x","i xs")}</button></span>`).join("")}</div>
@@ -151,29 +163,37 @@ function renderSplit(root, m, groups, live){
       ${m.people.length < 2 ? `<p class="note">Add everyone in the group (you too). Names are saved for next time.</p>` : ""}
       ${live ? "" : `<p class="note">With Friends switched on (Tools › Friends), you can start a live tally your mates add to from their own phones.</p>`}</div>`;
   }
-  if (m.people.length >= 2){
-    html += `<div class="block"><h2>Add a payment</h2>
+  if (m.people.length < 2) return html;
+  html += `<div class="seg sp-tabs" role="tablist"><button type="button" role="tab" data-sptab="tally" aria-pressed="${splitUi.tab !== "history"}">Tally</button><button type="button" role="tab" data-sptab="history" aria-pressed="${splitUi.tab === "history"}">History${items.length ? ` (${items.length})` : ""}</button></div>`;
+  if (splitUi.tab === "history"){
+    html += items.length ? `<div class="sp-hist-list">${items.map(x => {
+      const n = x.to.length, each = x.a / n;
+      const detail = x.s ? `${nm(x.by)} paid ${nm(x.to[0])} back`
+        : `Total ${esc(money(x.a, x.c))} · ${n === 1 ? `all for ${nm(x.to[0])}` : `${esc(money(r2(each), x.c))} each for ${x.to.length === m.people.length ? "everyone" : x.to.map(nm).join(", ")}`}`;
+      return `<div class="sp-hist"><div class="who">${splitAvatar(m, x.by, 32)}<div><b>${nm(x.by)}</b> <span class="note">${x.s ? "settled up" : "paid"}</span>
+          <div class="note">${esc(x.w)} · ${esc(new Date(x.t).toLocaleDateString("en-GB", {day:"numeric", month:"short"}))}${m.live && x.add && x.add !== x.by ? ` · added by ${nm(x.add)}` : ""}</div>
+          <div class="note">${detail}</div></div></div>
+        <div class="amt"><b>${esc(money(x.a, x.c))}</b><small>£${toGBP(x.a, x.c).toFixed(2)}</small>
+          <button class="icon-btn" type="button" data-del="${esc(x.id)}" aria-label="Delete ${esc(x.w)}">${icon("x","i s")}</button></div></div>`;
+    }).join("")}</div>` : `<p class="note">Nothing yet. Payments show here with who paid and how it was split.</p>`;
+    return html;
+  }
+  html += `<div class="sp-add"><h3>Add a payment</h3>
       <label class="field">What for<input id="sp-what" type="text" maxlength="60" placeholder="Taxi to the airport" value="${esc(splitUi.what)}"></label>
       <div class="pair2"><label class="field">How much<input id="sp-amt" type="text" inputmode="decimal" placeholder="0" value="${esc(splitUi.amt)}"></label>
         <label class="field">Money<select id="sp-cur">${curs.map(k => `<option value="${k}" ${k === splitUi.cur ? "selected" : ""}>${k}</option>`).join("")}</select></label></div>
       <label class="field">Paid by<select id="sp-by">${m.people.map(p => `<option value="${esc(p)}" ${p === splitUi.by ? "selected" : ""}>${nm(p)}</option>`).join("")}</select></label>
       <div class="note" style="margin:8px 0 4px">Split equally between</div>
       <div class="flags">${m.people.map(p => `<button class="chip soft" type="button" data-to="${esc(p)}" aria-pressed="${splitUi.to.has(p)}">${nm(p)}</button>`).join("")}</div>
-      <button class="btn primary wide" type="button" id="sp-add" style="margin-top:12px">Add payment</button></div>`;
-    html += `<div class="block"><h2>Running tally</h2><div class="sp-bal">${m.people.map(p => {
+      <button class="btn primary wide" type="button" id="sp-add" style="margin-top:12px">Add payment</button></div>
+    <h3 style="margin-top:14px">Running tally</h3><div class="sp-bal">${m.people.map(p => {
       const v = bal[p] || 0;
-      return `<div class="sp-row"><b>${nm(p)}</b><span class="${v > 0.005 ? "good" : v < -0.005 ? "bad" : ""}">${v > 0.005 ? `gets back ${showAmt(v)}` : v < -0.005 ? `owes ${showAmt(v)}` : "all square"}</span></div>`;
+      return `<div class="sp-row"><span class="who">${splitAvatar(m, p, 26)}<b>${nm(p)}</b></span><span class="${v > 0.005 ? "good" : v < -0.005 ? "bad" : ""}">${v > 0.005 ? `gets back ${showAmt(v)}` : v < -0.005 ? `owes ${showAmt(v)}` : "all square"}</span></div>`;
     }).join("")}</div>
-      ${plan.length ? `<h3 style="margin-top:12px">To settle up</h3>${plan.map((t, k) => `<div class="sp-row"><span>${nm(t.from)} pays ${nm(t.to)} <b>${showAmt(t.gbp)}</b></span><button class="btn small" type="button" data-paid="${k}">Paid</button></div>`).join("")}` : m.items.length ? `<p class="note">Everyone is square.</p>` : ""}
-      ${m.live ? "" : `<div class="row" style="margin-top:12px"><button class="btn small" type="button" id="sp-share">${icon("share","i s")}Send to the group</button></div>`}
-      <p class="note">${m.live ? "" : "The tally is kept on this phone. Send it to the group and anyone who opens the link gets the same payments added to their app. "}Totals are worked out in pounds at today’s rates, shown in ${esc(CUR_NAME[lc] || lc)} too.</p></div>`;
-    if (items.length) html += `<div class="block"><h2>Payments</h2>${items.map(x => `<div class="sp-item"><div><b>${esc(x.w)}</b> <span class="price">${esc(money(x.a, x.c))}</span>
-      <div class="note">${x.s ? `${nm(x.by)} paid back ${nm(x.to[0])}` : `${nm(x.by)} paid, for ${x.to.length === m.people.length ? "everyone" : x.to.map(nm).join(", ")}`} · ${esc(new Date(x.t).toLocaleDateString("en-GB", {day:"numeric", month:"short"}))}${m.live && x.add && x.add !== x.by ? ` · added by ${nm(x.add)}` : ""}</div></div>
-      <button class="icon-btn" type="button" data-del="${esc(x.id)}" aria-label="Delete ${esc(x.w)}">${icon("x","i s")}</button></div>`).join("")}</div>`;
-  }
-  html += `</div>`;
-  root.innerHTML = html;
-  bindSplit(root, m);
+    ${plan.length ? `<h3 style="margin-top:12px">To settle up</h3>${plan.map((t, k) => `<div class="sp-row"><span>${nm(t.from)} pays ${nm(t.to)} <b>${showAmt(t.gbp)}</b></span><button class="btn small" type="button" data-paid="${k}">Paid</button></div>`).join("")}` : m.items.length ? `<p class="note">Everyone is square.</p>` : ""}
+    ${m.live ? "" : `<div class="row" style="margin-top:12px"><button class="btn small" type="button" id="sp-share">${icon("share","i s")}Send to the group</button></div>`}
+    <p class="note">${m.live ? "Everyone in the group can add payments, and the tally updates on all your phones (with signal). " : "The tally is kept on this phone. Send it to the group and anyone who opens the link gets the same payments added to their app. "}Totals are worked out in pounds at today’s rates, shown in ${esc(CUR_NAME[lc] || lc)} too.</p>`;
+  return html;
 }
 function newGroupHTML(){
   const fr = Object.entries(frState().list);
@@ -184,44 +204,50 @@ function newGroupHTML(){
     <button class="btn primary wide" type="button" id="sp-gcreate" style="margin-top:12px">Start the group</button>`
     : `<p class="note">Add your mates in <a href="#tools/friends">Tools › Friends</a> first, then start a group with them here.</p>`}</div>`;
 }
-function bindSplit(root, m){
-  const again = () => TOOL_PAGES.split(root, "");
+function bindSplit(root, m, again){
+  const q = s => root.querySelector(s);
   const fail = e => toast(e && e.message === "permission" ? "Firebase said no: are you still in this group?" : (e && e.message) || "No signal? Try again.");
   root.querySelectorAll("[data-tally]").forEach(b => b.onclick = () => { splitData().cur = b.dataset.tally; splitUi.newGroup = false; persist(); again(); });
-  const ng = $("#sp-newg"); if (ng) ng.onclick = () => { splitUi.newGroup = !splitUi.newGroup; again(); };
+  const ng = q("#sp-newg"); if (ng) ng.onclick = () => { splitUi.newGroup = !splitUi.newGroup; again(); };
+  root.querySelectorAll("[data-sptab]").forEach(b => b.onclick = () => { splitUi.tab = b.dataset.sptab; again(); });
   root.querySelectorAll("[data-gpick]").forEach(b => b.onclick = () => b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"));
-  const gc = $("#sp-gcreate");
+  const gc = q("#sp-gcreate");
   if (gc) gc.onclick = () => {
-    const name = $("#sp-gname").value.trim() || "Trip";
+    const name = q("#sp-gname").value.trim() || "Trip";
     const who = [...root.querySelectorAll('[data-gpick][aria-pressed="true"]')].map(b => b.dataset.gpick);
     if (!who.length){ toast("Pick at least one friend"); return; }
     gc.disabled = true;
     liveCreateGroup(name, who).then(id => { splitData().cur = id; splitUi.newGroup = false; persist(); toast(`Started ${name}`); again(); }, e => { gc.disabled = false; fail(e); });
   };
   root.querySelectorAll("[data-gadd]").forEach(b => b.onclick = () => liveAddMember(m.id, b.dataset.gadd).then(again, fail));
-  const ap = $("#sp-addp");
+  const ap = q("#sp-addp");
   if (ap){
     const addP = () => {
-      const n = $("#sp-name").value.trim().replace(/\s+/g, " ").slice(0, 30);
+      const n = q("#sp-name").value.trim().replace(/\s+/g, " ").slice(0, 30);
       if (!n) return;
       if (m.people.some(p => p.toLowerCase() === n.toLowerCase())){ toast(`${n} is already in the group`); return; }
-      m.addPerson(n).then(() => { splitUi.key = ""; again().then(() => { const i = $("#sp-name"); if (i) i.focus(); }); });
+      m.addPerson(n).then(() => { splitUi.key = ""; Promise.resolve(again()).then(() => { const i = root.querySelector("#sp-name"); if (i) i.focus(); }); });
     };
     ap.onclick = addP;
-    $("#sp-name").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); addP(); } };
+    q("#sp-name").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); addP(); } };
   }
   root.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
     const p = b.dataset.rm;
     if (m.items.some(x => x.by === p || x.to.includes(p))){ toast(`${p} is in some payments. Delete those first.`); return; }
     m.removePerson(p).then(() => { splitUi.key = ""; again(); });
   });
-  if (m.people.length < 2) return;
-  const keep = () => { splitUi.what = $("#sp-what").value; splitUi.amt = $("#sp-amt").value; splitUi.cur = $("#sp-cur").value; splitUi.by = $("#sp-by").value; };
-  ["#sp-what", "#sp-amt", "#sp-cur", "#sp-by"].forEach(s => $(s).onchange = keep);
+  root.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const x = m.items.find(i => i.id === b.dataset.del); if (!x) return;
+    if (!confirm(`Delete “${x.w}” (${money(x.a, x.c)})? It’s removed from the tally${m.live ? " on everyone’s phone" : ". Phones you send the tally to will drop it too"}.`)) return;
+    m.del(x.id).then(again, fail);
+  });
+  if (m.people.length < 2 || !q("#sp-add")) return;
+  const keep = () => { splitUi.what = q("#sp-what").value; splitUi.amt = q("#sp-amt").value; splitUi.cur = q("#sp-cur").value; splitUi.by = q("#sp-by").value; };
+  ["#sp-what", "#sp-amt", "#sp-cur", "#sp-by"].forEach(s => q(s).onchange = keep);
   root.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { const p = b.dataset.to; splitUi.to.has(p) ? splitUi.to.delete(p) : splitUi.to.add(p); b.setAttribute("aria-pressed", splitUi.to.has(p)); });
-  $("#sp-add").onclick = async () => {
+  q("#sp-add").onclick = async () => {
     keep();
-    const btn = $("#sp-add"); btn.disabled = true;
+    const btn = q("#sp-add"); btn.disabled = true;
     const msg = await m.add({what:splitUi.what, amount:splitUi.amt, cur:splitUi.cur, by:splitUi.by, to:[...splitUi.to]}).catch(e => (e && e.message === "permission" ? "Firebase said no: are you still in this group?" : "No signal? Try again."));
     btn.disabled = false;
     if (msg){ toast(msg); return; }
@@ -229,10 +255,5 @@ function bindSplit(root, m){
   };
   const plan = splitSettle(splitBalances({people:m.people, items:m.items}));
   root.querySelectorAll("[data-paid]").forEach(b => b.onclick = () => { const t = plan[+b.dataset.paid]; m.paid(t.from, t.to, t.gbp).then(() => { toast(`${m.name(t.from)} paid ${m.name(t.to)} back`); again(); }, fail); });
-  root.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
-    const x = m.items.find(i => i.id === b.dataset.del); if (!x) return;
-    if (!confirm(`Delete “${x.w}” (${money(x.a, x.c)})? It’s removed from the tally${m.live ? " on everyone’s phone" : ". Phones you send the tally to will drop it too"}.`)) return;
-    m.del(x.id).then(again, fail);
-  });
-  const sh = $("#sp-share"); if (sh) sh.onclick = splitShare;
+  const sh = q("#sp-share"); if (sh) sh.onclick = splitShare;
 }

@@ -163,3 +163,18 @@ node tests/photos-perf.js     # photo timings (needs signal)
   "On this phone" tallies work as before. Firebase rules: only members can read or write a group.
 - Dylan must re-publish `firebase/database.rules.json` in Firebase for groups to work.
 - Tests: unit 87 passed; browser suite 111 passed (two phones sharing a live group, against the pretend Firebase).
+
+## Friends hub (branch `claude/friends-hub`)
+
+- Fixed "Not sharing right now": a phone only sent its position when the app's map had a real GPS fix, so a pretend test
+  location, a map that hadn't found you, or blocked location meant nothing was sent, silently. Sharing now runs its own GPS
+  watch and the page says exactly why it isn't sending (off, nobody switched on, location blocked, finding you).
+- Friends page: title and line as asked, green Add friend button (opens a sheet with You, your code, sharing, adding,
+  removing, developer); main page has your friends (face or initials in their own colour, seen when, how far), a map
+  that glides out from you to everyone (and to you + a friend when you tap them), the live split costs (Tally and History:
+  who paid with their face on the left, the amount on the right, the total and each share), and Rock Paper Scissors.
+- Developer phone: tap Settings › About the data 7 times, then claim it in Friends; only it can set faces (database rule).
+- Hostel cards show a Google review of 30 characters or fewer, once the hostel's Google details have been looked up
+  (needs a Google key; none is set, so nothing shows yet). Long reviews are never cut down.
+- Re-publish firebase/database.rules.json (new: admins, photos, invites, games).
+- Tests: unit 95 passed; browser suite 121 passed (three pretend phones, pretend Firebase with the same rules).

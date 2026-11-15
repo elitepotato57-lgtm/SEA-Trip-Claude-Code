@@ -63,6 +63,34 @@
           ".write": "auth != null && (auth.uid === $uid || root.child('groups').child($gid).child('members').child(auth.uid).exists())"
         }
       }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || ($uid === auth.uid && !root.child('admins').exists()))",
+        ".validate": "newData.isBoolean()"
+      }
+    },
+    "photos": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length < 40000 && newData.val().beginsWith('data:image/jpeg;base64,'))"
+      }
+    },
+    "invites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$from": {
+          ".write": "auth != null && (auth.uid === $from || auth.uid === $uid)"
+        }
+      }
+    },
+    "games": {
+      "$room": {
+        ".read": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))",
+        ".write": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))"
+      }
     }
   }
 }
