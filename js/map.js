@@ -92,6 +92,8 @@ function ensureMap(){
   if (map.keyboard && map.keyboard.disableRotation) map.keyboard.disableRotation();
   map.addControl(new maplibregl.AttributionControl({compact:true, customAttribution:'Places © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'}), "bottom-left");
   map.on("load", onMapLoad);
+  const shut = () => document.querySelectorAll("#map .maplibregl-ctrl-attrib").forEach(a => a.classList.remove("maplibregl-compact-show"));
+  map.once("load", shut); map.once("idle", shut);
   // if the street map never arrives (no signal, first run), don't leave the spinner up forever
   setTimeout(() => hideMapLoading(), 15000);
   map.on("error", e => { const m = e && e.error && String(e.error.message || ""); if (!mapRun.tilesOk && /Failed to fetch|NetworkError|planet|tiles\.openfreemap/i.test(m)) setOfflineBase(true); });
@@ -280,13 +282,15 @@ const drawPins = () => refreshMapData();
 /* ---------- what should be on the map right now? ---------- */
 function activeGroups(){
   const g = [];
+  if (ui.mapSurf) return g;                                       // surf mode: only the researched surf spots
   ["gaff","munch","cool","move"].forEach(c => { if (ui.mapCats.has(c)) g.push(CAT[c].grp); });
   if (ui.essKinds.size) g.push("ess");
   return g;
 }
 const essKindSet = () => new Set([...ui.essKinds].flatMap(id => ESS_BY_ID[id].kinds));
 function curatedForMap(){
-  return D.places.concat(SURF).filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
+  if (ui.mapSurf) return SURF.slice();
+  return D.places.filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
 }
 
 /* ---------- the filter row: shown when one section is picked ---------- */
@@ -441,20 +445,23 @@ function renderMapStatus(){
 /* ---------- controls ---------- */
 function renderMapUI(){
   if (!$("#mapChips")) return;
-  const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved;
+  const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved && !ui.mapSurf;
   const chip = (attrs, label, on, col) => `<button class="chip" type="button" ${attrs} aria-pressed="${on}" ${col ? `style="--c:${col}"` : ""}>${col ? '<span class="dot"></span>' : ""}${label}</button>`;
   $("#mapChips").innerHTML = chip("data-all", "All", all)
     + ["gaff","munch","cool"].map(k => chip(`data-cat="${k}"`, CAT[k].label, ui.mapCats.has(k) && !ui.mapSaved, cssv(CAT[k].v))).join("")
     + chip("data-ess", `Essentials${ui.essKinds.size ? ` (${ui.essKinds.size})` : ""}`, !!ui.essKinds.size || !!ui.essOpen, cssv("--ess"))
     + chip(`data-cat="move"`, "Transport", ui.mapCats.has("move") && !ui.mapSaved, cssv("--move"))
-    + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved)
-    + chip("data-filters", `${icon("sliders","i xs")}Filters`, ui.mapFilters);
+    + chip("data-surf", `${icon("waves","i xs")}Surf`, !!ui.mapSurf)
+    + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved);
   const essRow = $("#mapEss");
   essRow.hidden = !(ui.essOpen || ui.essKinds.size);
   essRow.innerHTML = ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
   $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(48,58,64,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   const top = $("#mapTop");
+  // any other chip leaves surf mode
+  top.querySelectorAll("[data-all], [data-cat], [data-ess], [data-saved]").forEach(b => b.addEventListener("click", () => { if (ui.mapSurf){ ui.mapSurf = false; if (b.dataset.cat) ui.mapCats = new Set(); } }, {capture:true}));
+  top.querySelector("[data-surf]").onclick = () => ui.mapSurf ? (ui.mapSurf = false, ui.mapCats = new Set(["gaff","munch","cool"]), renderMapUI()) : openSurfMap();
   top.querySelector("[data-all]").onclick = () => { ui.mapCats = new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
   top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
     const k = b.dataset.cat; ui.mapSaved = false;
@@ -465,7 +472,6 @@ function renderMapUI(){
   });
   top.querySelector("[data-ess]").onclick = () => { ui.essOpen = !(ui.essOpen || ui.essKinds.size); if (!ui.essOpen && ui.essKinds.size){ ui.essKinds.clear(); if (mapRun.stash){ ui.mapCats = mapRun.stash; mapRun.stash = null; } } renderMapUI(); };
   top.querySelector("[data-saved]").onclick = () => { ui.mapSaved = !ui.mapSaved; if (ui.mapSaved && !Object.keys(S.saved).length) toast("Nothing saved yet. Tap the bookmark on a place."); renderMapUI(); };
-  top.querySelector("[data-filters]").onclick = () => { ui.mapFilters = !ui.mapFilters; renderMapUI(); };
   top.querySelectorAll("[data-essk]").forEach(b => b.onclick = () => toggleEssential(b.dataset.essk));
   top.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mapMode = b.dataset.mode; renderMapUI(); });
 
@@ -545,9 +551,10 @@ function previewCard(it, filterNote = ""){
   if (pt) bits.push(distShort(dist(pt, it)));
   if (it.r != null) bits.push(`${(it.r / 2).toFixed(1)} stars`);
   if (loc) bits.push(esc(withGBP(loc, it.p, it.cur)));
+  const surf = it.k === "surf" ? `<div class="m surf-now" data-surf="${esc(it.id)}"></div>` : "";
   return `<div class="preview" style="--c:${col}" id="preview">
     <div class="ph" data-ph="${esc(it.id)}">${icon(kindIcon(it))}</div>
-    <div class="body"><div class="eyebrow">${esc(kindLabel(it))}</div><h3>${esc(it.n)}</h3><div class="m">${bits.join(" · ")}</div>
+    <div class="body"><div class="eyebrow">${esc(kindLabel(it))}</div><h3>${esc(it.n)}</h3><div class="m">${bits.join(" · ")}</div>${surf}
       ${oh ? `<div class="m" style="color:${oh.open ? "var(--ok)" : "var(--faint)"}">${esc(oh.text)}</div>` : ""}${filterNote ? `<div class="m pv-filt">${icon("info","i xs")} ${esc(filterNote)}</div>` : ""}</div>
     ${saveBtn(it)}<button class="close" type="button" id="pvClose" aria-label="Close preview">${icon("x","i s")}</button>
     <div class="acts"><button class="btn small primary" type="button" data-open="${esc(it.id)}">View details</button><a class="btn small" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav","i s")}Directions</a></div></div>`;
@@ -556,34 +563,14 @@ function renderMapBottom(){
   const el = $("#mapBottom"); if (!el) return;
   if (ui.mapMode === "list"){ el.innerHTML = ""; placeSide(0); return; }
   const sel = ui.mapSel ? findPlace(ui.mapSel) : null;
-  if (ui.mapFilters){
-    el.innerHTML = `<div class="fpanel" style="box-shadow:var(--shadow)">
-      <label class="field">Sort the nearby strip<select id="mf-sort">${[["near","Nearest"],["rated","Best reviewed"],["cheap","Cheapest first"],["dear","Priciest first"],["match","Best match"]].map(([v, l]) => `<option value="${v}" ${ui.mapSort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      <button class="btn small" id="mf-done" type="button">Done</button></div>`;
-    $("#mf-sort").onchange = e => { ui.mapSort = e.target.value; };
-    $("#mf-done").onclick = () => { ui.mapFilters = false; renderMapUI(); };
-    placeSide(el.offsetHeight); return;
-  }
   if (sel){
     el.innerHTML = previewCard(sel, selFilterNote(sel));
     $("#pvClose").onclick = () => selectPlace(null);
-    watchCardPhotos(el);
+    watchCardPhotos(el); paintSurf(el);
     placeSide(el.offsetHeight); return;
   }
-  let items = mapRun.items.slice();
-  const ref = userLoc || (map && mapLoaded ? {lat:map.getCenter().lat, lng:map.getCenter().lng} : null);
-  const title = ui.mapSaved ? "Saved places" : userLoc && (locStatus === "ok" || locStatus === "test") ? "Closest to you" : "Nearby spotlight";
-  const how = ui.mapSort === "near" && !ref ? "rated" : ui.mapSort;
-  items = sortItems(items, how, ref).slice(0, 15);
-  if (!items.length){ el.innerHTML = ""; placeSide(0); return; }
-  el.innerHTML = `<div class="near ${S.nearClosed ? "closed" : ""}" id="near"><button class="near-title" type="button" aria-expanded="${!S.nearClosed}">${esc(title)}${icon("chev","i")}</button>${S.nearClosed ? "" : `<div class="near-row">${items.map(p => {
-    const c = CAT[p.c] || CAT.ess, pr = itemLocal(p);
-    const bits = [ref ? distText(dist(ref, p)) : p.city, pr ? `${pr} (${gbpRange(p.p, p.cur)})` : null, p.r != null ? `${(p.r / 2).toFixed(1)} stars` : null].filter(Boolean);
-    return `<button class="ncard" type="button" style="--c:${cssv(c.v)}" data-near="${esc(p.id)}"><span class="k"><span class="dot"></span>${esc(kindLabel(p))}</span><b>${esc(p.n)}</b><span class="m">${esc(bits.join(", "))}</span></button>`;
-  }).join("")}</div>`}</div>`;
-  el.querySelector(".near-title").onclick = () => { S.nearClosed = !S.nearClosed; persist(); renderMapBottom(); };
-  el.querySelectorAll("[data-near]").forEach(b => b.onclick = () => selectPlace(b.dataset.near, true));
-  placeSide(el.offsetHeight);
+  // no "Closest to you" strip any more: the bottom of the map stays clear until a place is picked
+  el.innerHTML = ""; placeSide(0);
 }
 function placeSide(h){ const s = $("#mapSide"); if (s) s.style.bottom = (Math.max(0, h) + 16) + "px"; }
 /* the list starts just below the search box and chips, however many rows of chips are showing */

@@ -534,13 +534,22 @@ test("your own maximum price is typed in pounds", () => {
   ok(/class="chip pf-in on"/.test(html) && !/data-pfset|data-pfcur|Custom/.test(html), "one chip-sized box, no Set button, no currency menu");
   A.setPF("munch", null);
 });
-test("surf spots come from OpenStreetMap and sit in Activities", () => {
-  ok(A.SURF.length >= 20 && A.SURF.every(p => /^o:[nwr]\d+$/.test(p.id) && p.c === "cool" && A.isSurf(p) && A.ccAt(p.lat, p.lng) === p.cc), "every surf place is inside a covered country");
-  ok(A.SURF.some(p => p.k === "surf" && /Gerupuk/.test(p.n)), "Gerupuk (Lombok) is a surf spot");
-  ok(A.SURF.filter(p => /school|shop|hire|rental/i.test(p.n)).every(p => p.k === "surfschool"), "schools and shops aren't called surf spots");
-  const chip = A.CHIPS.cool.find(c => c.id === "surf");
-  ok(chip.f(A.SURF[0]) && !chip.f({osm:true, k:"temple", n:"Wat X"}));
+test("surf spots are researched breaks with sources, no schools or shops, each in a covered country", () => {
+  ok(A.SURF.length >= 18, "enough spots");
+  ok(A.SURF.every(p => p.k === "surf" && p.src.length && p.src.every(s => /^https:\/\//.test(s[1])) && A.ccAt(p.lat, p.lng) === p.cc), "every spot has a source and sits in its country");
+  ok(!A.SURF.some(p => /school|shop|hire|rental|surf camp|indoor|flow|wave pool|artificial/i.test(p.n)), "no schools, shops or artificial waves");
+  ok(["Uluwatu", "Padang Padang", "Gerupuk Inside", "Kata Beach", "Medewi"].every(n => A.SURF.some(p => p.n === n)));
+  ok(A.SURF.filter(p => p.pic).every(p => /^img\/surf\/[a-z]+\.jpg$/.test(p.pic[0]) && require("fs").existsSync(require("path").join(__dirname, "..", p.pic[0])) && /Wikimedia Commons/.test(p.pic[2])), "photos are stored with the app, with credits");
+  ok(A.SURF.filter(p => p.pic).length >= 10);
+  const chip = A.CHIPS.cool.find(c => c.id === "surf"); eq(chip.go, "surf"); ok(chip.f(A.SURF[0]) && !chip.f({osm:true, k:"beach", n:"Some beach"}));
   eq(A.findPlace(A.SURF[0].id), A.SURF[0]);
+  ok(A.surfNear({lat:-8.8853, lng:116.2757}, "ID").every(p => A.dist({lat:-8.8853, lng:116.2757}, p) <= 250), "near Kuta Lombok: the Lombok and Bali spots");
+  ok(A.surfNear({none:true}, "TH").every(p => p.cc === "TH") && A.surfNear({none:true}, "TH").length >= 2);
+  eq(A.surfNear({lat:11.57, lng:104.92}, "KH").length, 0, "no surf researched in Cambodia: nothing shown");
+});
+test("surf mode puts only the surf spots on the map", () => {
+  A.ui.mapSurf = true; eq(A.activeGroups().length, 0); eq(A.curatedForMap().length, A.SURF.length);
+  A.ui.mapSurf = false; ok(!A.curatedForMap().some(p => p.k === "surf"), "surf spots aren't mixed into Activities otherwise");
 });
 test("the wave forecast is turned into feet and plain words, never a guess when the sea model has nothing", () => {
   const f = A.surfRead({current:{wave_height:1.4, wave_period:11, wave_direction:208, swell_wave_height:1.36, swell_wave_period:9.3}}, {current:{wind_speed_10m:9, wind_direction_10m:95}});
@@ -552,6 +561,30 @@ test("the wave forecast is turned into feet and plain words, never a guess when 
   ok(A.wantsSurf({osm:true, k:"beach"}) && A.wantsSurf(A.SURF[0]) && !A.wantsSurf({osm:true, k:"museum"}));
 });
 
+/* ---------- split costs ---------- */
+test("split costs: equal shares, a running tally and the fewest payments to settle", () => {
+  A.S.split = {people:["Dylan", "Sam", "Jo"], items:[], del:[]};
+  eq(A.splitAdd({what:"Taxi", amount:"30", cur:"GBP", by:"Dylan", to:["Dylan", "Sam", "Jo"]}), "");
+  eq(A.splitAdd({what:"Beers", amount:"12", cur:"GBP", by:"Sam", to:["Sam", "Jo"]}), "");
+  const b = A.splitBalances(); eq([b.Dylan, b.Sam, b.Jo], [20, -4, -16]);
+  const plan = A.splitSettle(b); eq(plan.map(t => [t.from, t.to, t.gbp]), [["Jo", "Dylan", 16], ["Sam", "Dylan", 4]]);
+  A.splitPaid("Jo", "Dylan", 16); A.splitPaid("Sam", "Dylan", 4);
+  const after = A.splitBalances(); ok(Object.values(after).every(v => Math.abs(v) < 0.02), "settled: everyone square " + JSON.stringify(after));
+  ok(A.splitAdd({what:"x", amount:"-5", cur:"GBP", by:"Dylan", to:["Sam"]}) !== "", "no negative amounts");
+  ok(A.splitAdd({what:"x", amount:"5", cur:"GBP", by:"Nobody", to:["Sam"]}) !== "", "the payer must be in the group");
+  ok(A.splitAdd({what:"x", amount:"5", cur:"GBP", by:"Sam", to:[]}) !== "", "someone must share it");
+  const baht = A.S.split.items.length; A.splitAdd({what:"Dinner", amount:"600", cur:"THB", by:"Jo", to:["Jo", "Sam"]});
+  near(A.splitBalances().Jo, A.toGBP(300, "THB"), 0.02, "other money is converted at the app's rate");
+  const id = A.S.split.items[baht].id; A.splitDelete(id); ok(!A.S.split.items.some(x => x.id === id) && A.S.split.del.includes(id));
+});
+test("split costs: merging another phone's tally adds new payments once and keeps deletions", () => {
+  A.S.split = {people:["Dylan", "Sam"], items:[{id:"a", w:"Taxi", a:10, c:"GBP", by:"Dylan", to:["Dylan", "Sam"], t:1}], del:["gone"]};
+  const n = A.splitMerge({people:["Sam", "Jo"], items:[{id:"a", w:"Taxi", a:10, c:"GBP", by:"Dylan", to:["Dylan", "Sam"], t:1}, {id:"b", w:"Boat", a:20, c:"GBP", by:"Jo", to:["Jo", "Sam"], t:2}, {id:"gone", w:"Old", a:5, c:"GBP", by:"Sam", to:["Sam"], t:0}], del:[]});
+  eq(n, 1); eq(A.S.split.people, ["Dylan", "Sam", "Jo"]); eq(A.S.split.items.map(x => x.id), ["a", "b"]);
+  eq(A.splitMerge({people:[], items:[], del:["a"]}), 0); eq(A.S.split.items.map(x => x.id), ["b"], "a payment deleted on another phone goes here too");
+  A.S.split = {people:[], items:[], del:[]};
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
@@ -560,6 +593,13 @@ test("the wave forecast is turned into feet and plain words, never a guess when 
     eq(Object.keys(A.S.saved).sort(), ["x", "y"]);
     eq(A.S.saved.x.n, "Mine");
     eq(A.S.budget.items.length, 2);
+  });
+  A.S.split = {people:["A", "B"], items:[{id:"x1", w:"Bus", a:7.5, c:"GBP", by:"A", to:["A", "B"], t:5}], del:["old"]};
+  const code = await A.splitEncode(); A.S.split = {people:[], items:[], del:[]};
+  const back = await A.splitDecode(code);
+  test("split costs: the shared link carries the whole tally and reads back the same", () => {
+    ok(/^[zj][A-Za-z0-9_-]+$/.test(code), "link-safe: " + code.slice(0, 20));
+    eq(back, {people:["A", "B"], items:[{id:"x1", w:"Bus", a:7.5, c:"GBP", by:"A", to:["A", "B"], t:5}], del:["old"]});
   });
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

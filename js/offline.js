@@ -210,7 +210,7 @@ const agoText = t => { const d = Math.floor((Date.now() - t) / 864e5); return d 
 
 /* ---------- backup and restore ---------- */
 // the testing-only pretend location is never restored from a backup (an old backup would bring back the Bangkok default)
-const BACKUP_KEYS = ["saved", "budget", "stay", "design", "look", "focus", "countryMode", "country", "nearClosed", "rates"];
+const BACKUP_KEYS = ["saved", "budget", "stay", "design", "look", "focus", "countryMode", "country", "nearClosed", "rates", "split"];
 async function makeBackup(){
   const state = {}; BACKUP_KEYS.forEach(k => { if (S[k] !== undefined) state[k] = S[k]; });
   const docs = typeof Docs !== "undefined" ? await Docs.exportAll() : [];

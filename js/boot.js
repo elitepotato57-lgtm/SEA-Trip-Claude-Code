@@ -11,6 +11,9 @@
   Places.ready();                       // fetch the small index of the places database in the background
   // feel like an app, not a web page: no pinch-zoom of the page on iPhone (the map handles its own pinch)
   document.addEventListener("gesturestart", e => { if (!e.target.closest || !e.target.closest("#map, .tmap")) e.preventDefault(); }, {passive:false});
+  // a quick second tap never zooms the page (older iPhones ignore the page's no-zoom setting)
+  let lastTouch = 0;
+  document.addEventListener("touchend", e => { const now = Date.now(); if (now - lastTouch < 320 && !(e.target.closest && e.target.closest("#map, .tmap, input, textarea, select"))) e.preventDefault(); lastTouch = now; }, {passive:false});
   refreshLiveRates(false);              // and today's exchange rates, if there is signal
 })();
 

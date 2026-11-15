@@ -10,6 +10,7 @@ const TOOLS = [
   {id:"docs", l:"Documents", d:"Boarding passes, bookings, TDAC", ic:"folder"},
   // Budget is hidden for now: its page and everyone's saved spending are kept (js/tools-more.js), it just has no tile
   {id:"budget", l:"Budget", d:"Set a budget, log what you spend", ic:"wallet", alt:1, hidden:true},
+  {id:"split", l:"Split costs", d:"Who paid, who owes, settle up", ic:"cash", alt:1},
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
@@ -23,7 +24,8 @@ function renderTools(){
   const root = $("#pageview"), sub = ui.sub;
   if (sub === "transport"){ root.innerHTML = transportPage(); bindTransport(); return; }
   if (sub === "settings"){ root.innerHTML = setupPage(); bindSetup(); return; }
-  if (sub && TOOL_PAGES[sub]){ TOOL_PAGES[sub](root); return; }
+  const [page, arg] = (sub || "").split("?");
+  if (page && TOOL_PAGES[page]){ TOOL_PAGES[page](root, arg || ""); return; }
   const c = D.countries[S.country];
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
     <div class="tgrid">${TOOLS.filter(t => !t.hidden).map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>

@@ -226,10 +226,23 @@ const realPhoto = r => r && r.src ? r : null;
 // the bigger picture for the details sheet (Wikimedia makes these sizes on request)
 const bigPhoto = src => src && /\/\d+px-/.test(src) ? src.replace(/\/\d+px-/, `/${PH_BIG}px-`) : src && /Special:FilePath/.test(src) ? src.replace(/width=\d+/, "width=" + PH_BIG) : src;
 // {src, page, by} for a place, null when it has none, {err:true} when it couldn't be checked (no signal)
+/* The photo index (places/photos.json, built by tools/photo-index.js) already knows each place's Commons file, so the
+   phone asks the image server for the picture straight away instead of looking it up first. One small file, kept offline. */
+let photoIndex = null;
+const loadPhotoIndex = () => photoIndex || (photoIndex = (typeof fetch === "undefined" ? Promise.resolve(null)
+  : getJSON(PLACES_BASE + "photos.json", {timeout:15000}).then(j => j && j.f ? j.f : null).catch(() => { photoIndex = null; return null; })));
+const indexedPhoto = file => ({src:commonsThumb(file, PH_CARD) || `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=${PH_CARD}`,
+  page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"});
 const freePhoto = async it => {
+  if (it.pic) return {src:it.pic[0], page:it.pic[1], by:"Photo: Wikimedia Commons", credit:it.pic[2]};      // stored with the app: instant, works offline
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it);
   if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
+  const ix = (it.wp || it.wd) ? await loadPhotoIndex() : null;
+  if (ix){
+    if (ix[it.id] && photoFileOk(it, ix[it.id])) return indexedPhoto(ix[it.id]);
+    if (it.osm) return null;              // the index covers every map place with a photo link: none listed means none to find
+  }
   const a = it.wp ? await loadPhoto(it) : null; if (realPhoto(a) && photoSrcOk(it, a.src)) return a;
   const b = it.wd ? await loadWdPhoto(it) : null; if (realPhoto(b) && photoSrcOk(it, b.src)) return b;
   return (a && a.err) || (b && b.err) ? {err:true} : null;
@@ -254,6 +267,7 @@ const cphSave = debounce(() => {
 const googleFor = it => !!googleKey() && it.c !== "move" && it.c !== "ess";     // Google only for stays, food and things to do
 const googlePhotoFor = it => googleFor(it) && !templeLike(it);                   // nobody has looked at Google's temple photos
 async function cardPhoto(it){
+  if (it.pic) return it.pic[0];
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it); if (pk) return pk.s;          // saved with a city: free, and works offline
   const hit = cph[it.id], now = Date.now();
@@ -289,7 +303,7 @@ function watchCardPhotos(root){
     img.src = src;
   };
   if (!("IntersectionObserver" in window)){ slots.forEach(fill); return; }
-  if (!photoObs) photoObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ photoObs.unobserve(e.target); fill(e.target); } }), {rootMargin:"0px 0px 200px 0px", threshold:.1});
+  if (!photoObs) photoObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ photoObs.unobserve(e.target); fill(e.target); } }), {rootMargin:"0px 0px 900px 0px", threshold:.1});
   slots.forEach(s => photoObs.observe(s));
 }
 /* Author and licence of a Wikimedia Commons file, for the credit line in the details sheet */
@@ -310,7 +324,7 @@ function commonsCredit(src){
   return creditCache[file];
 }
 function wikiInto(box, it){
-  if (!it.wp && !it.wd){ box.innerHTML = photoFallback(it, "none"); return; }
+  if (!it.wp && !it.wd && !it.pic){ box.innerHTML = photoFallback(it, "none"); return; }
   freePhoto(it).then(ph => {
     if (!box.isConnected || box.dataset.id !== it.id) return;
     if (!ph || !ph.src){ box.innerHTML = photoFallback(it, "none"); return; }
@@ -455,6 +469,6 @@ function openDetail(id){
     wikiInto(box, it);
   });
   if (googlePhotoFor(it) && gAllow("photo")) viaGoogle();
-  else if (it.wp || it.wd) wikiInto(box0, it);
+  else if (it.wp || it.wd || it.pic) wikiInto(box0, it);
   if (googleFor(it)) googleFacts(it);
 }

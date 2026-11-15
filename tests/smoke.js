@@ -53,7 +53,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
 
-  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "saved"]){
+  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "saved"]){
     await page.goto(BASE + "#" + tab); await page.waitForTimeout(1500);
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     ok(w <= 393, `${tab}: no sideways scroll (width ${w})`);
@@ -133,7 +133,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(top.first && top.under, "the first Activities card is one with a photo, and stars sit right under the name " + JSON.stringify(top));
   await page.goto(BASE + "#gaffs"); await page.waitForTimeout(3000);
   ok(await page.evaluate(() => { const r = document.querySelector("#pageview .card .rate"); return !!r && r.previousElementSibling.tagName === "H3" && !!r.querySelector(".stars"); }), "researched hostels show their stars directly under the name");
-  ok(await page.evaluate(() => /user-scalable=no/.test(document.querySelector('meta[name="viewport"]').content) && getComputedStyle(document.documentElement).touchAction === "pan-x pan-y"), "the page can't be double-tapped or pinched to zoom like a website");
+  ok(await page.evaluate(() => /user-scalable=no/.test(document.querySelector('meta[name="viewport"]').content) && getComputedStyle(document.documentElement).touchAction === "manipulation"), "the page can't be double-tapped or pinched to zoom like a website");
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
   // your own amount: one box the size of the preset buttons, in pounds; a nonsense amount is refused
   const box = await page.evaluate(() => { const b = document.querySelector("#mapFilt .pf-in"), c = document.querySelector('#mapFilt [data-pfp="2"]'); return {h:b.offsetHeight, ch:c.offsetHeight, w:b.offsetWidth, old:!!document.querySelector("#mapFilt [data-pfset], #mapFilt [data-pfcur]")}; });
@@ -156,22 +156,23 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); map.jumpTo({center:[104.7569, -2.9888], zoom:14.5}); }); await page.waitForTimeout(4000);
   const idMap = await page.evaluate(() => ({n:mapRun.items.length, id:mapRun.items.filter(p => p.cc === "ID").length, box:!!document.querySelector('#mapFilt [data-pfamt]')}));
   ok(idMap.id > 20 && idMap.box, "Palembang food shows on the map, with the price filter " + JSON.stringify(idMap));
-  // Surf: the Activities chip lists surf spots with a live wave forecast; a spot's details link to Surfline
+  // Surf: the Activities chip goes straight to the map with only researched surf spots; a spot shows its photo, waves and Surfline
   await page.evaluate(() => { setFocus({n:"Kuta Lombok", lat:-8.8853, lng:116.2757}); });
   await page.goto(BASE + "#activities"); await page.waitForTimeout(2500);
-  await page.click('[data-chip="surf"]'); await page.waitForTimeout(6000);
-  const surf = await page.evaluate(() => ({n:listItems("cool").filter(p => p.k === "surf").length, all:listItems("cool").every(p => isSurf(p) || /\bsurf/.test(ptext(p))), wave:[...document.querySelectorAll("[data-surf]")].map(e => e.textContent).filter(Boolean)[0] || ""}));
-  ok(surf.n >= 3 && surf.all, "the Surf chip lists surf spots near Kuta Lombok " + JSON.stringify(surf));
-  ok(/ft/.test(surf.wave) || surf.wave === "", "surf cards show the wave height when the forecast answers " + JSON.stringify(surf.wave));
-  const spot = await page.evaluate(() => listItems("cool").find(p => p.k === "surf").id);
-  await page.click(`.card[data-open="${spot}"]`); await page.waitForTimeout(3500);
-  const sb = await page.evaluate(() => ({box:!!document.querySelector("#surfBox"), link:(document.querySelector('#surfBox a[href*="surfline.com"]') || {}).href || "", txt:document.querySelector("#surfTxt").textContent.slice(0, 80)}));
-  ok(sb.box && /surfline\.com\/search\//.test(sb.link), "a surf spot's details show Surf now and an Open on Surfline button " + JSON.stringify(sb));
+  await page.click('[data-chip="surf"]'); await page.waitForTimeout(5000);
+  const surf = await page.evaluate(() => ({view:ui.view, surf:ui.mapSurf, n:mapRun.items.length, all:mapRun.items.every(p => p.k === "surf"), chip:document.querySelector("#mapChips [data-surf]").getAttribute("aria-pressed")}));
+  ok(surf.view === "map" && surf.surf && surf.n >= 5 && surf.all && surf.chip === "true", "Surf in Activities opens the map with only surf spots " + JSON.stringify(surf));
+  await page.evaluate(() => selectPlace("s-gerupukinside", true)); await page.waitForTimeout(4000);
+  const pv = await page.evaluate(() => ({img:(document.querySelector("#preview .ph img") || {}).src || "", wave:(document.querySelector("#preview [data-surf]") || {}).textContent || ""}));
+  ok(/img\/surf\/gerupuk\.jpg$/.test(pv.img), "a surf spot's preview shows its photo, straight from the app " + JSON.stringify(pv));
+  ok(/ft/.test(pv.wave) || pv.wave === "", "and the wave height when the forecast answers " + JSON.stringify(pv.wave));
+  await page.click('#preview [data-open]'); await page.waitForTimeout(3000);
+  const sb = await page.evaluate(() => ({box:!!document.querySelector("#surfBox"), link:(document.querySelector('#surfBox a[href*="surfline.com"]') || {}).href || "", src:/Wikivoyage/.test(document.querySelector(".srcs").textContent)}));
+  ok(sb.box && /surfline\.com\/search\//.test(sb.link) && sb.src, "its details show Surf now, Open on Surfline and the sources " + JSON.stringify(sb));
   await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(500);
-  await page.evaluate(() => { ui.lists.cool.chip = "all"; ui.mapCats = new Set(["cool"]); });
-  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
-  await page.evaluate(() => { renderMapUI(); map.jumpTo({center:[116.2757, -8.8853], zoom:12}); }); await page.waitForTimeout(4000);
-  ok(await page.evaluate(() => mapRun.items.some(p => p.k === "surf")), "surf spots show on the map with Activities");
+  await page.click("#mapChips [data-cat=\"cool\"]"); await page.waitForTimeout(2500);
+  ok(await page.evaluate(() => !ui.mapSurf && !mapRun.items.some(p => p.k === "surf")), "tapping Activities on the map leaves surf mode");
+  ok(await page.evaluate(() => !document.querySelector("#near, .near-title") && !document.querySelector("#mapChips [data-filters]")), "no Closest to you strip at the bottom of the map");
   await page.evaluate(() => { ui.mapCats = new Set(["munch"]); renderMapUI(); });
   const pem = await page.evaluate(async () => (await Places.search("pempek", {lat:-2.9888, lng:104.7569})).map(s => s.n));
   ok(pem.length > 0 && pem.every(n => /pempek|empek/i.test(n)), "search finds pempek places in Palembang " + JSON.stringify(pem.slice(0, 3)));
@@ -293,6 +294,22 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.click("#lab [data-labclose]"); await page.waitForTimeout(300);
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
   ok(w2 <= 393, `no sideways scroll after the Lab (width ${w2})`);
+
+  // Split costs: a group of three, one taxi, the tally and a settle-up; the shared link adds the payments on another phone
+  await page.goto(BASE + "#tools/split"); await page.waitForTimeout(800);
+  for (const n of ["Dylan", "Sam", "Jo"]){ await page.fill("#sp-name", n); await page.click("#sp-addp"); await page.waitForTimeout(200); }
+  await page.fill("#sp-what", "Taxi"); await page.fill("#sp-amt", "300"); await page.selectOption("#sp-cur", "THB"); await page.selectOption("#sp-by", "Dylan");
+  await page.click("#sp-add"); await page.waitForTimeout(500);
+  const sp = await page.evaluate(() => ({rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.textContent.replace(/\s+/g, " ").trim()), plan:document.querySelectorAll("[data-paid]").length, w:document.documentElement.scrollWidth}));
+  ok(sp.rows.length === 3 && /Dylans*gets back ฿200/.test(sp.rows[0]) && /Sams*owes ฿100/.test(sp.rows[1]) && sp.plan === 2 && sp.w <= 393, "Split costs: a ฿300 taxi for three leaves Dylan owed ฿200 " + JSON.stringify(sp));
+  const link = await page.evaluate(async () => `#tools/split?g=${await splitEncode()}`);
+  {
+    const c2 = await browser.newContext({viewport:{width:393, height:852}}); const p2 = await c2.newPage(); p2.on("pageerror", e => errors.push(e.message));
+    await p2.goto(BASE + link); await p2.waitForTimeout(2000);
+    ok(await p2.evaluate(() => S.split.items.length === 1 && S.split.people.length === 3 && location.hash === "#tools/split" && /Sam\s*owes/.test(document.querySelector("#pageview").innerText)), "opening the shared link on another phone adds the payment");
+    await c2.close();
+  }
+  await page.evaluate(() => { S.split = {people:[], items:[], del:[]}; persist(); });
 
   // Location on a new phone, anywhere the app covers: here, a friend in Ubud (Bali)
   const ubudGeo = {latitude:-8.5069, longitude:115.2625};

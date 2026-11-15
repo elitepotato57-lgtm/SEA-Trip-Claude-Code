@@ -19,8 +19,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   OpenStreetMap has no ratings and only researched hostels do, so the map filters on price, not stars.
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
 - `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
-- Surf: `D.surf` (surf spots and schools from OpenStreetMap, rebuilt by `node tools/osm/surf.js`) becomes `SURF` in `js/places.js`;
-  the wave forecast (`surfNow`, Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it.
+- Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
+  `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
+  Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
+- `js/split.js`: Tools › Split costs (`S.split`): payments, a running tally, settle-up, and sharing the tally as a link (no server).
+- Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`): no lookup on the phone.
+  Re-run it after rebuilding any `places/` folder. Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
 - `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta).
   Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.

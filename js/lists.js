@@ -110,7 +110,7 @@ function placeCard(it, pt){
   if (loc) line.push(`<span class="price">${esc(loc)} <small>${esc(gbpRange(it.p, it.cur))}</small>${per}</span>`);
   else if (it.cur_ && it.cost) line.push(`<span>${esc(it.cost)}</span>`);
   else { const e = estPrice(it); if (e) line.push(`<span class="price est" title="${esc(e.why)}: an estimate">${esc(estText(e))}${estGBP(e) ? ` <small>${esc(estGBP(e))}</small>` : ""}${per}</span>`); }
-  if (it.k === "surf" || (!it.osm && it.c === "cool" && /surf/.test(ptext(it)))) line.push(`<span class="surf-now" data-surf="${esc(it.id)}"></span>`);       // filled in with the wave forecast
+  if (it.k === "surf") line.push(`<span class="surf-now" data-surf="${esc(it.id)}"></span>`);       // filled in with the wave forecast
   if (it.st) line.push(`<span>${it.st}-star</span>`);
   const ft = it.c === "munch" ? foodType(it) : null;
   if (ft) line.push(`<span class="ftype">${esc(ft)}</span>`);
@@ -144,7 +144,7 @@ function placeCard(it, pt){
 const RADIUS_MAX = 50;                                   // the distance slider runs 1 to 50 km, then "50+" (0 = any distance)
 const radiusLabel = r => r ? `Within ${r} km` : "50+ km (any distance)";
 // a place we expect to show a real photo: a free photo link that passes the photo rules, one saved with a city, or one seen before
-const likelyPhoto = it => !!(((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
+const likelyPhoto = it => !!(it.pic || ((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
 // the list opens on a card with a photo: the first such place in the current order moves to the top, the rest keep their order
 function photoFirst(items){
   const i = items.slice(0, 80).findIndex(likelyPhoto);
@@ -177,9 +177,6 @@ function listItems(cat){
   let cur = D.places.filter(p => p.c === cat && test(p));
   if (!pt.none && st.radius) cur = cur.filter(p => dist(pt, p) <= st.radius);
   const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius));
-  // surf spots are few and far between, so the Surf chip looks much further than the usual 40 km
-  const surfKm = st.radius || (st.chip === "surf" ? 400 : 40), have = new Set(osm.map(p => p.id));
-  if (cat === "cool") SURF.forEach(p => { if (!have.has(p.id) && test(p) && (pt.none ? p.cc === S.country : dist(pt, p) <= surfKm)) osm.push(p); });
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
   return photoFirst(sortItems(cur.concat(osm), how, pt.none ? null : pt));
 }
@@ -289,7 +286,7 @@ function bindList(cat){
   const qIn = $("#l-q"), typed = debounce(() => loadListOsm(cat), 350);
   qIn.oninput = () => { st.q = qIn.value; $("#l-clear").hidden = !st.q; st.shown = 30; paintListBody(cat); typed(); };
   $("#l-clear").onclick = () => { st.q = ""; qIn.value = ""; $("#l-clear").hidden = true; refresh(); qIn.focus(); };
-  root.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => { st.chip = b.dataset.chip; root.querySelectorAll("[data-chip]").forEach(x => x.setAttribute("aria-pressed", x === b)); refresh(); });
+  root.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => { if (b.dataset.chip === "surf"){ openSurfMap(); return; } st.chip = b.dataset.chip; root.querySelectorAll("[data-chip]").forEach(x => x.setAttribute("aria-pressed", x === b)); refresh(); });
   $("#l-filters").onclick = () => { st.filters = !st.filters; renderPage(); };
   const op = $("#l-open"); if (op) op.onclick = () => { st.open = !st.open; op.setAttribute("aria-pressed", st.open); refresh(); };
   $("#l-map").onclick = () => { ui.mapCats = new Set([cat]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); };
