@@ -74,7 +74,7 @@ function frSetIn(obj, path, val){
   return root;
 }
 function frListen(path, cb){
-  let es = null, timer = null, stop = false, data, seen = "";
+  let es = null, timer = null, backup = null, stop = false, data, seen = "";
   const emit = v => { const s = JSON.stringify(v); if (s !== seen){ seen = s; data = v; cb(v); } };
   const poll = async () => { if (stop) return; try { emit(await frDb("GET", path)); } catch(e){} if (!stop) timer = setTimeout(poll, 1200); };
   const open = async () => {
@@ -86,12 +86,15 @@ function frListen(path, cb){
       es.addEventListener("put", e => { got = true; const m = JSON.parse(e.data); emit(frSetIn(data, m.path, m.data)); });
       es.addEventListener("patch", e => { got = true; const m = JSON.parse(e.data); let d = data; for (const [k, v] of Object.entries(m.data || {})) d = frSetIn(d, m.path.replace(/\/$/, "") + "/" + k, v); emit(d); });
       es.addEventListener("auth_revoked", () => { es.close(); es = null; if (!stop) open(); });     // token ran out: reconnect
-      es.addEventListener("cancel", () => { es.close(); es = null; });
-      es.onerror = () => { if (!got && es){ es.close(); es = null; poll(); } };                     // no stream here: poll instead
+      es.addEventListener("cancel", () => { es.close(); es = null; poll(); });
+      // no stream here, or the server closed it: check every 1.2 s instead
+      es.onerror = () => { if (es && (!got || es.readyState === 2)){ es.close(); es = null; poll(); } };
+      // and a slow check alongside the stream, in case a phone's stream goes quiet without saying so
+      backup = setInterval(async () => { if (es && !stop) try { emit(await frDb("GET", path)); } catch(e){} }, 4000);
     } catch(e){ poll(); }
   };
   open();
-  return () => { stop = true; if (es) es.close(); clearTimeout(timer); };
+  return () => { stop = true; if (es) es.close(); clearTimeout(timer); clearInterval(backup); };
 }
 
 /* ---------- my friend code ---------- */
@@ -163,8 +166,9 @@ function frColor(uid){
 let frPhotos = lsGet(FR_PHOTOS_KEY, {}) || {}, frPhotosAt = 0;
 const frInitials = n => String(n || "?").trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 const frNameOf = uid => uid === frMyId() ? (frState().name || "You") : (frState().list[uid] || {}).n || "Friend";
+// the face: a photo you chose for them on this phone first, then the one the developer set for everyone, then initials
 function frAvatar(uid, size = 36, name){
-  const p = frPhotos[uid], n = name || frNameOf(uid);
+  const p = (frState().list[uid] || {}).pic || frPhotos[uid], n = name || frNameOf(uid);
   return `<span class="fr-av" style="--c:${frColor(uid)};--s:${size}px" aria-hidden="true">${p ? `<img src="${esc(p)}" alt="">` : esc(frInitials(n))}</span>`;
 }
 async function frLoadPhotos(force){
@@ -243,12 +247,7 @@ async function frPoll(){
     try { const v = await frDb("GET", `loc/${uid}`); frLocs[uid] = v && isFinite(v.lat) ? v : {none:true}; }
     catch(e){ frLocs[uid] = e.status === 401 || e.status === 403 ? {hidden:true} : (frLocs[uid] || {err:true}); }
   }));
-  try {
-    const me = frMyId(); if (me) frInvites = await frDb("GET", `invites/${me}`) || {};
-    const fresh = Object.entries(frInvites).filter(([, v]) => v && v.t > frInviteSeen);
-    if (fresh.length && !(ui.view === "tools" && /^friends/.test(ui.sub || ""))){ const [, v] = fresh[0]; toast(`${v.n || "A friend"} wants to play Rock Paper Scissors. Open Tools › Friends.`); }
-    if (fresh.length){ frInviteSeen = Math.max(...fresh.map(([, v]) => v.t)); lsSet("fr-inv-seen", frInviteSeen); }
-  } catch(e){}
+  try { const me = frMyId(); if (me) frGotInvites(await frDb("GET", `invites/${me}`)); } catch(e){}
   frLoadPhotos().catch(() => {});
   try {
     const me = frMyId();
@@ -256,7 +255,7 @@ async function frPoll(){
       const got = await frDb("GET", `msgs/${me}`) || {};
       const fresh = Object.entries(got).filter(([id]) => !frMsgs[id]);
       frMsgs = got;
-      if (fresh.length){ await frLoadStickers().catch(() => {}); if (!(ui.view === "tools" && ui.sub === "friends")){ const [, mm] = fresh[0]; toast(`${frNameOf(mm.f)} sent you a message. Open Tools › Friends.`); } }
+      if (fresh.length){ await frLoadStickers().catch(() => {}); if (!(ui.view === "tools" && ui.sub === "friends")){ const [, mm] = fresh[0]; const st = frStickers[mm.s]; toast(`${frNameOf(mm.f)} sent you a ${st ? st.n : "sticker"}. Open Tools › Friends.`); } }
     }
   } catch(e){}
   // someone added you to a live split group while Friends is open: show it
@@ -268,12 +267,30 @@ async function frPoll(){
   }
   drawFriends(); paintFriendsLive();
 }
+// a game invite: asks straight away (Play / Not now) unless you're already playing them; it also stays at the top of Friends
+let frInvStop = null, frInvFor = "";
+function frGotInvites(v){
+  frInvites = v && typeof v === "object" ? v : {};
+  const fresh = Object.entries(frInvites).filter(([uid, x]) => x && x.t > frInviteSeen && frState().list[uid]);
+  if (!fresh.length) return;
+  frInviteSeen = Math.max(...fresh.map(([, x]) => x.t)); lsSet("fr-inv-seen", frInviteSeen);
+  const [uid] = fresh[fresh.length - 1];
+  if (rpsWith === uid && $("#rpsBox")) return;
+  if (typeof askConfirm === "function") askConfirm(`${frNameOf(uid)} wants to play Rock Paper Scissors`, "Play").then(yes => { if (yes) openRps(uid); });
+  paintFriendsLive();
+}
+function frListenInvites(){
+  const me = frMyId(); if (!me || frInvFor === me) return;
+  if (frInvStop) frInvStop();
+  frInvFor = me; frInvStop = frListen(`invites/${me}`, frGotInvites);
+}
 function frLoop(){
   clearTimeout(frTimer);
   if (!frCfg() || document.hidden) return;
   const f = frState();
   if (!Object.keys(f.list).length && !f.on) return;
   if (f.on) frGpsStart();
+  frListenInvites();
   Promise.allSettled([frSendNow(false), frPoll()]).finally(() => { frTimer = setTimeout(frLoop, FR_POLL_MS); });
 }
 if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", () => { if (!document.hidden) frLoop(); else { clearTimeout(frTimer); frGpsStop(); } });
@@ -372,7 +389,7 @@ function paintFriendsLive(){
 function paintFrAlerts(el){
   const inv = Object.entries(frInvites).filter(([uid, v]) => v && frState().list[uid]);
   const msgs = Object.entries(frMsgs).sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
-  el.innerHTML = msgs.map(([id, mm]) => { const st = frStickers[mm.s]; return `<div class="callout fr-alert fr-msg">${st && st.d ? `<img class="fr-sticker" src="${esc(st.d)}" alt="${esc(st.n)}">` : frAvatar(mm.f, 40)}<div><b>${esc(frNameOf(mm.f))}</b> sent you a message${st ? `: ${esc(st.n)}` : ""}<div class="note">${esc(frWhen(mm.t))}</div></div><button class="icon-btn" type="button" data-frmsgdel="${esc(id)}" aria-label="Dismiss">${icon("x","i s")}</button></div>`; }).join("") + inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play Rock Paper Scissors</div><button class="btn small primary" type="button" data-frplay="${esc(uid)}">Play</button></div>`).join("")
+  el.innerHTML = msgs.map(([id, mm]) => { const st = frStickers[mm.s]; return `<div class="callout fr-alert fr-msg">${st && st.d ? `<img class="fr-sticker" src="${esc(st.d)}" alt="${esc(st.n)}">` : frAvatar(mm.f, 40)}<div><b>${esc(frNameOf(mm.f))}</b> sent you a ${st ? esc(st.n) : "sticker"}<div class="note">${esc(frWhen(mm.t))}</div></div><button class="icon-btn" type="button" data-frmsgdel="${esc(id)}" aria-label="Dismiss">${icon("x","i s")}</button></div>`; }).join("") + inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play Rock Paper Scissors</div><button class="btn small primary" type="button" data-frplay="${esc(uid)}">Play</button></div>`).join("")
     + (frReqs || []).map(r => `<div class="callout fr-alert">${frAvatar(r.uid, 32, r.n)}<div><b>${esc(r.n)}</b> added you</div><button class="btn small primary" type="button" data-frback="${esc(r.c || "")}">Add back</button><button class="icon-btn" type="button" data-frign="${esc(r.uid)}" aria-label="Ignore ${esc(r.n)}">${icon("x","i s")}</button></div>`).join("");
   el.querySelectorAll("[data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
   el.querySelectorAll("[data-frmsgdel]").forEach(b => b.onclick = () => { const id = b.dataset.frmsgdel; delete frMsgs[id]; paintFriendsLive(); frDb("DELETE", `msgs/${frMyId()}/${id}`).catch(() => {}); });
@@ -416,6 +433,7 @@ function renderFriendsPage(root = $("#pageview")){
       <span data-frav="${esc(uid)}" data-size="40">${frAvatar(uid, 40)}</span>
       <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div>
         <button class="linkish fr-msgbtn" type="button" data-frmsg="${esc(uid)}">${icon("spark","i xs")}Send a message</button></div>
+      <button class="icon-btn fr-edit" type="button" data-fredit="${esc(uid)}" aria-label="Edit ${esc(x.n)}’s name and photo">${icon("edit","i s")}</button>
       <button class="pill" type="button" data-frshare="${esc(uid)}" aria-pressed="${x.share}" aria-label="${x.share ? `${esc(x.n)} can see you. Tap to hide` : `${esc(x.n)} can’t see you. Tap to share`}">${x.share ? "Sees you" : "Hidden"}</button></div>`).join("")
       : `<p class="note">No friends yet. Tap <b>Add friend</b> at the top, send your code to your mates, or type theirs.</p>`}</div>
     <div class="tgrid fr-tiles">
@@ -429,7 +447,8 @@ function renderFriendsPage(root = $("#pageview")){
   root.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
   $("#fr-go-map").onclick = e => { e.preventDefault(); openFriendsMap(); };
   root.querySelectorAll("[data-frmsg]").forEach(b => b.onclick = e => { e.stopPropagation(); openStickerPicker(b.dataset.frmsg); });
-  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare], [data-frmsg]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  root.querySelectorAll("[data-fredit]").forEach(b => b.onclick = e => { e.stopPropagation(); openFriendEdit(b.dataset.fredit); });
+  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare], [data-frmsg], [data-fredit]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
   root.querySelectorAll("[data-frshare]").forEach(b => b.onclick = e => { e.stopPropagation(); const uid = b.dataset.frshare; frSetShare(uid, !f.list[uid].share).then(() => renderFriendsPage(root), frFail); });
   frMe().then(() => frRequests()).then(rs => { frReqs = rs; paintFriendsLive(); }).catch(() => {});
   frLoadPhotos(true).then(paintFriendsLive).catch(() => {});
@@ -465,10 +484,9 @@ function openFriendSheet(){
       <p class="note">Your position goes only to friends marked “Sees you”, only while the app is open, through Google’s Firebase. Turning this off deletes your last position.</p></div>
     <div class="block"><h2>Add a friend</h2><div class="row"><input class="sp-in" id="fr-add" type="text" maxlength="8" autocapitalize="characters" autocomplete="off" placeholder="Their 6-letter code" aria-label="Friend code"><button class="btn small primary" type="button" id="fr-addb">Add</button></div></div>
     ${list.length ? `<div class="block"><h2>On your list</h2>${list.map(([uid, x]) => `<div class="fr-row"><span data-frav="${esc(uid)}" data-size="36">${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div>
-      <button class="icon-btn" type="button" data-frren="${esc(uid)}" aria-label="Rename ${esc(x.n)}">${icon("edit","i s")}</button>
-      ${dev && frAdmin ? `<label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label>` : ""}
+      <button class="icon-btn" type="button" data-fredit="${esc(uid)}" aria-label="Edit ${esc(x.n)}’s name and photo">${icon("edit","i s")}</button>
       <button class="icon-btn" type="button" data-frrm="${esc(uid)}" aria-label="Remove ${esc(x.n)}">${icon("x","i s")}</button></div>`).join("")}</div>` : ""}
-    ${dev ? `<div class="block"><h2>Developer</h2><div id="fr-dev"><p class="note">Checking…</p></div></div>` : ""}
+    ${dev ? `<p class="note">Developer tools (stickers, developers, Design Lab) are at the bottom of Tools.</p>` : ""}
     </div>`, "fr-sheet-t");
   const sheet = $("#sheetRoot");
   paintFriendsLive();
@@ -481,68 +499,130 @@ function openFriendSheet(){
     try { await navigator.clipboard.writeText(text); toast("Copied"); } catch(e){ toast(text); }
   };
   sheet.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
-  sheet.querySelectorAll("[data-frren]").forEach(b => b.onclick = () => {
-    const uid = b.dataset.frren, x = f.list[uid]; if (!x) return;
-    const row = b.closest(".fr-row"), nameEl = row.querySelector("b");
-    nameEl.outerHTML = `<span class="fr-ren"><input class="sp-in" type="text" maxlength="30" value="${esc(x.n)}" aria-label="New name for ${esc(x.n)}"><button class="btn small primary" type="button">Save</button></span>`;
-    const inp = row.querySelector(".fr-ren input"), save = () => {
-      const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 30);
-      if (n && n !== x.n){ x.n = n; persist(); toast(`Renamed to ${n} (on your phone)`); drawFriends(); }
-      renderFriendsPage(); openFriendSheet();
-    };
-    row.querySelector(".fr-ren button").onclick = save;
-    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); save(); } };
-    inp.focus(); inp.select();
-  });
+  sheet.querySelectorAll("[data-fredit]").forEach(b => b.onclick = () => openFriendEdit(b.dataset.fredit));
   const add = () => { const v = $("#fr-add").value; if (!v.trim()) return; frAdd(v).then(n => { toast(`Added ${n}`); frLoop(); renderFriendsPage(); openFriendSheet(); }, frFail); };
   $("#fr-addb").onclick = add;
   $("#fr-add").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); add(); } };
   sheet.querySelectorAll("[data-frrm]").forEach(b => b.onclick = async () => { const uid = b.dataset.frrm; if (!(await askConfirm(`Remove ${f.list[uid].n}? You stop seeing each other unless you add them again.`, "Remove", true))) return; frRemove(uid).then(() => { renderFriendsPage(); openFriendSheet(); }, frFail); });
-  sheet.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
-    const file = inp.files && inp.files[0]; if (!file) return;
-    try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved: everyone sees it"); paintFriendsLive(); drawFriends(); renderFriendsPage(); openFriendSheet(); } catch(e){ frFail(e); }
-  });
-  if (dev) paintDev();
 }
+/* ---------- editing a friend: the name and photo you see for them (only on your phone) ---------- */
+function openFriendEdit(uid){
+  const f = frState(), x = f.list[uid]; if (!x) return;
+  openSheet(`<div class="sheet-head"><div><h2 id="fre-t">Edit ${esc(x.n)}</h2><div class="note">Only changes what you see, on your phone</div></div>
+      <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="friends"><div class="block fr-editbox">
+      <div class="fr-editav"><span id="fre-av">${frAvatar(uid, 88)}</span>
+        <div class="fr-editpics"><label class="btn small fr-photo">${icon("camera","i s")}<span id="fre-picl">${x.pic ? "Change photo" : "Choose a photo"}</span><input type="file" accept="image/*" id="fre-pic" hidden></label>
+          <button class="btn small" type="button" id="fre-unpic" ${x.pic ? "" : "hidden"}>Remove photo</button></div></div>
+      <label class="field">Name<input id="fre-name" type="text" maxlength="30" autocomplete="off" value="${esc(x.n)}" aria-label="Name for this friend"></label>
+      <button class="btn primary wide" type="button" id="fre-save" style="margin-top:12px">Save</button>
+      <button class="btn wide fr-rmbtn" type="button" id="fre-rm" style="margin-top:8px">${icon("x","i s")}Remove ${esc(x.n)}</button>
+    </div></div>`, "fre-t");
+  let pic = x.pic || "";
+  const showAv = () => {
+    const was = x.pic; if (pic) x.pic = pic; else delete x.pic;
+    $("#fre-av").innerHTML = frAvatar(uid, 88);
+    if (was) x.pic = was; else delete x.pic;
+    $("#fre-unpic").hidden = !pic; $("#fre-picl").textContent = pic ? "Change photo" : "Choose a photo";
+  };
+  $("#fre-pic").onchange = async e => {
+    const file = e.target.files && e.target.files[0]; if (!file) return;
+    try { pic = await frResizePhoto(file); showAv(); } catch(err){ toast("Couldn’t read that picture"); }
+  };
+  $("#fre-unpic").onclick = () => { pic = ""; showAv(); };
+  const save = () => {
+    const n = $("#fre-name").value.trim().replace(/\s+/g, " ").slice(0, 30);
+    if (!n){ toast("Type a name"); $("#fre-name").focus(); return; }
+    x.n = n; if (pic) x.pic = pic; else delete x.pic; persist();
+    closeDetail(); toast("Saved on your phone"); renderFriendsPage(); drawFriends();
+  };
+  $("#fre-save").onclick = save;
+  $("#fre-name").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); save(); } };
+  $("#fre-rm").onclick = async () => { if (!(await askConfirm(`Remove ${x.n}? You stop seeing each other unless you add them again.`, "Remove", true))) return; frRemove(uid).then(() => { closeDetail(); renderFriendsPage(); }, frFail); };
+}
+
+/* ---------- Tools › Developer (only on phones where ELITE POTATO was typed): Design Lab, stickers, developers, everyone's photos ---------- */
+TOOL_PAGES.developer = root => {
+  if (S.dev !== true){ go("#tools"); return; }
+  const labOn = S.design && S.design.on === true;
+  root.innerHTML = hero({title:"Developer", sub:"Only on this phone. Type ELITE POTATO in the map search again to hide it", back:["#tools", "Tools"]}) + `<div class="page friends dev">
+    <div class="block"><h2>Design Lab</h2><p class="note">The floating panel for trying colours, fonts and sizes. Hidden for everyone else.</p>
+      <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="switch" type="button" id="dev-lab" aria-pressed="${labOn}"><i></i>Show the Design Lab</button>
+      ${labOn ? `<button class="btn small" type="button" id="dev-openlab">${icon("palette","i s")}Open it</button>` : ""}</div></div>
+    ${frCfg() ? `<div id="fr-dev"><div class="block"><p class="note">Checking…</p></div></div>` : `<div class="block"><h2>Stickers and developers</h2>${friendsSetupHTML()}</div>`}
+    <div class="block"><button class="btn small" type="button" id="dev-off">Turn developer mode off on this phone</button></div></div>`;
+  $("#dev-lab").onclick = () => { S.design.on = S.design.on !== true; persist(); if (!S.design.on) closeLab(); renderLabButton(); renderPage(); };
+  const ol = $("#dev-openlab"); if (ol) ol.onclick = () => openLab();
+  $("#dev-off").onclick = () => { S.dev = false; persist(); closeLab(); renderLabButton(); toast("Developer mode off"); go("#tools"); };
+  if (frCfg()) paintDev();
+};
 async function paintDev(){
   const el = $("#fr-dev"); if (!el) return;
-  try { await frCheckAdmin(); } catch(e){ el.innerHTML = `<p class="note">Couldn’t check (no signal?).</p>`; return; }
-  const any = await frDb("GET", `admins/${frMyId()}`).catch(() => null);
+  try { await frCheckAdmin(); } catch(e){ el.innerHTML = `<div class="block"><p class="note">Couldn’t check (no signal?).</p></div>`; return; }
+  if (!$("#fr-dev")) return;
+  if (!frAdmin){
+    el.innerHTML = `<div class="block"><h2>Make this phone a developer</h2><p class="note">Developers can add message stickers, choose other developers and set everyone’s photo. Only the first phone can claim it; after that a developer has to add you.</p>
+      <button class="btn small primary" type="button" id="fr-claim">Make this phone the developer</button></div>`;
+    $("#fr-claim").onclick = () => frClaimAdmin().then(() => { toast("This phone is a developer"); paintDev(); }, e => toast(e.message === "permission" ? "There’s already a developer: ask them to add you" : "No signal? Try again."));
+    return;
+  }
   await frLoadStickers(true).catch(() => {});
-  const fl = Object.entries(frState().list);
-  el.innerHTML = frAdmin
-    ? `<p class="note">This phone is a developer: you can set everyone’s photo (Photo buttons above). Your own photo:</p>
-       <label class="btn small fr-photo">${icon("camera","i s")}My photo<input type="file" accept="image/*" data-frphoto="${esc(frMyId())}" hidden></label>
-       <h3 style="margin-top:14px">Message stickers</h3>
-       <p class="note">Pictures your mates can send each other. The name is what the button says (“Send …”). They’re kept in Firebase, not on the public website.</p>
-       <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<small>${esc(st.n)}</small><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("x","i s")}</button></div>`).join("") || `<p class="note">None yet.</p>`}</div>
-       <label class="btn small fr-photo" style="margin-top:8px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label>
-       ${fl.length ? `<h3 style="margin-top:14px">Other developers</h3><p class="note">Let another device of yours (your PC) do this too.</p><div class="flags">${fl.map(([uid, x]) => `<button class="chip soft" type="button" data-mkdev="${esc(uid)}">Make ${esc(x.n)} a developer</button>`).join("")}</div>` : ""}`
-    : `<p class="note">Make this phone the developer. Only the first phone to do this gets it, and the database refuses everyone else after that.</p>
-       <button class="btn small primary" type="button" id="fr-claim">Make this phone the developer</button>`;
-  const cl = $("#fr-claim"); if (cl) cl.onclick = () => frClaimAdmin().then(() => { toast("This phone is the developer"); openFriendSheet(); }, e => toast(e.message === "permission" ? "Another phone is already the developer" : "No signal? Try again."));
+  await frLoadPhotos(true).catch(() => {});
+  const fl = Object.entries(frState().list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0)), me = frMyId();
+  const devs = {}; await Promise.all(fl.map(async ([uid]) => { devs[uid] = (await frDb("GET", `admins/${uid}`).catch(() => null)) === true; }));
+  if (!$("#fr-dev")) return;
+  // the shared face (not your own photo of them)
+  const sharedAv = uid => { const x = frState().list[uid], keep = x && x.pic; if (keep) delete x.pic; const h = frAvatar(uid, 40); if (keep) x.pic = keep; return h; };
+  el.innerHTML = `<div class="block"><h2>Message stickers</h2>
+      <p class="note">Pictures your mates send each other. The name is what it says: “Send Cooked”, and “Sam sent you a Cooked”. Kept in Firebase, not on the public website.</p>
+      <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk" data-stk="${esc(id)}">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<small>${esc(st.n)}</small>
+        <div class="fr-stkact"><button class="icon-btn" type="button" data-stkren="${esc(id)}" aria-label="Rename ${esc(st.n)}">${icon("edit","i s")}</button><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
+      <label class="btn small fr-photo" style="margin-top:10px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label></div>
+    <div class="block"><h2>Developers</h2><p class="note">Who else can do all this. Switch a friend on to make them a developer.</p>
+      <div class="fr-row"><span>${frAvatar(me, 36)}</span><div><b>This phone</b><div class="note">Developer</div></div></div>
+      ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-mkdev="${esc(uid)}" aria-pressed="${devs[uid]}" aria-label="${esc(x.n)} is a developer"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
+    <div class="block"><h2>Everyone’s photos</h2><p class="note">The face everyone sees for a person. Anyone can still choose their own photo of a friend with the pencil on Friends.</p>
+      ${[[me, {n:"You"}], ...fl].map(([uid, x]) => `<div class="fr-row"><span>${sharedAv(uid)}</span><div><b>${esc(x.n)}</b></div><label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label></div>`).join("")}</div>`;
   el.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
     const file = inp.files && inp.files[0]; if (!file) return;
-    try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved"); openFriendSheet(); renderFriendsPage(); } catch(e){ frFail(e); }
+    try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved: everyone sees it"); paintDev(); drawFriends(); } catch(e){ frFail(e); }
   });
-  void any;
   const sa = $("#stk-add");
-  if (sa) sa.onchange = async () => {
+  sa.onchange = async () => {
     const files = [...(sa.files || [])]; if (!files.length) return;
     for (const file of files){
       try { const name = file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 30) || "Sticker"; await frAddSticker(name, await frResizeSticker(file)); toast(`Added ${name}`); }
       catch(e){ frFail(e); }
     }
-    openFriendSheet();
+    paintDev();
   };
-  el.querySelectorAll("[data-stkdel]").forEach(b => b.onclick = async () => { const st = frStickers[b.dataset.stkdel]; if (!(await askConfirm(`Delete the ${st ? st.n : ""} sticker for everyone?`, "Delete", true))) return; frDeleteSticker(b.dataset.stkdel).then(openFriendSheet, frFail); });
-  el.querySelectorAll("[data-mkdev]").forEach(b => b.onclick = async () => { const uid = b.dataset.mkdev; if (!(await askConfirm(`Make ${frNameOf(uid)} a developer too? They’ll be able to set photos and stickers.`, "Make developer"))) return; frDb("PUT", `admins/${uid}`, true).then(() => toast("Done"), frFail); });
+  el.querySelectorAll("[data-stkren]").forEach(b => b.onclick = () => {
+    const id = b.dataset.stkren, st = frStickers[id], box = b.closest(".fr-stk"); if (!st) return;
+    box.querySelector("small").outerHTML = `<span class="fr-ren"><input class="sp-in" type="text" maxlength="30" value="${esc(st.n)}" aria-label="New name"><button class="btn small primary" type="button">Save</button></span>`;
+    box.querySelector(".fr-stkact").hidden = true;
+    const inp = box.querySelector(".fr-ren input"), save = () => {
+      const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 30);
+      if (!n || n === st.n){ paintDev(); return; }
+      frRenameSticker(id, n).then(() => { toast(`Renamed to ${n}`); paintDev(); }, frFail);
+    };
+    box.querySelector(".fr-ren button").onclick = save;
+    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); save(); } };
+    inp.focus(); inp.select();
+  });
+  el.querySelectorAll("[data-stkdel]").forEach(b => b.onclick = async () => { const st = frStickers[b.dataset.stkdel]; if (!(await askConfirm(`Delete the ${st ? st.n : ""} sticker for everyone?`, "Delete", true))) return; frDeleteSticker(b.dataset.stkdel).then(paintDev, frFail); });
+  el.querySelectorAll("[data-mkdev]").forEach(b => b.onclick = async () => {
+    const uid = b.dataset.mkdev, on = b.getAttribute("aria-pressed") !== "true";
+    if (on && !(await askConfirm(`Make ${frNameOf(uid)} a developer? They’ll be able to add stickers, set photos and choose developers.`, "Make developer"))) return;
+    (on ? frDb("PUT", `admins/${uid}`, true) : frDb("DELETE", `admins/${uid}`)).then(() => { b.setAttribute("aria-pressed", on); toast(on ? `${frNameOf(uid)} is a developer` : `${frNameOf(uid)} isn’t a developer any more`); }, frFail);
+  });
 }
 // developer mode: type ELITE POTATO in the map search (only changes this phone; typing it again turns it off)
 function frDevCode(text){
   if (String(text || "").trim().replace(/\s+/g, " ") !== "ELITE POTATO") return false;
   S.dev = !(S.dev === true); persist();
-  toast(S.dev ? "Developer mode on. Tools › Friends › Add friend › Developer" : "Developer mode off");
+  toast(S.dev ? "Developer mode on: Tools › Developer, at the bottom" : "Developer mode off");
+  if (!S.dev && typeof closeLab === "function") closeLab();
+  if (typeof renderLabButton === "function") renderLabButton();
   return true;
 }
 
@@ -587,6 +667,12 @@ async function frAddSticker(name, dataUrl){
   frStickers[id] = {n:name, d:dataUrl}; lsSet(FR_STK_KEY, frStickers);
   return id;
 }
+async function frRenameSticker(id, name){
+  const st = await frDb("GET", `stickers/${id}`);              // the whole sticker is rewritten (the rules check name and picture together)
+  if (st && st.d) await frDb("PUT", `stickers/${id}`, {n:name, d:st.d});
+  await frDb("PUT", `stickerIndex/${id}`, name);
+  if (frStickers[id]){ frStickers[id].n = name; lsSet(FR_STK_KEY, frStickers); }
+}
 async function frDeleteSticker(id){
   await frDb("DELETE", `stickerIndex/${id}`); await frDb("DELETE", `stickers/${id}`);
   delete frStickers[id]; lsSet(FR_STK_KEY, frStickers);
@@ -604,7 +690,7 @@ async function openStickerPicker(to){
   const box = $("#stk-pick"); if (!box) return;
   const all = Object.entries(frStickers);
   box.innerHTML = all.length ? all.map(([id, st]) => `<button type="button" class="fr-stkbtn" data-stksend="${esc(id)}"><img src="${esc(st.d)}" alt=""><span>Send ${esc(st.n)}</span></button>`).join("")
-    : `<p class="note">No stickers yet. The developer phone adds them (Add friend › Developer).</p>`;
+    : `<p class="note">No stickers yet. A developer adds them (Tools › Developer).</p>`;
   box.querySelectorAll("[data-stksend]").forEach(b => b.onclick = () => {
     b.disabled = true;
     frSendSticker(to, b.dataset.stksend).then(() => { toast(`Sent ${frStickers[b.dataset.stksend].n} to ${frNameOf(to)}`); $("#sheetRoot").querySelector(".sheet-head [data-close]").click(); }, e => { b.disabled = false; frFail(e); });
@@ -622,8 +708,9 @@ function rpsScore(g, me, them){
   for (const k of Object.keys(r)){ const a = r[k][me], b = r[k][them]; if (!a || !b || a === b) continue; if (rpsBeats[a] === b) mine++; else theirs++; }
   return [mine, theirs];
 }
-let rpsStop = null;
+let rpsStop = null, rpsWith = "";
 async function openRps(them){
+  rpsWith = them;
   const me = await frMe().catch(frFail); if (!me) return;
   const room = rpsRoom(me.uid, them), f = frState();
   frDb("DELETE", `invites/${me.uid}/${them}`).catch(() => {}); delete frInvites[them];
@@ -732,6 +819,18 @@ async function liveAddMember(id, uid, groupName){
   await frDb("PUT", `groups/${id}/members/${uid}`, fr.n);
   await frDb("PUT", `mygroups/${uid}/${id}`, n);
   await liveFetch(id).catch(() => {});
+}
+// delete a live group for everyone: its payments, everyone's link to it, then its members (you last, so the rules still let you)
+async function liveDeleteGroup(id){
+  const me = await frMe(), g = await frDb("GET", `groups/${id}`) || {};
+  await Promise.all(Object.keys(g.items || {}).map(iid => frDb("DELETE", `groups/${id}/items/${iid}`)));
+  const others = Object.keys(g.members || {}).filter(uid => uid !== me.uid);
+  await Promise.all(others.map(uid => frDb("DELETE", `mygroups/${uid}/${id}`).catch(() => {})));
+  await frDb("DELETE", `groups/${id}/n`).catch(() => {});
+  await Promise.all(others.map(uid => frDb("DELETE", `groups/${id}/members/${uid}`)));
+  await frDb("DELETE", `groups/${id}/members/${me.uid}`);
+  await frDb("DELETE", `mygroups/${me.uid}/${id}`).catch(() => {});
+  liveKeep(id, null);
 }
 // the groups this phone is in (other people can add you to theirs)
 async function liveListGroups(){

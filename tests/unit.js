@@ -607,6 +607,34 @@ test("split costs: custom amounts must add up to the total, and they change who 
 test("Tools: the order Dylan asked for, and Split costs only in Friends", () => {
   eq(A.toolsInOrder().map(t => t.id), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
 });
+test("questions: costs, journey times, distances", () => {
+  const f = A.moreIntent("How much should a tuk-tuk cost from where I am to MBK market?");
+  eq([f.type, f.veh, f.dest], ["fare", "tuktuk", "MBK Market"]);
+  eq(A.moreIntent("how long does it take to get to chiang mai").dest, "Chiang Mai");
+  eq(A.moreIntent("how far is khao san road").type, "far");
+  eq(A.moreIntent("nearest toilet"), null); eq(A.moreIntent("cheap noodles near me"), null);
+});
+test("questions: tuk-tuk and taxi estimates come from the meter rules (Bangkok) or researched app fares (Cambodia), elsewhere check the app", () => {
+  const bkk = A.fareEstimates(5, {lat:13.745, lng:100.53}), m = A.meterFare(5);
+  const tuk = bkk.find(x => x.k === "tuktuk"), taxi = bkk.find(x => x.k === "taxi");
+  ok(taxi.lo >= m && tuk.lo >= 50 && tuk.hi >= tuk.lo && tuk.src.length, JSON.stringify(bkk));
+  const pp = A.fareEstimates(6, {lat:11.56, lng:104.92}).find(x => x.k === "tuktuk");
+  ok(pp.cur === "USD" && pp.lo >= 1 && pp.hi <= 5, JSON.stringify(pp));
+  ok(A.fareEstimates(5, {lat:-8.65, lng:115.13}).every(x => x.lo == null), "Bali: no made-up numbers, check Grab or Gojek");
+});
+test("feeling rough: hangover and the shits get the right list for the country, each with sources and whether you need a prescription", () => {
+  eq(A.moreIntent("I'm hungover, what would cure me?").topic, "hangover");
+  eq(A.moreIntent("I've got diarrhoea, what should I buy?").topic, "stomach");
+  eq(A.moreIntent("got the shits").topic, "stomach");
+  eq(A.moreIntent("I'm not feeling great, what's the best thing?").topic, "general");
+  for (const cc of ["TH", "ID", "KH"]){
+    const all = A.REMEDIES[cc];
+    ok(all.every(r => r.src.length && r.src.every(k => A.RX_SRC[k]) && r.rx && r.at && r.price), cc + " remedies need sources, where, price (or 'not checked') and prescription");
+    ok(A.remedyList(cc, "stomach")[0].best && /ORS|Oralit/.test(A.remedyList(cc, "stomach")[0].n), cc + ": ORS first for the shits");
+    ok(!A.remedyList(cc, "hangover").some(r => /loperamide|Imodium/i.test(r.n)), cc + ": no diarrhoea tablets for a hangover");
+  }
+  ok(/Prescription/.test(A.REMEDIES.ID.find(r => /Imodium/.test(r.n)).rx), "Imodium needs a prescription in Indonesia");
+});
 
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
@@ -759,7 +787,19 @@ test("Tools: the order Dylan asked for, and Split costs only in Friends", () => 
       eq(inbox[mid].f, me2.uid); eq(inbox[mid].s, stk); eq([forgedMsg, peekMsg], [401, 401]);
     });
     test("developer mode: typing ELITE POTATO in the map search switches it on and off", () => {
-      eq(P1.frDevCode("elite potato"), false); eq(P1.frDevCode(" ELITE  POTATO "), true); eq(P1.S.dev, true); eq(P1.frDevCode("ELITE POTATO"), true); eq(P1.S.dev, false);
+      eq(P1.frDevCode("elite potato"), false); eq(P1.frDevCode(" ELITE  POTATO "), true); eq(P1.S.dev, true); eq(P1.toolsInOrder().slice(-1)[0].id, "developer");
+      eq(P1.frDevCode("ELITE POTATO"), true); eq(P1.S.dev, false); ok(!P1.toolsInOrder().some(t => t.id === "developer"), "the Developer tool hides again");
+    });
+    // a developer renames a sticker: friends' phones show the new name
+    await P3.frRenameSticker(stk, "Sent it");
+    let renameNo = 0; try { await P2.frDb("PUT", `stickerIndex/${stk}`, "Hacked"); } catch(e){ renameNo = e.status; }
+    const stickers2b = await P2.frLoadStickers(true);
+    test("messages: a developer can rename a sticker, nobody else can", () => { eq(stickers2b[stk].n, "Sent it"); eq(renameNo, 401); });
+    // deleting a live split group: gone for every member
+    await P1.liveDeleteGroup(gid);
+    const after2 = await P2.liveListGroups(), raw = fb.root.groups && fb.root.groups[gid];
+    test("live split: deleting a group removes it, and its payments, for everyone in it", () => {
+      eq(after2.map(g => g.id).includes(gid), false); ok(!raw || (!Object.keys(raw.items || {}).length && !Object.keys(raw.members || {}).length && !raw.n), JSON.stringify(raw)); ok(!P1.liveStore()[gid]);
     });
   }
   console.log(`\n${passed} passed, ${failed} failed`);

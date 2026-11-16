@@ -70,9 +70,15 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   // Design Lab: hidden on a new phone; Settings has no look controls; switching the Lab on brings it back, with the look inside it
   await page.goto(BASE + "#tools/settings"); await page.waitForTimeout(1000);
-  ok(await page.evaluate(() => !document.querySelector("#labBtn") && !document.querySelector('#pageview [data-look]') && S.design.on === false), "Design Lab is hidden by default and Settings has no look controls");
-  await page.click('#pageview [data-labtoggle]'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => !!document.querySelector("#labBtn") && S.design.on === true), "the Design Lab can still be switched on in Settings");
+  ok(await page.evaluate(() => !document.querySelector("#labBtn") && !document.querySelector('#pageview [data-look]') && !document.querySelector('#pageview [data-labtoggle]') && S.design.on === false), "Design Lab is hidden by default and only a developer can switch it on");
+  ok(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim().toUpperCase() === "#121417" && getComputedStyle(document.documentElement).getPropertyValue("--stay").trim().toUpperCase() === "#FF7A59"), "Dylan's look is the default (dark #121417, tropical section colours)");
+  await page.goto(BASE + "#tools"); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => !document.querySelector('#pageview a[href="#tools/developer"]')), "no Developer tool until ELITE POTATO is typed");
+  await page.evaluate(() => { S.dev = true; persist(); renderPage(); }); await page.waitForTimeout(600);
+  ok(await page.evaluate(() => { const t = [...document.querySelector("#pageview .tgrid").querySelectorAll("a.tool")]; return t.length && t[t.length - 1].getAttribute("href") === "#tools/developer"; }), "a developer phone gets Developer as the last tool");
+  await page.goto(BASE + "#tools/developer"); await page.waitForTimeout(800);
+  await page.click("#dev-lab"); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => !!document.querySelector("#labBtn") && S.design.on === true), "the Design Lab switches on from Tools › Developer");
   await page.click("#labBtn"); await page.waitForTimeout(400);
   await page.click('#lab [data-labtab="look"]'); await page.waitForTimeout(300);
   await page.click('#lab [data-look="paper"]'); await page.waitForTimeout(2500);
@@ -152,6 +158,32 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => ui.mapCats.size === 0 && mapRun.items.length === 0), "tapping the only section again switches everything off");
   await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
   ok(await page.evaluate(() => document.querySelector("#mapFilt").hidden && ui.mapCats.size === 3), "All brings everything back, without the filter row");
+  await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => ui.mapCats.size === 0 && !ui.essKinds.size && document.querySelector('#mapChips [data-all]').getAttribute("aria-pressed") === "false"), "tapping All when everything shows clears it (just the map)");
+  await page.click('#mapChips [data-all]'); await page.waitForTimeout(800);
+  // the bottom bar has Transport, and it opens the journey planner
+  ok(await page.evaluate(() => [...document.querySelectorAll("#tabs a")].map(a => a.textContent.trim()).join(",") === "Map,Gaffs,Munch,Activities,Transport,Tools"), "six tabs: Map, Gaffs, Munch, Activities, Transport, Tools");
+  await page.click('#tabs a[href="#tools/transport"]'); await page.waitForTimeout(1000);
+  ok(await page.evaluate(() => ui.sub === "transport" && document.querySelector('#tabs a[aria-current="page"]').textContent.trim() === "Transport"), "the Transport tab opens the journey planner and lights up");
+  // new questions in the map search: what a tuk-tuk should cost, and "I'm hungover"
+  await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
+  await page.evaluate(() => map.jumpTo({center:[100.5300, 13.7445], zoom:14}));
+  await page.fill("#m-q", "how much should a tuk-tuk cost to Siam Paragon?"); await page.waitForTimeout(600);
+  await page.click("#mapSugs [data-ask]"); await page.waitForTimeout(4000);
+  const fare = await page.evaluate(() => [...document.querySelectorAll("#askBody .fare")].map(f => f.innerText.replace(/\s+/g, " ")));
+  ok(fare.length >= 3 && /Tuk-tuk/.test(fare[0]) && /est\./.test(fare[0]), "tuk-tuk question: estimated fares, the tuk-tuk first, marked est. " + JSON.stringify(fare));
+  await page.evaluate(() => closeDetail()); await page.waitForTimeout(500);
+  await page.fill("#m-q", "I'm hungover, what would cure me?"); await page.waitForTimeout(600);
+  await page.click("#mapSugs [data-ask]"); await page.waitForTimeout(1200);
+  const rx = await page.evaluate(() => [...document.querySelectorAll("#askBody .rx b")].map(b => b.textContent));
+  ok(rx.length >= 3 && /ORS/.test(rx[0]) && await page.evaluate(() => !!document.querySelector("#askBody [data-rxnear]")), "hangover question: what to buy, ORS first, and the nearest pharmacy button " + JSON.stringify(rx));
+  await page.evaluate(() => closeDetail()); await page.waitForTimeout(500);
+  await page.goto(BASE + "#tools/guide"); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => /Hangover and the shits/.test(document.querySelector("#g-rx h2").textContent) && document.querySelectorAll("#g-rx .rx").length >= 5), "the guide has a Hangover and the shits section");
+  // Munch: gluten-free; Essentials: luggage lockers
+  await page.goto(BASE + "#munch"); await page.waitForTimeout(1500);
+  ok(await page.evaluate(() => [...document.querySelectorAll("#pageview .chip")].some(c => /Gluten-free/.test(c.textContent))), "Munch has a Gluten-free button");
+  ok(await page.evaluate(() => ESS.some(e => e.id === "luggage")), "Essentials has luggage lockers");
 
   // Indonesia: the map, lists, search and Tools work in Sumatra, Bali and Lombok too
   await page.evaluate(() => { setFocus({n:"Palembang", lat:-2.9888, lng:104.7569}); setCountry("ID", true); });
@@ -370,23 +402,22 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(await B.pg.evaluate(() => !document.querySelector("#map .fr-pin")), "switching the Friends essential off hides them");
     await B.pg.click("#mapEss [data-essfr]"); await B.pg.waitForTimeout(800);
     // renaming: Dylan's friend "Sam" becomes "PC", only on Dylan's phone
-    await A.pg.click("#fr-open"); await A.pg.waitForTimeout(800);
-    await A.pg.click(`#sheetRoot [data-frren="${uidB}"]`); await A.pg.waitForTimeout(300);
-    await A.pg.fill("#sheetRoot .fr-ren input", "PC"); await A.pg.click("#sheetRoot .fr-ren button"); await A.pg.waitForTimeout(1200);
-    ok(await A.pg.evaluate(uid => S.friends.list[uid].n === "PC" && /PC/.test(document.querySelector("#pageview").textContent), uidB), "Dylan renames Sam to PC on his phone");
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    await A.pg.click(`#pageview [data-fredit="${uidB}"]`); await A.pg.waitForTimeout(500);
+    await A.pg.setInputFiles("#sheetRoot #fre-pic", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(1500);
+    await A.pg.fill("#sheetRoot #fre-name", "PC"); await A.pg.click("#sheetRoot #fre-save"); await A.pg.waitForTimeout(1200);
+    ok(await A.pg.evaluate(uid => S.friends.list[uid].n === "PC" && /^data:image\/jpeg/.test(S.friends.list[uid].pic) && /PC/.test(document.querySelector("#pageview").textContent) && !!document.querySelector(`[data-frav="${uid}"] img`), uidB), "the pencil: Dylan renames Sam to PC and gives him a photo, on his phone only");
     // developer mode: type ELITE POTATO in the map search (only Dylan's phone), and only a developer phone can set faces
     await A.pg.goto(BASE + "#map"); await A.pg.waitForTimeout(1500);
     await A.pg.fill("#m-q", "ELITE POTATO"); await A.pg.waitForTimeout(500);
     ok(await A.pg.evaluate(() => S.dev === true && document.querySelector("#m-q").value === ""), "typing ELITE POTATO in the map search switches developer mode on");
-    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1500);
-    await A.pg.click("#fr-open"); await A.pg.waitForTimeout(1500);
-    await A.pg.click("#sheetRoot #fr-claim"); await A.pg.waitForTimeout(2000);
-    await A.pg.setInputFiles(`#sheetRoot [data-frphoto="${uidB}"]`, path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(2500);
+    await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(1500);
+    await A.pg.click("#fr-dev #fr-claim"); await A.pg.waitForTimeout(2500);
+    await A.pg.setInputFiles(`#fr-dev [data-frphoto="${uidB}"]`, path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(2500);
     ok(typeof (fb.root.photos || {})[uidB] === "string" && fb.root.photos[uidB].startsWith("data:image/jpeg") && fb.root.photos[uidB].length < 40000, "the developer phone sets Sam's photo (a small square JPEG)");
-    await A.pg.setInputFiles("#sheetRoot #stk-add", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(3000);
+    await A.pg.setInputFiles("#fr-dev #stk-add", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(3000);
     const stk = await A.pg.evaluate(() => Object.values(frStickers).map(x => x.n));
     ok(stk.includes("kata") && Object.keys(fb.root.stickerIndex || {}).length === 1, "the developer adds a message sticker, named after its file " + JSON.stringify(stk));
+    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1200);
     await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1500);
     await B.pg.click(`[data-frmsg="${uidA}"]`); await B.pg.waitForTimeout(2500);
     const pick = await B.pg.evaluate(() => [...document.querySelectorAll("#stk-pick [data-stksend] span")].map(x => x.textContent));
@@ -394,9 +425,14 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await B.pg.click("#stk-pick [data-stksend]"); await B.pg.waitForTimeout(1500);
     await A.pg.click("#sheetRoot .sheet-head [data-close]").catch(() => {}); await A.pg.evaluate(() => frPoll()); await A.pg.waitForTimeout(1500);
     const got = await A.pg.evaluate(() => { const m = document.querySelector("#fr-alerts .fr-msg"); return m ? {t:m.innerText.replace(/\s+/g, " "), img:!!m.querySelector("img.fr-sticker")} : null; });
-    ok(got && /PC sent you a message: kata/.test(got.t) && got.img, "Dylan sees the sticker at the top of Friends: “PC sent you a message” " + JSON.stringify(got));
+    ok(got && /PC sent you a kata/.test(got.t) && got.img, "Dylan sees the sticker at the top of Friends: “PC sent you a kata” " + JSON.stringify(got));
     await A.pg.click("#fr-alerts [data-frmsgdel]"); await A.pg.waitForTimeout(800);
     ok(await A.pg.evaluate(() => !document.querySelector("#fr-alerts .fr-msg")) && !Object.keys((fb.root.msgs || {})[uidA] || {}).length, "dismissing it removes it");
+    await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(2500);
+    await A.pg.click("#fr-dev [data-stkren]"); await A.pg.waitForTimeout(300);
+    await A.pg.fill("#fr-dev .fr-stk .fr-ren input", "Cooked"); await A.pg.click("#fr-dev .fr-stk .fr-ren button"); await A.pg.waitForTimeout(2000);
+    ok(Object.values(fb.root.stickerIndex || {}).includes("Cooked"), "a developer renames a sticker in Tools › Developer");
+    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1200);
     await A.pg.click("#fr-open"); await A.pg.waitForTimeout(800);
     await B.pg.evaluate(() => { S.dev = true; }); await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1200);
     const bClaim = await B.pg.evaluate(async () => { try { await frClaimAdmin(); return "claimed"; } catch(e){ return e.message; } });
@@ -446,7 +482,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await A.pg.click(`.fr-game ~ .flags [data-frplay="${uidB}"]`); await A.pg.waitForTimeout(1500);
     await B.pg.goto(BASE + "#tools/friends-play"); await B.pg.waitForTimeout(800);
     await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(800);
-    await B.pg.click(`#fr-alerts [data-frplay="${uidA}"]`); await B.pg.waitForTimeout(1500);
+    // the invite pops up straight away (Play / Not now), and also sits at the top of the page
+    const pop = await B.pg.$('#confirmRoot [data-cfm="1"]');
+    ok(!!pop || !!(await B.pg.$(`#fr-alerts [data-frplay="${uidA}"]`)), "Sam gets the game invite");
+    if (pop) await pop.click(); else await B.pg.click(`#fr-alerts [data-frplay="${uidA}"]`);
+    await B.pg.waitForTimeout(1500);
     await A.pg.click('#rpsBox [data-rps="rock"]'); await A.pg.waitForTimeout(400);
     await B.pg.click('#rpsBox [data-rps="scissors"]'); await B.pg.waitForTimeout(3500);
     const ra = await A.pg.evaluate(() => [document.querySelector("#rps-msg").textContent, document.querySelector("#rps-me").textContent, document.querySelector("#rps-them").textContent]);

@@ -26,7 +26,7 @@ const fc = feats => ({type:"FeatureCollection", features:feats});
 
 /* ---------- pin pictures, drawn once from the app's own icons ---------- */
 function pinSVG(ic, fill, ring){
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 34 34"><circle cx="17" cy="17" r="14.5" fill="${fill}" stroke="${ring}" stroke-width="2.4"/><g transform="translate(8 8) scale(.75)" fill="none" stroke="#20262B" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${IC[ic] || IC.pin}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 34 34"><circle cx="17" cy="17" r="14.5" fill="${fill}" stroke="${ring}" stroke-width="2.4"/><g transform="translate(8 8) scale(.75)" fill="none" stroke="#121417" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${IC[ic] || IC.pin}</g></svg>`;
 }
 function addPinImages(){
   const col = {stay:cssv("--stay"), food:cssv("--food"), do:cssv("--do"), ess:cssv("--ess"), move:cssv("--move")};
@@ -37,7 +37,7 @@ function addPinImages(){
   const ESSK = new Set(ESS.flatMap(e => e.kinds).concat(["luggage"]));
   Object.keys(KIND).forEach(k => {
     const g = GRP[k] || (ESSK.has(k) ? "ess" : grpOf(k) || "do");
-    [["", "#20262B"], ["-r", "#F2F1ED"]].forEach(([suffix, ring]) => {
+    [["", "#121417"], ["-r", "#F2F1ED"]].forEach(([suffix, ring]) => {
       const name = `pin-${k}${suffix}`;
       const img = new Image(68, 68);
       img.onload = () => { try { if (!map) return; if (map.hasImage(name)) map.updateImage(name, img); else map.addImage(name, img, {pixelRatio:2}); } catch(e){} };
@@ -114,7 +114,7 @@ function onMapLoad(){
   MAP_GROUPS.forEach(g => {
     map.addSource("pts-" + g, {type:"geojson", data:fc([]), cluster:true, clusterRadius:46, clusterMaxZoom:16, clusterProperties:{w:["+", ["get", "w"]]}});
     map.addLayer({id:"cl-circle-" + g, type:"circle", source:"pts-" + g, filter:isGroup, paint:{
-      "circle-color":cssv("--" + g), "circle-stroke-color":cssv("--cl-ring"), "circle-stroke-width":1.5, "circle-opacity":.72, "circle-stroke-opacity":.85, "circle-radius":CL_RADIUS, "circle-translate":CL_NUDGE[g]}});
+      "circle-color":cssv("--" + g), "circle-stroke-color":cssv("--cl-ring"), "circle-stroke-width":1.5, "circle-opacity":LAB_SIZES.clOp, "circle-stroke-opacity":Math.min(1, LAB_SIZES.clOp + .15), "circle-radius":["*", LAB_SIZES.cl, CL_RADIUS], "circle-translate":CL_NUDGE[g]}});
     map.addLayer({id:"cl-count-" + g, type:"symbol", source:"pts-" + g, filter:isGroup, layout:{
       "text-field":["case", [">=", ["get", "w"], 10000], ["concat", ["to-string", ["round", ["/", ["get", "w"], 1000]]], "k"],
         [">=", ["get", "w"], 1000], ["concat", ["to-string", ["/", ["round", ["/", ["get", "w"], 100]], 10]], "k"], ["to-string", ["get", "w"]]],
@@ -457,13 +457,14 @@ function renderMapUI(){
   const essRow = $("#mapEss");
   essRow.hidden = !(ui.essOpen || ui.essKinds.size);
   essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends !== false}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
-  $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(48,58,64,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
+  $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   const top = $("#mapTop");
   // any other chip leaves surf mode
   top.querySelectorAll("[data-all], [data-cat], [data-ess], [data-saved]").forEach(b => b.addEventListener("click", () => { if (ui.mapSurf){ ui.mapSurf = false; if (b.dataset.cat) ui.mapCats = new Set(); } }, {capture:true}));
   top.querySelector("[data-surf]").onclick = () => ui.mapSurf ? (ui.mapSurf = false, ui.mapCats = new Set(["gaff","munch","cool"]), renderMapUI()) : openSurfMap();
-  top.querySelector("[data-all]").onclick = () => { ui.mapCats = new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
+  // All: shows Gaffs, Munch and Activities; tapped again while they all show, it clears them (just the map)
+  top.querySelector("[data-all]").onclick = () => { ui.mapCats = all ? new Set() : new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
   top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
     const k = b.dataset.cat; ui.mapSaved = false;
     if (all) ui.mapCats = new Set([k]);                       // everything showing: tapping a section shows just that one

@@ -229,7 +229,8 @@ function splitSectionHTML(m, groups, live, opt = {}){
     }).join("")}</div>
     ${plan.length ? `<h3 style="margin-top:12px">To settle up</h3>${plan.map((t, k) => `<div class="sp-row"><span>${nm(t.from)} pays ${nm(t.to)} <b>${showAmt(t.gbp)}</b></span><button class="btn small" type="button" data-paid="${k}">Paid</button></div>`).join("")}` : m.items.length ? `<p class="note">Everyone is square.</p>` : ""}`}
     ${m.live ? "" : `<div class="row" style="margin-top:12px"><button class="btn small" type="button" id="sp-share">${icon("share","i s")}Send to the group</button></div>`}
-    <p class="note">${m.live ? "Everyone in the group can add payments, and the tally updates on all your phones (with signal). " : "The tally is kept on this phone. Send it to the group and anyone who opens the link gets the same payments added to their app. "}Totals are worked out in pounds at today’s rates, shown in ${esc(CUR_NAME[lc] || lc)} too.</p>`;
+    <p class="note">${m.live ? "Everyone in the group can add payments, and the tally updates on all your phones (with signal). " : "The tally is kept on this phone. Send it to the group and anyone who opens the link gets the same payments added to their app. "}Totals are worked out in pounds at today’s rates, shown in ${esc(CUR_NAME[lc] || lc)} too.</p>
+    ${m.live && mine ? `<button class="btn small sp-gdel" type="button" id="sp-gdel" style="margin-top:12px">${icon("trash","i s")}Delete ${esc(m.title)}</button>` : ""}`;
   return html;
 }
 // your tally in a live group: one line per person, "owes you" in green or "you owe" in red, with a button to mark it paid
@@ -259,6 +260,13 @@ function bindSplit(root, m, again){
   const fail = e => toast(e && e.message === "permission" ? "Firebase said no: are you still in this group?" : (e && e.message) || "No signal? Try again.");
   root.querySelectorAll("[data-tally]").forEach(b => b.onclick = () => { splitData().cur = b.dataset.tally; splitUi.newGroup = false; persist(); again(); });
   const ng = q("#sp-newg"); if (ng) ng.onclick = () => { splitUi.newGroup = !splitUi.newGroup; again(); };
+  // delete a live group for everyone in it
+  const gd = q("#sp-gdel");
+  if (gd) gd.onclick = async () => {
+    if (!(await askConfirm(`Delete ${m.title} for everyone in it? All its payments go too, and it can’t be undone.`, "Delete group", true))) return;
+    gd.disabled = true;
+    liveDeleteGroup(m.id).then(() => { splitData().cur = ""; persist(); toast(`Deleted ${m.title}`); again(); }, e => { gd.disabled = false; fail(e); });
+  };
   root.querySelectorAll("[data-sptab]").forEach(b => b.onclick = () => { splitUi.tab = b.dataset.sptab; again(); });
   root.querySelectorAll("[data-gpick]").forEach(b => b.onclick = () => b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"));
   const gc = q("#sp-gcreate");

@@ -55,7 +55,7 @@ function hexMix(a, b, t){
   const x = p(a), y = p(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
 }
 function artSVG(g){
-  const col = cssv("--" + g) || "#888888", bg = cssv("--art-bg") || "#20262B";
+  const col = cssv("--" + g) || "#888888", bg = cssv("--art-bg") || "#121417";
   const top = hexMix(col, bg, .62), bot = hexMix(col, bg, .28), ink = hexMix(col, bg, .82), lite = hexMix(col, "#ffffff", .35);
   const scenes = {
     // a bungalow and a palm under a moon
@@ -128,6 +128,7 @@ function placeCard(it, pt){
     if (it.wifi) tags.push(`<span class="tag">${it.wifi === 2 ? "Free Wi-Fi" : "Wi-Fi"}</span>`);
     if (it.vegan) tags.push(`<span class="tag good">${it.vegan === 2 ? "Vegan" : "Vegan options"}</span>`);
     else if (it.veg) tags.push(`<span class="tag good">${it.veg === 2 ? "Vegetarian" : "Vegetarian options"}</span>`);
+    if (it.gf) tags.push(`<span class="tag good">${it.gf === 2 ? "Gluten-free" : "Gluten-free options"}</span>`);
     if (it.pool) tags.push('<span class="tag">Pool</span>');
     if (it.ac && it.c === "gaff") tags.push('<span class="tag">Air con</span>');
     if (it.x || it.wd) tags.push('<span class="tag pick">Notable</span>');

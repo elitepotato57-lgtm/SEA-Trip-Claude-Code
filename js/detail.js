@@ -418,6 +418,7 @@ function openDetail(id){
   if (soc.length) facts.push(fact("Social", soc.join(" · ")));
   const ftype = it.c === "munch" ? foodType(it) : null;
   if (ftype || (it.cu && it.cu.length)) facts.push(fact("Food", `${esc(ftype || it.cu.join(", "))}${ftype && it.cu && it.cu.length ? `<div class="note">${esc(it.cu.join(", "))}</div>` : ""}`));
+  if (it.gf) facts.push(fact("Gluten-free", it.gf === 2 ? "Fully gluten-free (as marked on OpenStreetMap)" : "Has gluten-free options (as marked on OpenStreetMap). Ask about cross-contamination"));
   if (it.veg || it.vegan) facts.push(fact("Diet", [it.vegan ? (it.vegan === 2 ? "Fully vegan" : "Vegan options") : "", it.veg ? (it.veg === 2 ? "Fully vegetarian" : "Vegetarian options") : ""].filter(Boolean).join(", ")));
   if (it.wifi) facts.push(fact("Wi-Fi", WIFI_TXT[it.wifi] || "Yes"));
   if (it.st) facts.push(fact("Star rating", `${it.st}-star`));

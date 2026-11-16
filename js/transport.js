@@ -231,7 +231,7 @@ function transportPage(){
   const trips = planTrips(fN, tN);
   if (ui.tp.sel >= trips.length) ui.tp.sel = 0;
   ui._trips = trips;
-  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there", back:["#tools", "Tools"]}) + `<div class="page">
+  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">
     <div class="block plan">
       <div class="pair">
         <label class="field sfield">From<input id="tp-from" type="search" autocomplete="off" enterkeyhint="search" value="${esc(nodeLabel(fN))}" placeholder="Search a place"><div class="sugs" id="sug-from" hidden></div></label>

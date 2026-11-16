@@ -14,8 +14,8 @@ function parseHash(){
   return VIEWS.includes(v) ? {view:v, sub} : {view:"map", sub:""};
 }
 function renderNav(){
-  const cur = ui.view === "saved" || ui.view === "discover" ? "" : ui.view;
-  $("#tabs").innerHTML = TABS.map(t => `<a href="#${t.id}" ${cur === t.id ? 'aria-current="page"' : ""}>${icon(t.ic)}${t.label}</a>`).join("");
+  const cur = ui.view === "saved" || ui.view === "discover" ? "" : ui.view === "tools" && /^transport/.test(ui.sub || "") ? "transport" : ui.view;
+  $("#tabs").innerHTML = TABS.map(t => `<a href="${t.href || "#" + t.id}" ${cur === t.id ? 'aria-current="page"' : ""}>${icon(t.ic)}${t.label}</a>`).join("");
 }
 function show(r = parseHash()){
   ui.view = r.view; ui.sub = r.sub;

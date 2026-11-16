@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.13.0";
+const VERSION = "2.14.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -124,6 +124,7 @@ const TABS = [
   {id:"gaffs", label:"Gaffs", ic:"bed", cat:"gaff"},
   {id:"munch", label:"Munch", ic:"food", cat:"munch"},
   {id:"activities", label:"Activities", ic:"compass", cat:"cool"},
+  {id:"transport", label:"Transport", ic:"bus", href:"#tools/transport"},    // the journey planner (Tools › Transport), one tap away
   {id:"tools", label:"Tools", ic:"grid"}
 ];
 const VIEW_OF_CAT = {gaff:"gaffs", munch:"munch", cool:"activities"};
@@ -137,7 +138,7 @@ const NOTES = {THB:[20,100,500,1000],USD:[1,5,10,20],EUR:[5,10,20,50],AUD:[5,10,
 function applyLook(){
   const paper = S.look === "paper", root = document.documentElement;
   if (paper) root.dataset.look = "paper"; else delete root.dataset.look;
-  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = paper ? "#F3EAD7" : "#20262B";
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = paper ? "#F3EAD7" : "#121417";
   if (paper && !document.getElementById("serifFont")){
     const l = document.createElement("link"); l.id = "serifFont"; l.rel = "stylesheet";
     l.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap"; document.head.appendChild(l);

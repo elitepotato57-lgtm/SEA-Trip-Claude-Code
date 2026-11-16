@@ -26,6 +26,9 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Rock Paper Scissors (`games/`, live via `frListen` event stream with polling fallback). Firebase REST (anonymous sign-in + Realtime Database, free Spark plan).
   Sharing uses its own GPS watch (`frHere`), never the pretend test location. Developer phone (7 taps on Settings › About the data,
   then claim; `admins/`) is the only one that can set friends' photos (`photos/`, small JPEGs).
+  Typing ELITE POTATO in the map search sets `S.dev`: Tools › Developer (last tool) has the Design Lab switch, stickers (add, rename,
+  delete), who is a developer, and everyone's photos. The Design Lab is only ever shown on developer phones. Anyone can give a friend
+  their own name and photo with the pencil (kept on the phone, `S.friends.list[uid].pic`).
   Dylan adds `window.SEA_FIREBASE = {apiKey, databaseURL}` to `config.js` himself (FIREBASE-SETUP.md); rules in `firebase/database.rules.json`
   (keep them and `tests/fakefirebase.js` in step). Sharing is off until switched on, per friend; only real GPS is sent, only while open.
 - `js/split.js`: Tools › Split costs: "On this phone" (`S.split`, shared by link) or a live group with friends (bottom of
@@ -33,6 +36,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`): no lookup on the phone.
   Re-run it after rebuilding any `places/` folder. Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
+  `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
+  and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
 - `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta).
   Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
@@ -47,6 +52,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
 - `places/th/` (all of Thailand), `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok) and `places/kh/` (all of Cambodia): the places
   databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
+  Luggage lockers and gluten-free (`gf`) were added to the existing folders by `node tools/osm/add-extras.js` (Overpass); extract.py now keeps both.
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
@@ -54,7 +60,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 
 ## Rules
 
-- Keep the tab names: **Map, Gaffs, Munch, Activities, Tools** (Settings behind the cog).
+- Keep the tab names: **Map, Gaffs, Munch, Activities, Transport, Tools** (Settings behind the cog). Transport opens `#tools/transport`.
 - Dylan wants every country to work to the same extent as Thailand. When adding one, do all the steps in `tools/osm/README.md`.
 - Prices: local currency first, GBP alongside. **Estimates** are allowed only from the rules in `js/estimate.js`,
   always shown as "est." and never instead of a researched price. Never invent researched prices, hours, ratings or places.

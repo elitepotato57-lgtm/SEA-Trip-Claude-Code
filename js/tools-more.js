@@ -212,7 +212,12 @@ const DEST_NOTE = {"Kep":"Small seaside town known for its crab market.", "Batta
   Bengkulu:"Quiet coastal city on Sumatra’s west coast with the old British Fort Marlborough.",
   Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations."};
 // the guide for the country you're in (Indonesia gets its own; everywhere else the Thailand one)
-TOOL_PAGES.guide = root => (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : guideTH)(root);
+TOOL_PAGES.guide = root => {
+  (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : guideTH)(root);
+  // every guide ends with "Hangover and the shits" (js/ask-more.js)
+  const pg = root.querySelector(".page");
+  if (pg && typeof remedyGuideHTML === "function"){ pg.insertAdjacentHTML("beforeend", remedyGuideHTML(REMEDIES[S.country] ? S.country : "TH")); bindRemedyButtons(pg); }
+};
 
 /* Cambodia guide: entry rules, warnings and laws from gov.uk, checked 12 Nov 2026 */
 const GUIDE_KH_CHECKED = "12 Nov 2026";

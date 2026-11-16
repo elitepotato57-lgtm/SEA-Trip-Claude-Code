@@ -182,6 +182,8 @@ def extras(t, ts):
     veg, vgn = t.get("diet:vegetarian"), t.get("diet:vegan")
     if veg in ("yes", "only"): x["v"] = 2 if veg == "only" else 1
     if vgn in ("yes", "only"): x["vg"] = 2 if vgn == "only" else 1
+    gfr = t.get("diet:gluten_free")
+    if gfr in ("yes", "only", "limited"): x["gf"] = 2 if gfr == "only" else 1
     if t.get("wikidata"): x["wd"] = t["wikidata"]
     if t.get("wikipedia"): x["wp"] = t["wikipedia"]
     if t.get("image") and "commons.wikimedia.org" in t["image"]: x["img"] = t["image"]

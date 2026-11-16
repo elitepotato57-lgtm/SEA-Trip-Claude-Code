@@ -131,6 +131,7 @@ async function answerAsk(text){
 }
 
 function askTitle(a){
+  if (a.kind === "more") return a.title;
   const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
   if (a.nearest) return "Go to the nearest " + nearestNoun(a);
   if (a.kind === "ess" || a.kind === "move") return cap(a.what) + " nearby";
@@ -138,6 +139,7 @@ function askTitle(a){
 }
 /* a plain category word ("atm", "hostel", "food") gets an answer row too; a place name like "Wat Pho" doesn't */
 function askOffer(text){
+  const mi = typeof moreIntent === "function" ? moreIntent(text) : null; if (mi) return {a:mi, first:true};       // costs, times, distances, feeling rough (js/ask-more.js)
   const n = nearestIntent(text); if (n) return {a:n, first:true, nearest:true};
   const a = parseAsk(text); if (!a) return null;
   if (isAsk(text)) return {a, first:true};
@@ -145,6 +147,7 @@ function askOffer(text){
   return a.kind === "ess" || a.kind === "move" || ASK_STAY.test(t) || ASK_FOOD.test(t) ? {a, first:false} : null;
 }
 async function showAnswer(text){
+  const mi = typeof moreIntent === "function" ? moreIntent(text) : null; if (mi) return showMore(text, mi);
   openSheet(`<div class="sheet-head"><div><span class="kind">${icon("search", "i xs")} Your question</span><h2 id="askTitle">“${esc(text)}”</h2></div>
     <button class="icon-btn" type="button" data-close aria-label="Close">${icon("x")}</button></div><div id="askBody"><p class="note" style="margin-top:10px">Looking…</p></div>`, "askTitle");
   let r = null;

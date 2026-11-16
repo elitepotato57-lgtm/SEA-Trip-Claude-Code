@@ -73,3 +73,8 @@ entry, a tourism or heritage tag, or a name like "Masjid Agung"), because they'r
 Unnamed places are dropped except toilets, drinking water, ATMs, viewpoints, fuel, taxi stands and luggage storage.
 
 Data © OpenStreetMap contributors, available under the Open Database Licence (ODbL).
+
+## Lockers and gluten-free on folders built earlier
+
+`node tools/osm/add-extras.js` asks the free Overpass API for luggage lockers / left-luggage desks and `diet:gluten_free`, and adds
+them to `places/th`, `places/kh` and `places/id` without a full rebuild. `extract.py` keeps both itself, so a rebuild needs nothing extra.

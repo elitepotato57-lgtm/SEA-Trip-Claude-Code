@@ -18,10 +18,11 @@ const TOOLS = [
   {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : S.country === "KH" ? "Cambodia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
-  {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1}
+  {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1},
+  {id:"developer", l:"Developer", d:"Stickers, developers, Design Lab", ic:"cog", get hidden(){ return S.dev !== true; }}
 ];
 // the order of the tiles on Tools (anything not listed goes after, in the order above)
-const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"];
+const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport", "developer"];
 const toolsInOrder = () => TOOLS.filter(t => !t.hidden).sort((a, b) => ((TOOL_ORDER.indexOf(a.id) + 1) || 99) - ((TOOL_ORDER.indexOf(b.id) + 1) || 99));
 const TOOL_PAGES = {};          // id -> {render(root), title}; filled in by each tool below
 function renderTools(){
@@ -313,11 +314,6 @@ function setupPage(){
     <p class="note">${frCfg() ? (frState().on ? `Sharing your location with ${Object.values(frState().list).filter(x => x.share).length} of ${Object.keys(frState().list).length} friends.` : "You aren’t sharing your location.") + " Choose who sees you, one by one." : "Not switched on yet (needs a free Firebase project, see FIREBASE-SETUP.md)."}</p>
     <a class="btn small" href="#tools/friends" style="margin-top:8px">${icon("users","i s")}Friends and sharing</a>
   </section>
-  <section class="block"><h2>Design Lab</h2>
-    <p class="note">For trying looks (Night or Paper Atlas), colours, fonts and sizes. It’s hidden unless you switch it on here.</p>
-    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="switch" type="button" data-labtoggle aria-pressed="${S.design.on === true}"><i></i>Show the Design Lab</button>
-      ${S.design.on === true ? `<button class="btn" type="button" data-openlab>${icon("palette","i s")}Open it</button>` : ""}</div>
-  </section>
   <section class="block"><h2>Exchange rates</h2>
     <p class="note">How much £1 gets you. ${S.live ? `Live rates were last updated ${esc(S.live.date)}.` : "Live rates load when you open the Currency tool with signal."} Type your own rate to override one.</p>
     ${Object.keys(D.rates).filter(k => k !== "GBP").map(k => `<div class="rate-row"><label for="rate-${k}">£1 in ${k}</label><input type="number" step="any" min="0" id="rate-${k}" data-rate="${k}" value="${rate(k)}"><small>${S.rates[k] > 0 ? `Your own rate. Built-in: ${fmtNum(D.rates[k].v)} (${esc(D.rates[k].note)})` : liveRate(k) ? `Live rate. Built-in: ${fmtNum(D.rates[k].v)}` : `Built-in, ${esc(D.rates[k].note)}`}</small></div>`).join("")}
@@ -343,8 +339,6 @@ function bindSetup(){
     else { applyTestLocation(); updateMe(); if (map) flyTo(userLoc, 12); toast(`Test location: ${S.testLoc}`); }
     rerender();
   };
-  const ol = root.querySelector("[data-openlab]"); if (ol) ol.onclick = () => openLab();
-  root.querySelector("[data-labtoggle]").onclick = () => { S.design.on = S.design.on !== true; persist(); if (!S.design.on) closeLab(); renderLabButton(); renderPage(); };
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);

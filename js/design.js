@@ -15,7 +15,8 @@ IC.palette = '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1
 
 const LAB_GROUPS = ["stay", "food", "do", "ess", "move"];
 const LAB_GROUP_NAMES = {stay:"Gaffs", food:"Munch", do:"Activities", ess:"Essentials", move:"Transport"};
-const LAB_SIZES = {ts:1, chip:1, radius:1, pad:1, gap:12, ar:7.5, layout:"big", sideW:112, cl:1, clOp:.72, pin:1};
+// the default look (Dylan's code, Nov 2026): text 90%, corners 180%, circles 90% and a little more see-through
+const LAB_SIZES = {ts:.9, chip:1, radius:1.8, pad:1, gap:12, ar:7.5, layout:"big", sideW:112, cl:.9, clOp:.66, pin:1};
 
 /* ---------- colour maths ---------- */
 const isHex = v => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
@@ -28,7 +29,8 @@ const asHex = v => { v = String(v || "").trim(); if (isHex(v)) return v; const m
 
 /* ---------- presets ---------- */
 const LAB_SECTION_PRESETS = {
-  "Original":  null,
+  "Original":  {stay:"#DA8667", food:"#8CC3A6", do:"#B9A4DC", ess:"#E3C47C", move:"#7FB2D2"},
+  "Standard":  null,
   "Bold":      {stay:"#FF6B57", food:"#2ECC71", do:"#9B59B6", ess:"#F1C40F", move:"#3498DB"},
   "Tropical":  {stay:"#FF7A59", food:"#14B8A6", do:"#A78BFA", ess:"#FBBF24", move:"#38BDF8"},
   "Pastel":    {stay:"#F4A7A0", food:"#A8E6CF", do:"#CDB4DB", ess:"#FFE5A5", move:"#A2D2FF"},
@@ -37,7 +39,8 @@ const LAB_SECTION_PRESETS = {
 };
 const LAB_ACCENTS = {"Coral":null, "Orange":"#F28C38", "Teal":"#14B8A6", "Gold":"#E3B341", "Pink":"#F472B6", "Sky":"#38BDF8", "Lime":"#A3E635"};
 const LAB_APP_PRESETS = {
-  "Night":          null,
+  "Standard":       null,
+  "Night":          {bg:"#20262B", surface:"#303A40", ink:"#F2F1ED"},
   "Ocean Explorer": {bg:"#0F2236", surface:"#163049", ink:"#EAF4F2"},
   "Midnight":       {bg:"#121417", surface:"#1C1F24", ink:"#F2F2F2"},
   "Forest":         {bg:"#18211B", surface:"#223027", ink:"#EEF2EA"},
@@ -97,7 +100,7 @@ function applyDesign(){
     st.colorScheme = clum(bg) > .45 ? "light" : "dark";
   } else { appVars.forEach(k => st.removeProperty(k)); st.colorScheme = ""; }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = app ? app.bg : (S.look === "paper" ? "#F3EAD7" : "#20262B");
+  if (meta) meta.content = app ? app.bg : (S.look === "paper" ? "#F3EAD7" : "#121417");
 
   // section colours
   LAB_GROUPS.forEach(g => setv("--" + g, d.cols && isHex(d.cols[g]) ? d.cols[g] : null));
@@ -123,13 +126,13 @@ function applyDesign(){
   else { st.removeProperty("--font-head"); st.removeProperty("--serif"); }
 
   // sizes
-  setv("--ts", labNum("ts") === 1 ? null : String(labNum("ts")));
+  setv("--ts", labNum("ts") === LAB_SIZES.ts ? null : String(labNum("ts")));
   setv("--chip", labNum("chip") === 1 ? null : String(labNum("chip")));
   setv("--pad", labNum("pad") === 1 ? null : String(labNum("pad")));
   setv("--card-gap", labNum("gap") === LAB_SIZES.gap ? null : labNum("gap") + "px");
   setv("--card-ar", labNum("ar") === LAB_SIZES.ar ? null : `16/${labNum("ar")}`);
   const r = labNum("radius");
-  setv("--r-s", r === 1 ? null : Math.round(6 * r) + "px"); setv("--r", r === 1 ? null : Math.round(8 * r) + "px"); setv("--r-l", r === 1 ? null : Math.round(10 * r) + "px");
+  setv("--r-s", r === LAB_SIZES.radius ? null : Math.round(6 * r) + "px"); setv("--r", r === LAB_SIZES.radius ? null : Math.round(8 * r) + "px"); setv("--r-l", r === LAB_SIZES.radius ? null : Math.round(10 * r) + "px");
   root.classList.toggle("lab-side", d.layout === "side");
   setv("--side-w", labNum("sideW") + "px");
 
@@ -212,7 +215,7 @@ const labResize = debounce(() => { applyDesign(); if (typeof map !== "undefined"
 const lab = {open:false, min:false, tab:"colours"};
 function renderLabButton(){
   let b = document.getElementById("labBtn");
-  const want = labD().on === true && !lab.open;           // hidden unless switched on in Settings
+  const want = S.dev === true && labD().on === true && !lab.open;           // hidden unless switched on in Tools › Developer (developer phones only)
   if (!want){ if (b) b.remove(); return; }
   if (!b){
     b = document.createElement("button"); b.id = "labBtn"; b.className = "lab-btn"; b.type = "button";
@@ -279,7 +282,7 @@ function labTab(t){
     <div class="lab-presets">${Object.entries(LAB_ACCENTS).map(([n, c]) => `<button type="button" class="lab-preset" data-labpreset="accent" data-name="${esc(n)}">${labSw([c || "#DA8667"])}${esc(n)}</button>`).join("")}</div>
     ${labColor("Highlight", "accent", d.accent || cssv("--accent"))}
     <h3>App colours</h3>
-    <div class="lab-presets">${Object.entries(LAB_APP_PRESETS).map(([n, c]) => `<button type="button" class="lab-preset" data-labpreset="app" data-name="${esc(n)}">${labSw(c ? [c.bg, c.surface, c.ink] : ["#20262B", "#303A40", "#F2F1ED"])}${esc(n)}</button>`).join("")}</div>
+    <div class="lab-presets">${Object.entries(LAB_APP_PRESETS).map(([n, c]) => `<button type="button" class="lab-preset" data-labpreset="app" data-name="${esc(n)}">${labSw(c ? [c.bg, c.surface, c.ink] : ["#121417", "#1C1F24", "#F2F1ED"])}${esc(n)}</button>`).join("")}</div>
     ${labColor("Background", "app.bg", (d.app && d.app.bg) || cssv("--bg"))}
     ${labColor("Cards and boxes", "app.surface", (d.app && d.app.surface) || cssv("--surface"))}
     ${labColor("Text", "app.ink", (d.app && d.app.ink) || cssv("--ink"))}`;
@@ -321,7 +324,7 @@ function labTab(t){
     <p class="note">You can hide the Design Lab tab in Settings.</p>`;
 }
 // the colour a section has with no Lab choice, for the preset swatches
-function cssvDefault(g){ return ({stay:"#DA8667", food:"#8CC3A6", do:"#B9A4DC", ess:"#E3C47C", move:"#7FB2D2"})[g]; }
+function cssvDefault(g){ return ({stay:"#FF7A59", food:"#14B8A6", do:"#A78BFA", ess:"#FBBF24", move:"#38BDF8"})[g]; }
 function labMapNow(k){
   const st = mapStyleBase(), get = (id, prop) => { const l = st.layers.find(x => x.id === id); const v = l && l.paint && l.paint[prop]; return typeof v === "string" ? v : null; };
   const v = {land:get("background", "background-color"), water:get("water", "fill-color"), parks:get("landuse_park", "fill-color"), buildings:get("building", "fill-color"),
@@ -341,7 +344,7 @@ function bindLab(p){
   p.querySelectorAll("[data-labcol]").forEach(inp => inp.oninput = () => {
     const key = inp.dataset.labcol;
     if (key.startsWith("app.")){                       // app colours need all three: fill the others from what's showing now
-      const d = labD(); d.app = Object.assign({bg:asHex(cssv("--bg")) || "#20262B", surface:asHex(cssv("--surface")) || "#303A40", ink:asHex(cssv("--ink")) || "#F2F1ED"}, d.app || {});
+      const d = labD(); d.app = Object.assign({bg:asHex(cssv("--bg")) || "#121417", surface:asHex(cssv("--surface")) || "#1C1F24", ink:asHex(cssv("--ink")) || "#F2F2F2"}, d.app || {});
     }
     setLabPath(key, inp.value); labSave(); labRepaint();
   });

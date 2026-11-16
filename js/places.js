@@ -41,6 +41,7 @@ const ESS = [
   {id:"clinic", l:"Clinics", ic:"cross", kinds:["clinic","dentist"]},
   {id:"police", l:"Police", ic:"shield", kinds:["police"]},
   {id:"exchange", l:"Money exchange", ic:"swap", kinds:["exchange"]},
+  {id:"luggage", l:"Luggage lockers", ic:"luggage", kinds:["luggage"]},     // lockers and left-luggage desks (stations, airports, malls)
   {id:"toilet", l:"Toilets", ic:"toilet", kinds:["toilet"]},
   {id:"fuel", l:"Fuel", ic:"fuel", kinds:["fuel"]},
   {id:"embassy", l:"Embassies", ic:"flag", kinds:["embassy","immigration"]},
@@ -71,7 +72,7 @@ function bboxDist(pt, bb){            // km from a point to a [w, s, e, n] box; 
   const lat = clamp(pt.lat, bb[1], bb[3]), lng = clamp(pt.lng, bb[0], bb[2]);
   return lat === pt.lat && lng === pt.lng ? 0 : dist(pt, {lat, lng});
 }
-const P_MAP = {w:"web", v:"veg", vg:"vegan", d:"desc"};
+const P_MAP = {w:"web", v:"veg", vg:"vegan", d:"desc"};       // gf (gluten-free: 1 options, 2 only) keeps its name
 /* The places databases, one folder each in places/ (built by tools/osm/extract.py; see tools/osm/README.md).
    Thailand covers the whole country. Indonesia so far covers Lampung, South Sumatra and Bengkulu (Sumatra), Bali and Lombok:
    the boxes below match "regions" in places/id/meta.json. */
@@ -564,6 +565,9 @@ const CHIPS = {
     {id:"picks", l:"Local Favourites", ic:"star", f:it => !it.osm, note:"Places recommended by travel guides and blogs, each with its sources."},
     {id:"veg", l:"Vegetarian", ic:"leaf", f:it => it.osm ? !!it.veg || hasCu(it, /vegetarian/) : /vegetarian/.test(ptext(it))},
     {id:"vegan", l:"Vegan", ic:"leaf", f:it => it.osm ? !!it.vegan || hasCu(it, /vegan/) : /vegan/.test(ptext(it))},
+    // only places whose map entry says gluten-free (diet:gluten_free); few are tagged, so check with the staff too
+    {id:"gf", l:"Gluten-free", ic:"leaf", f:it => it.osm ? !!it.gf : /gluten[- ]free/.test(ptext(it)),
+      note:"Places marked gluten-free on OpenStreetMap or in our research. Not many places are marked, and cross-contamination is common: always ask (Thai: “mai sai paeng sa-lee” means no wheat flour)."},
     {id:"western", l:"Western Food", ic:"food", f:it => it.osm ? hasCu(it, WESTERN) : WESTERN.test(ptext(it))},
     {id:"markets", l:"Food Markets", ic:"cart", f:it => it.k === "market" || hasT(it, "Market", "Markets")},
     {id:"cafes", l:"Cafés", ic:"coffee", f:it => ["cafe","bakery","dessert"].includes(it.k)}
