@@ -206,12 +206,15 @@ function frGpsStart(){
   }, e => { frGpsErr = e && e.code === 1 ? "denied" : "unavailable"; paintFriendsLive(); }, {enableHighAccuracy:true, maximumAge:30e3, timeout:30e3});
 }
 function frGpsStop(){ if (frGpsId != null && navigator.geolocation) navigator.geolocation.clearWatch(frGpsId); frGpsId = null; }
-const frMeHere = () => frHere || (typeof userLoc !== "undefined" && userLoc && locStatus === "ok" ? userLoc : null);
-// sends only a real GPS position (never the pretend test location), at most once a minute unless you've moved 40 m
+// FOR TESTING (Dylan's request): while a pretend location is set in Settings › Testing, that is what friends see.
+// Otherwise it's the phone's own GPS.
+const frTesting = () => typeof locStatus !== "undefined" && locStatus === "test" && typeof userLoc !== "undefined" && !!userLoc;
+const frMeHere = () => frTesting() ? userLoc : frHere || (typeof userLoc !== "undefined" && userLoc && locStatus === "ok" ? userLoc : null);
+// sends your position at most once a minute unless you've moved 40 m
 async function frSendNow(force, here, status){
   if (here === undefined){ here = frMeHere(); status = here ? "ok" : locStatus; }
   const f = frState();
-  if (!frCfg() || !f.on || !here || status === "test" || !Object.values(f.list).some(x => x.share)) return false;
+  if (!frCfg() || !f.on || !here || !Object.values(f.list).some(x => x.share)) return false;
   if (!force && frLast && frNow() - frLast.at < FR_SEND_MS && dist(frLast, here) * 1000 < FR_MOVE_M) return false;
   const a = await frAuth();
   try { await frDb("PUT", `loc/${a.uid}`, {lat:+here.lat.toFixed(5), lng:+here.lng.toFixed(5), acc:Math.round(here.acc || 0), t:{".sv":"timestamp"}}); frSentErr = ""; }
@@ -224,6 +227,7 @@ function frSendStatus(){
   const f = frState(), n = Object.values(f.list).filter(x => x.share).length;
   if (!f.on) return {ok:false, t:"You’re hidden: Share my location is off."};
   if (!n) return {ok:false, t:"Nobody can see you yet: switch “Sees you” on for a friend."};
+  if (frTesting() && frLast) return {ok:true, t:`Sharing your pretend test location (${S.testLoc}) with ${n} ${n === 1 ? "friend" : "friends"} · sent ${frAgo(frLast.at)}. Turn it off in Settings › Testing.`};
   if (frGpsErr === "denied") return {ok:false, t:"Location is blocked for this app. iPhone: Settings › Privacy & Security › Location Services › Safari Websites › While Using. Then reopen the app."};
   if (frSentErr) return {ok:false, t:"Couldn’t send your location: " + frSentErr + "."};
   if (!frLast) return {ok:false, t:frGpsErr ? "Can’t get a GPS fix. Try outside, or check Location Services." : "Finding you…"};
@@ -246,6 +250,15 @@ async function frPoll(){
     if (fresh.length){ frInviteSeen = Math.max(...fresh.map(([, v]) => v.t)); lsSet("fr-inv-seen", frInviteSeen); }
   } catch(e){}
   frLoadPhotos().catch(() => {});
+  try {
+    const me = frMyId();
+    if (me){
+      const got = await frDb("GET", `msgs/${me}`) || {};
+      const fresh = Object.entries(got).filter(([id]) => !frMsgs[id]);
+      frMsgs = got;
+      if (fresh.length){ await frLoadStickers().catch(() => {}); if (!(ui.view === "tools" && ui.sub === "friends")){ const [, mm] = fresh[0]; toast(`${frNameOf(mm.f)} sent you a message. Open Tools › Friends.`); } }
+    }
+  } catch(e){}
   // someone added you to a live split group while Friends is open: show it
   if ($("#fr-split")){
     const before = liveGroupsCached().map(g => g.id).join();
@@ -358,9 +371,11 @@ function paintFriendsLive(){
 }
 function paintFrAlerts(el){
   const inv = Object.entries(frInvites).filter(([uid, v]) => v && frState().list[uid]);
-  el.innerHTML = inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play Rock Paper Scissors</div><button class="btn small primary" type="button" data-frplay="${esc(uid)}">Play</button></div>`).join("")
+  const msgs = Object.entries(frMsgs).sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
+  el.innerHTML = msgs.map(([id, mm]) => { const st = frStickers[mm.s]; return `<div class="callout fr-alert fr-msg">${st && st.d ? `<img class="fr-sticker" src="${esc(st.d)}" alt="${esc(st.n)}">` : frAvatar(mm.f, 40)}<div><b>${esc(frNameOf(mm.f))}</b> sent you a message${st ? `: ${esc(st.n)}` : ""}<div class="note">${esc(frWhen(mm.t))}</div></div><button class="icon-btn" type="button" data-frmsgdel="${esc(id)}" aria-label="Dismiss">${icon("x","i s")}</button></div>`; }).join("") + inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play Rock Paper Scissors</div><button class="btn small primary" type="button" data-frplay="${esc(uid)}">Play</button></div>`).join("")
     + (frReqs || []).map(r => `<div class="callout fr-alert">${frAvatar(r.uid, 32, r.n)}<div><b>${esc(r.n)}</b> added you</div><button class="btn small primary" type="button" data-frback="${esc(r.c || "")}">Add back</button><button class="icon-btn" type="button" data-frign="${esc(r.uid)}" aria-label="Ignore ${esc(r.n)}">${icon("x","i s")}</button></div>`).join("");
   el.querySelectorAll("[data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
+  el.querySelectorAll("[data-frmsgdel]").forEach(b => b.onclick = () => { const id = b.dataset.frmsgdel; delete frMsgs[id]; paintFriendsLive(); frDb("DELETE", `msgs/${frMyId()}/${id}`).catch(() => {}); });
   el.querySelectorAll("[data-frback]").forEach(b => b.onclick = () => frAdd(b.dataset.frback).then(n => { toast(`Added ${n}`); frReqs = frReqs.filter(r => r.c !== b.dataset.frback); frLoop(); renderFriendsPage(); }, frFail));
   el.querySelectorAll("[data-frign]").forEach(b => b.onclick = () => frIgnore(b.dataset.frign).then(() => { frReqs = frReqs.filter(r => r.uid !== b.dataset.frign); paintFriendsLive(); }, frFail));
 }
@@ -378,15 +393,29 @@ TOOL_PAGES.friends = root => renderFriendsPage(root);
 function renderFriendsPage(root = $("#pageview")){
   if (!root || !(ui.view === "tools" && ui.sub === "friends")) return;
   const f = frState(), cfg = frCfg();
-  const add = cfg ? `<button class="crumb fr-addbtn" type="button" id="fr-open">${icon("plus","i s")}Add friend</button>` : "";
+  const add = cfg && f.name ? `<button class="crumb fr-addbtn" type="button" id="fr-open">${icon("plus","i s")}Add friend</button>` : "";
   let html = hero({title:"Friends", sub:"See your mates on the map and choose who sees you", back:["#tools", "Tools"], action:add}) + `<div class="page friends">`;
   if (!cfg){ root.innerHTML = html + friendsSetupHTML() + `</div>`; return; }
+  if (!f.name){
+    root.innerHTML = html + `<div class="block fr-namefirst"><h2>First, your name</h2><p class="note">This is what your mates see. You only do this once (you can rename people on your own phone later).</p>
+      <input class="sp-in fr-bigin" id="fr-firstname" type="text" maxlength="30" autocomplete="nickname" placeholder="Your name" aria-label="Your name">
+      <button class="btn primary wide" type="button" id="fr-firstgo" style="margin-top:12px">Continue</button></div></div>`;
+    const go = () => {
+      const n = $("#fr-firstname").value.trim().replace(/\s+/g, " ").slice(0, 30);
+      if (!n){ toast("Type your name first"); $("#fr-firstname").focus(); return; }
+      f.name = n; persist(); frMe().catch(frFail); renderFriendsPage(root);
+    };
+    $("#fr-firstgo").onclick = go;
+    $("#fr-firstname").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); go(); } };
+    return;
+  }
   const list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
   html += `<div id="fr-alerts"></div>
     <div class="block">${frShareHTML()}</div>
     <div class="block"><h2>Your friends</h2>${list.length ? list.map(([uid, x]) => `<div class="fr-row" data-frgo="${esc(uid)}" role="button" tabindex="0">
       <span data-frav="${esc(uid)}" data-size="40">${frAvatar(uid, 40)}</span>
-      <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div></div>
+      <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div>
+        <button class="linkish fr-msgbtn" type="button" data-frmsg="${esc(uid)}">${icon("spark","i xs")}Send a message</button></div>
       <button class="pill" type="button" data-frshare="${esc(uid)}" aria-pressed="${x.share}" aria-label="${x.share ? `${esc(x.n)} can see you. Tap to hide` : `${esc(x.n)} can’t see you. Tap to share`}">${x.share ? "Sees you" : "Hidden"}</button></div>`).join("")
       : `<p class="note">No friends yet. Tap <b>Add friend</b> at the top, send your code to your mates, or type theirs.</p>`}</div>
     <div class="tgrid fr-tiles">
@@ -399,7 +428,8 @@ function renderFriendsPage(root = $("#pageview")){
   $("#fr-open").onclick = openFriendSheet;
   root.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
   $("#fr-go-map").onclick = e => { e.preventDefault(); openFriendsMap(); };
-  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  root.querySelectorAll("[data-frmsg]").forEach(b => b.onclick = e => { e.stopPropagation(); openStickerPicker(b.dataset.frmsg); });
+  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare], [data-frmsg]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
   root.querySelectorAll("[data-frshare]").forEach(b => b.onclick = e => { e.stopPropagation(); const uid = b.dataset.frshare; frSetShare(uid, !f.list[uid].share).then(() => renderFriendsPage(root), frFail); });
   frMe().then(() => frRequests()).then(rs => { frReqs = rs; paintFriendsLive(); }).catch(() => {});
   frLoadPhotos(true).then(paintFriendsLive).catch(() => {});
@@ -453,14 +483,21 @@ function openFriendSheet(){
   sheet.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
   sheet.querySelectorAll("[data-frren]").forEach(b => b.onclick = () => {
     const uid = b.dataset.frren, x = f.list[uid]; if (!x) return;
-    const n = (prompt(`Rename ${x.n} (only on your phone)`, x.n) || "").trim().replace(/\s+/g, " ").slice(0, 30);
-    if (!n || n === x.n) return;
-    x.n = n; persist(); toast(`Renamed to ${n}`); renderFriendsPage(); openFriendSheet(); drawFriends();
+    const row = b.closest(".fr-row"), nameEl = row.querySelector("b");
+    nameEl.outerHTML = `<span class="fr-ren"><input class="sp-in" type="text" maxlength="30" value="${esc(x.n)}" aria-label="New name for ${esc(x.n)}"><button class="btn small primary" type="button">Save</button></span>`;
+    const inp = row.querySelector(".fr-ren input"), save = () => {
+      const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 30);
+      if (n && n !== x.n){ x.n = n; persist(); toast(`Renamed to ${n} (on your phone)`); drawFriends(); }
+      renderFriendsPage(); openFriendSheet();
+    };
+    row.querySelector(".fr-ren button").onclick = save;
+    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); save(); } };
+    inp.focus(); inp.select();
   });
   const add = () => { const v = $("#fr-add").value; if (!v.trim()) return; frAdd(v).then(n => { toast(`Added ${n}`); frLoop(); renderFriendsPage(); openFriendSheet(); }, frFail); };
   $("#fr-addb").onclick = add;
   $("#fr-add").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); add(); } };
-  sheet.querySelectorAll("[data-frrm]").forEach(b => b.onclick = () => { const uid = b.dataset.frrm; if (!confirm(`Remove ${f.list[uid].n}? You stop seeing each other unless you add them again.`)) return; frRemove(uid).then(() => { renderFriendsPage(); openFriendSheet(); }, frFail); });
+  sheet.querySelectorAll("[data-frrm]").forEach(b => b.onclick = async () => { const uid = b.dataset.frrm; if (!(await askConfirm(`Remove ${f.list[uid].n}? You stop seeing each other unless you add them again.`, "Remove", true))) return; frRemove(uid).then(() => { renderFriendsPage(); openFriendSheet(); }, frFail); });
   sheet.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
     const file = inp.files && inp.files[0]; if (!file) return;
     try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved: everyone sees it"); paintFriendsLive(); drawFriends(); renderFriendsPage(); openFriendSheet(); } catch(e){ frFail(e); }
@@ -471,9 +508,16 @@ async function paintDev(){
   const el = $("#fr-dev"); if (!el) return;
   try { await frCheckAdmin(); } catch(e){ el.innerHTML = `<p class="note">Couldn’t check (no signal?).</p>`; return; }
   const any = await frDb("GET", `admins/${frMyId()}`).catch(() => null);
+  await frLoadStickers(true).catch(() => {});
+  const fl = Object.entries(frState().list);
   el.innerHTML = frAdmin
-    ? `<p class="note">This phone is the developer: you can set everyone’s photo (Photo buttons above). Your own photo:</p>
-       <label class="btn small fr-photo">${icon("camera","i s")}My photo<input type="file" accept="image/*" data-frphoto="${esc(frMyId())}" hidden></label>`
+    ? `<p class="note">This phone is a developer: you can set everyone’s photo (Photo buttons above). Your own photo:</p>
+       <label class="btn small fr-photo">${icon("camera","i s")}My photo<input type="file" accept="image/*" data-frphoto="${esc(frMyId())}" hidden></label>
+       <h3 style="margin-top:14px">Message stickers</h3>
+       <p class="note">Pictures your mates can send each other. The name is what the button says (“Send …”). They’re kept in Firebase, not on the public website.</p>
+       <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<small>${esc(st.n)}</small><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("x","i s")}</button></div>`).join("") || `<p class="note">None yet.</p>`}</div>
+       <label class="btn small fr-photo" style="margin-top:8px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label>
+       ${fl.length ? `<h3 style="margin-top:14px">Other developers</h3><p class="note">Let another device of yours (your PC) do this too.</p><div class="flags">${fl.map(([uid, x]) => `<button class="chip soft" type="button" data-mkdev="${esc(uid)}">Make ${esc(x.n)} a developer</button>`).join("")}</div>` : ""}`
     : `<p class="note">Make this phone the developer. Only the first phone to do this gets it, and the database refuses everyone else after that.</p>
        <button class="btn small primary" type="button" id="fr-claim">Make this phone the developer</button>`;
   const cl = $("#fr-claim"); if (cl) cl.onclick = () => frClaimAdmin().then(() => { toast("This phone is the developer"); openFriendSheet(); }, e => toast(e.message === "permission" ? "Another phone is already the developer" : "No signal? Try again."));
@@ -482,14 +526,90 @@ async function paintDev(){
     try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved"); openFriendSheet(); renderFriendsPage(); } catch(e){ frFail(e); }
   });
   void any;
+  const sa = $("#stk-add");
+  if (sa) sa.onchange = async () => {
+    const files = [...(sa.files || [])]; if (!files.length) return;
+    for (const file of files){
+      try { const name = file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 30) || "Sticker"; await frAddSticker(name, await frResizeSticker(file)); toast(`Added ${name}`); }
+      catch(e){ frFail(e); }
+    }
+    openFriendSheet();
+  };
+  el.querySelectorAll("[data-stkdel]").forEach(b => b.onclick = async () => { const st = frStickers[b.dataset.stkdel]; if (!(await askConfirm(`Delete the ${st ? st.n : ""} sticker for everyone?`, "Delete", true))) return; frDeleteSticker(b.dataset.stkdel).then(openFriendSheet, frFail); });
+  el.querySelectorAll("[data-mkdev]").forEach(b => b.onclick = async () => { const uid = b.dataset.mkdev; if (!(await askConfirm(`Make ${frNameOf(uid)} a developer too? They’ll be able to set photos and stickers.`, "Make developer"))) return; frDb("PUT", `admins/${uid}`, true).then(() => toast("Done"), frFail); });
 }
-// developer mode: tap "About the data" in Settings 7 times (only changes this phone)
-let frDevTaps = 0, frDevTimer = null;
-if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("click", e => {
-  if (!e.target || !e.target.closest || !e.target.closest("#aboutData h2")) return;
-  frDevTaps++; clearTimeout(frDevTimer); frDevTimer = setTimeout(() => { frDevTaps = 0; }, 2500);
-  if (frDevTaps >= 7){ frDevTaps = 0; S.dev = !(S.dev === true); persist(); toast(S.dev ? "Developer mode on (this phone only)" : "Developer mode off"); }
-});
+// developer mode: type ELITE POTATO in the map search (only changes this phone; typing it again turns it off)
+function frDevCode(text){
+  if (String(text || "").trim().replace(/\s+/g, " ") !== "ELITE POTATO") return false;
+  S.dev = !(S.dev === true); persist();
+  toast(S.dev ? "Developer mode on. Tools › Friends › Add friend › Developer" : "Developer mode off");
+  return true;
+}
+
+/* ---------- messages: send a friend one of the stickers; it shows at the top of their Friends page ----------
+   stickerIndex/{id} name (small, checked often)   stickers/{id} {n, d: small PNG}   msgs/{toUid}/{id} {f: from, s: sticker, t}
+   Stickers are added by a developer phone (rules); only signed-in app users can load them, they're not on the public site. */
+const FR_STK_KEY = "fr-stickers-v1";
+let frStickers = lsGet(FR_STK_KEY, {}) || {}, frStkAt = 0, frMsgs = {};
+const frWhen = t => t ? new Date(t).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
+async function frLoadStickers(force){
+  if (!force && frNow() - frStkAt < 5 * 60e3) return frStickers;
+  frStkAt = frNow();
+  const idx = await frDb("GET", "stickerIndex") || {};
+  const next = {};
+  for (const [id, n] of Object.entries(idx)){
+    if (frStickers[id] && frStickers[id].d){ next[id] = {n:String(n), d:frStickers[id].d}; continue; }
+    const st = await frDb("GET", `stickers/${id}`).catch(() => null);
+    if (st && st.d) next[id] = {n:String(st.n || n), d:st.d};
+  }
+  frStickers = next; lsSet(FR_STK_KEY, next);
+  return next;
+}
+// a sticker: at most 320 px, PNG (keeps see-through edges), under about 200 KB
+async function frResizeSticker(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    for (const max of [320, 256, 200]){
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const d = c.toDataURL("image/png");
+      if (d.length < 280000) return d;
+    }
+    throw new Error("That picture is too detailed to use as a sticker");
+  } finally { URL.revokeObjectURL(url); }
+}
+async function frAddSticker(name, dataUrl){
+  const id = "k" + frNow().toString(36) + Math.random().toString(36).slice(2, 5);
+  await frDb("PUT", `stickers/${id}`, {n:name, d:dataUrl});
+  await frDb("PUT", `stickerIndex/${id}`, name);
+  frStickers[id] = {n:name, d:dataUrl}; lsSet(FR_STK_KEY, frStickers);
+  return id;
+}
+async function frDeleteSticker(id){
+  await frDb("DELETE", `stickerIndex/${id}`); await frDb("DELETE", `stickers/${id}`);
+  delete frStickers[id]; lsSet(FR_STK_KEY, frStickers);
+}
+async function frSendSticker(to, id){
+  const me = await frMe();
+  const mid = "m" + frNow().toString(36) + Math.random().toString(36).slice(2, 6);
+  await frDb("PUT", `msgs/${to}/${mid}`, {f:me.uid, s:id, t:{".sv":"timestamp"}});
+  return mid;
+}
+async function openStickerPicker(to){
+  openSheet(`<div class="sheet-head"><div><h2 id="stk-t">Message ${esc(frNameOf(to))}</h2><div class="note">Pick one to send</div></div><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="fr-stkpick" id="stk-pick"><p class="note">Loading…</p></div>`, "stk-t");
+  await frLoadStickers().catch(() => {});
+  const box = $("#stk-pick"); if (!box) return;
+  const all = Object.entries(frStickers);
+  box.innerHTML = all.length ? all.map(([id, st]) => `<button type="button" class="fr-stkbtn" data-stksend="${esc(id)}"><img src="${esc(st.d)}" alt=""><span>Send ${esc(st.n)}</span></button>`).join("")
+    : `<p class="note">No stickers yet. The developer phone adds them (Add friend › Developer).</p>`;
+  box.querySelectorAll("[data-stksend]").forEach(b => b.onclick = () => {
+    b.disabled = true;
+    frSendSticker(to, b.dataset.stksend).then(() => { toast(`Sent ${frStickers[b.dataset.stksend].n} to ${frNameOf(to)}`); $("#sheetRoot").querySelector(".sheet-head [data-close]").click(); }, e => { b.disabled = false; frFail(e); });
+  });
+}
 
 /* ---------- Rock Paper Scissors, live between two friends ----------
    games/{a_b} (the two IDs, sorted) {g:"rps", round:n, r:{n:{uid:"rock"|"paper"|"scissors"}}}. Only the two players can read it.
@@ -636,18 +756,20 @@ async function liveSplitModel(id){
   const names = Object.assign({}, g.members), fl = frState().list;
   Object.keys(names).forEach(uid => { if (fl[uid]) names[uid] = fl[uid].n; });
   if (me) names[me] = "You";
-  const items = Object.entries(g.items || {}).map(([iid, x]) => ({id:iid, w:x.w, a:+x.a, c:x.c, by:x.by, to:Object.keys(x.to || {}), t:x.t, s:x.s ? 1 : 0, add:x.add}));
+  const items = Object.entries(g.items || {}).map(([iid, x]) => ({id:iid, w:x.w, a:+x.a, c:x.c, by:x.by, to:Object.keys(x.to || {}), t:x.t, s:x.s ? 1 : 0, add:x.add, ...(x.sh ? {sh:x.sh} : {})}));
   const f = frState(), addable = Object.entries(f.list).filter(([uid]) => !names[uid]);
   const write = async x => { await frDb("PUT", `groups/${id}/items/${x.id}`, x); };
   return {live:true, id, title:g.n || "Group", me, people, name:p => names[p] || "Someone", items, addable, stale,
-    add:async ({what, amount, cur, by, to}) => {
+    add:async ({what, amount, cur, by, to, sh}) => {
       const a = parseFloat(String(amount).replace(/[, ]/g, ""));
       if (!isFinite(a) || a <= 0) return "Type how much it cost";
       if (a > 1e9) return "That amount looks wrong";
       if (!people.includes(by)) return "Pick who paid";
       const who = [...new Set([me].concat(to || []))].filter(p => people.includes(p));
       if (who.length < 2) return "Pick at least one person to split it with";
-      await write({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:Object.fromEntries(who.map(p => [p, true])), t:{".sv":"timestamp"}, add:me});
+      let parts = null;
+      if (sh){ const r = splitCustom(r2(a), who, sh); if (r.err) return r.err; parts = r.sh; }
+      await write({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:Object.fromEntries(who.map(p => [p, true])), t:{".sv":"timestamp"}, add:me, ...(parts ? {sh:parts} : {})});
       return "";
     },
     paid:async (from, to, gbp) => { const c = splitLocal(); await write({id:splitId(), w:"Paid back", a:r2(gbp * rate(c)), c, by:from, to:{[to]:true}, t:{".sv":"timestamp"}, s:1, add:me}); },

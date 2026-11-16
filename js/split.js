@@ -14,13 +14,29 @@ const r2 = v => Math.round(v * 100) / 100;
 const splitLocal = () => (D.countries[S.country] || {}).cur || "THB";
 
 // everyone's balance in pounds: positive = they get money back, negative = they owe
+// a payment's part for one person, in pounds: their custom amount if it has one, otherwise an equal share
+function splitShareGBP(x, p, to){
+  if (x.sh && typeof x.sh === "object") return toGBP(+x.sh[p] || 0, x.c);
+  return toGBP(x.a, x.c) / to.length;
+}
+// custom amounts typed for the people in a split: the parts (in the payment's money) or an error message
+function splitCustom(total, to, typed){
+  const sh = {}; let sum = 0;
+  for (const p of to){
+    const v = parseFloat(String((typed || {})[p] == null ? "" : typed[p]).replace(/[, ]/g, ""));
+    if (!isFinite(v) || v < 0) return {err:"Type an amount for everyone in the split (0 is fine)"};
+    sh[p] = r2(v); sum += v;
+  }
+  if (Math.abs(sum - total) > 0.01) return {err:`The amounts add up to ${fmtNum(r2(sum))}, not ${fmtNum(total)}`};
+  return {sh};
+}
 function splitBalances(sp = splitData()){
   const bal = {}; sp.people.forEach(p => bal[p] = 0);
   for (const it of sp.items){
     const to = (it.to || []).filter(Boolean); if (!to.length || !(it.a > 0)) continue;
-    const gbp = toGBP(it.a, it.c), share = gbp / to.length;
+    const gbp = toGBP(it.a, it.c);
     bal[it.by] = (bal[it.by] || 0) + gbp;
-    to.forEach(p => bal[p] = (bal[p] || 0) - share);
+    to.forEach(p => bal[p] = (bal[p] || 0) - splitShareGBP(it, p, to));
   }
   Object.keys(bal).forEach(k => bal[k] = r2(bal[k]));
   return bal;
@@ -32,9 +48,8 @@ function splitPairs(m){
   m.people.forEach(p => { if (p !== me) out[p] = 0; });
   for (const x of m.items){
     const to = (x.to || []).filter(Boolean); if (!to.length || !(x.a > 0)) continue;
-    const share = toGBP(x.a, x.c) / to.length;
-    if (x.by === me) to.forEach(p => { if (p in out) out[p] += share; });
-    else if (to.includes(me) && x.by in out) out[x.by] -= share;
+    if (x.by === me) to.forEach(p => { if (p in out) out[p] += splitShareGBP(x, p, to); });
+    else if (to.includes(me) && x.by in out) out[x.by] -= splitShareGBP(x, me, to);
   }
   Object.keys(out).forEach(k => out[k] = r2(out[k]));
   return out;
@@ -55,14 +70,14 @@ function splitSettle(bal){
   return out;
 }
 // add a payment; returns an error message or ""
-function splitAdd({what, amount, cur, by, to}){
+function splitAdd({what, amount, cur, by, to, sh}){
   const sp = splitData(), a = parseFloat(String(amount).replace(/[, ]/g, ""));
   if (!isFinite(a) || a <= 0) return "Type how much it cost";
   if (a > 1e9) return "That amount looks wrong";
   if (!by || !sp.people.includes(by)) return "Pick who paid";
   const who = (to || []).filter(p => sp.people.includes(p));
   if (!who.length) return "Pick who it was for";
-  sp.items.push({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:who, t:Date.now()});
+  sp.items.push({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:who, t:Date.now(), ...(sh ? {sh} : {})});
   persist(); return "";
 }
 // a settle-up payment: "from" paid "to" back
@@ -78,7 +93,7 @@ const b64u = bytes => { let s = ""; bytes.forEach(b => s += String.fromCharCode(
 const unb64u = str => { const s = atob(str.replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(s, c => c.charCodeAt(0)); };
 async function pipeThrough(bytes, stream){ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
 async function splitEncode(sp = splitData()){
-  const raw = new TextEncoder().encode(JSON.stringify({v:1, p:sp.people, i:sp.items.map(x => [x.id, x.w, x.a, x.c, x.by, x.to, x.t, x.s ? 1 : 0]), d:sp.del}));
+  const raw = new TextEncoder().encode(JSON.stringify({v:1, p:sp.people, i:sp.items.map(x => [x.id, x.w, x.a, x.c, x.by, x.to, x.t, x.s ? 1 : 0, x.sh || 0]), d:sp.del}));
   if (typeof CompressionStream !== "undefined"){ try { return "z" + b64u(await pipeThrough(raw, new CompressionStream("deflate-raw"))); } catch(e){} }
   return "j" + b64u(raw);
 }
@@ -86,7 +101,7 @@ async function splitDecode(code){
   let bytes = unb64u(code.slice(1));
   if (code[0] === "z") bytes = await pipeThrough(bytes, new DecompressionStream("deflate-raw"));
   const o = JSON.parse(new TextDecoder().decode(bytes));
-  return {people:o.p || [], items:(o.i || []).map(([id, w, a, c, by, to, t, s]) => ({id, w, a, c, by, to, t, ...(s ? {s:1} : {})})), del:o.d || []};
+  return {people:o.p || [], items:(o.i || []).map(([id, w, a, c, by, to, t, s, sh]) => ({id, w, a, c, by, to, t, ...(s ? {s:1} : {}), ...(sh ? {sh} : {})})), del:o.d || []};
 }
 // add what another phone knows: new people and payments; a payment deleted on either phone stays deleted
 function splitMerge(other){
@@ -113,7 +128,8 @@ function splitSummary(){
    One section for two kinds of tally: "On this phone" (S.split, shared by link) and live groups with friends (Firebase,
    js/friends.js: everyone in the group adds payments and sees the same tally). Both go through a small "model".
    It shows on Tools › Split costs (with its own header) and inside Tools › Friends (live groups only). */
-const splitUi = {to:null, by:"", cur:"", what:"", amt:"", key:"", newGroup:false, tab:"tally"};
+const splitUi = {to:null, by:"", cur:"", what:"", amt:"", key:"", newGroup:false, tab:"tally", mode:"equal", cust:{}};
+const splitWhen = t => t ? new Date(t).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
 const showAmt = gbp => { const lc = splitLocal(); return lc === "GBP" ? `£${Math.abs(gbp).toFixed(2)}` : `${money(niceRound(Math.abs(gbp) * rate(lc), lc), lc)} <small>£${Math.abs(gbp).toFixed(2)}</small>`; };
 const SP_COLORS = ["#7FB2D2", "#F2C14E", "#7FD1AE", "#F28B82", "#A8B8FF", "#E39FF6", "#6FD0E6", "#FFB37A"];
 function localSplitModel(){
@@ -185,9 +201,10 @@ function splitSectionHTML(m, groups, live, opt = {}){
     html += items.length ? `<div class="sp-hist-list">${items.map(x => {
       const n = x.to.length, each = x.a / n;
       const detail = x.s ? `${nm(x.by)} paid ${nm(x.to[0])} back`
+        : x.sh ? `Total ${esc(money(x.a, x.c))} · custom: ${x.to.map(p => `${nm(p)} ${esc(money(+x.sh[p] || 0, x.c))}`).join(", ")}`
         : `Total ${esc(money(x.a, x.c))} · ${n === 1 ? `all for ${nm(x.to[0])}` : `${esc(money(r2(each), x.c))} each for ${x.to.length === m.people.length ? "everyone" : x.to.map(nm).join(", ")}`}`;
       return `<div class="sp-hist"><div class="who">${splitAvatar(m, x.by, 32)}<div><b>${nm(x.by)}</b> <span class="note">${x.s ? "settled up" : "paid"}</span>
-          <div class="note">${esc(x.w)} · ${esc(new Date(x.t).toLocaleDateString("en-GB", {day:"numeric", month:"short"}))}${m.live && x.add && x.add !== x.by ? ` · added by ${nm(x.add)}` : ""}</div>
+          <div class="note">${esc(x.w)} · ${esc(splitWhen(x.t))}${m.live && x.add && x.add !== x.by ? ` · added by ${nm(x.add)}` : ""}</div>
           <div class="note">${detail}</div></div></div>
         <div class="amt"><b>${esc(money(x.a, x.c))}</b><small>£${toGBP(x.a, x.c).toFixed(2)}</small>
           <button class="icon-btn" type="button" data-del="${esc(x.id)}" aria-label="Delete ${esc(x.w)}">${icon("x","i s")}</button></div></div>`;
@@ -199,9 +216,12 @@ function splitSectionHTML(m, groups, live, opt = {}){
       <div class="pair2"><label class="field">How much<input id="sp-amt" type="text" inputmode="decimal" placeholder="0" value="${esc(splitUi.amt)}"></label>
         <label class="field">Money<select id="sp-cur">${curs.map(k => `<option value="${k}" ${k === splitUi.cur ? "selected" : ""}>${k}</option>`).join("")}</select></label></div>
       <label class="field">Paid by<select id="sp-by">${m.people.map(p => `<option value="${esc(p)}" ${p === splitUi.by ? "selected" : ""}>${nm(p)}</option>`).join("")}</select></label>
-      <div class="note" style="margin:8px 0 4px">Split equally between</div>
+      <div class="note" style="margin:8px 0 4px">Split between</div>
       <div class="flags">${m.people.map(p => mine && p === m.me ? `<button class="chip soft locked" type="button" aria-pressed="true" disabled title="You’re always in your own split">${icon("check","i xs")}You</button>`
         : `<button class="chip soft" type="button" data-to="${esc(p)}" aria-pressed="${splitUi.to.has(p)}">${nm(p)}</button>`).join("")}</div>
+      <div class="seg sp-mode" role="group" aria-label="How to split it"><button type="button" data-spmode="equal" aria-pressed="${splitUi.mode !== "custom"}">Equal split</button><button type="button" data-spmode="custom" aria-pressed="${splitUi.mode === "custom"}">Custom split</button></div>
+      ${splitUi.mode === "custom" ? `<div class="sp-cust">${m.people.filter(p => splitUi.to.has(p)).map(p => `<label class="sp-crow"><span class="who">${splitAvatar(m, p, 24)}<b>${nm(p)}</b></span><input class="sp-in" type="text" inputmode="decimal" placeholder="0" data-cust="${esc(p)}" value="${esc((splitUi.cust || {})[p] || "")}" aria-label="Amount for ${nm(p)}"></label>`).join("")}
+        <p class="note" id="sp-left"></p></div>` : ""}
       <button class="btn primary wide" type="button" id="sp-add" style="margin-top:12px">Add payment</button></div>
     ${mine ? splitMineHTML(m) : `<h3 style="margin-top:14px">Running tally</h3><div class="sp-bal">${m.people.map(p => {
       const v = bal[p] || 0;
@@ -266,28 +286,47 @@ function bindSplit(root, m, again){
     if (m.items.some(x => x.by === p || x.to.includes(p))){ toast(`${p} is in some payments. Delete those first.`); return; }
     m.removePerson(p).then(() => { splitUi.key = ""; again(); });
   });
-  root.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+  root.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const x = m.items.find(i => i.id === b.dataset.del); if (!x) return;
-    if (!confirm(`Delete “${x.w}” (${money(x.a, x.c)})? It’s removed from the tally${m.live ? " on everyone’s phone" : ". Phones you send the tally to will drop it too"}.`)) return;
+    if (!await askConfirm(`Delete “${x.w}” (${money(x.a, x.c)})? It’s removed from the tally${m.live ? " on everyone’s phone" : ". Phones you send the tally to will drop it too"}.`, "Delete", true)) return;
     m.del(x.id).then(again, fail);
   });
   if (m.people.length < 2 || !q("#sp-add")) return;
   const keep = () => { splitUi.what = q("#sp-what").value; splitUi.amt = q("#sp-amt").value; splitUi.cur = q("#sp-cur").value; splitUi.by = q("#sp-by").value; };
   ["#sp-what", "#sp-amt", "#sp-cur", "#sp-by"].forEach(s => q(s).onchange = keep);
-  root.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { const p = b.dataset.to; splitUi.to.has(p) ? splitUi.to.delete(p) : splitUi.to.add(p); b.setAttribute("aria-pressed", splitUi.to.has(p)); });
+  root.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { keep(); const p = b.dataset.to; splitUi.to.has(p) ? splitUi.to.delete(p) : splitUi.to.add(p); b.setAttribute("aria-pressed", splitUi.to.has(p)); if (splitUi.mode === "custom") again(); });
+  root.querySelectorAll("[data-spmode]").forEach(b => b.onclick = () => { keep(); splitUi.mode = b.dataset.spmode; again(); });
+  const left = () => {
+    const el = q("#sp-left"); if (!el) return;
+    const total = parseFloat(String(q("#sp-amt").value).replace(/[, ]/g, "")) || 0;
+    const sum = [...root.querySelectorAll("[data-cust]")].reduce((s, i) => s + (parseFloat(String(i.value).replace(/[, ]/g, "")) || 0), 0);
+    const d = r2(total - sum);
+    el.textContent = !total ? "Type the total above, then each person’s part." : Math.abs(d) < 0.01 ? "Adds up to the total ✓" : d > 0 ? `${fmtNum(d)} still to share out` : `${fmtNum(-d)} too much`;
+    el.className = "note " + (Math.abs(d) < 0.01 && total ? "good" : "");
+  };
+  root.querySelectorAll("[data-cust]").forEach(i => i.oninput = () => { splitUi.cust[i.dataset.cust] = i.value; left(); });
+  if (q("#sp-amt")) q("#sp-amt").addEventListener("input", left);
+  left();
   q("#sp-add").onclick = async () => {
     keep();
     const btn = q("#sp-add"); btn.disabled = true;
     if (m.live && m.me && m.people.includes(m.me)){ splitUi.to.add(m.me); if (splitUi.to.size < 2){ btn.disabled = false; toast("Pick at least one person to split it with"); return; } }
-    const msg = await m.add({what:splitUi.what, amount:splitUi.amt, cur:splitUi.cur, by:splitUi.by, to:[...splitUi.to]}).catch(e => (e && e.message === "permission" ? "Firebase said no: are you still in this group?" : "No signal? Try again."));
+    let sh = null;
+    if (splitUi.mode === "custom"){
+      const total = parseFloat(String(splitUi.amt).replace(/[, ]/g, ""));
+      const r = splitCustom(total, m.people.filter(p => splitUi.to.has(p)), splitUi.cust);
+      if (r.err && isFinite(total) && total > 0){ btn.disabled = false; toast(r.err); return; }
+      sh = r.sh || null;
+    }
+    const msg = await m.add({what:splitUi.what, amount:splitUi.amt, cur:splitUi.cur, by:splitUi.by, to:[...splitUi.to], sh}).catch(e => (e && e.message === "permission" ? "Firebase said no: are you still in this group?" : "No signal? Try again."));
     btn.disabled = false;
     if (msg){ toast(msg); return; }
-    splitUi.what = ""; splitUi.amt = ""; splitUi.to = new Set(m.people); toast("Added"); again();
+    splitUi.what = ""; splitUi.amt = ""; splitUi.cust = {}; splitUi.to = new Set(m.people); toast("Added"); again();
   };
-  root.querySelectorAll("[data-pair]").forEach(b => b.onclick = () => {
+  root.querySelectorAll("[data-pair]").forEach(b => b.onclick = async () => {
     const p = b.dataset.pair, v = splitPairs(m)[p] || 0; if (Math.abs(v) < 0.005) return;
     const from = v > 0 ? p : m.me, to = v > 0 ? m.me : p;
-    if (!confirm(v > 0 ? `Mark that ${m.name(p)} paid you back ${splitLocal() === "GBP" ? "£" + Math.abs(v).toFixed(2) : money(niceRound(Math.abs(v) * rate(splitLocal()), splitLocal()), splitLocal())}?` : `Mark that you paid ${m.name(p)} back?`)) return;
+    if (!await askConfirm(v > 0 ? `Mark that ${m.name(p)} paid you back ${splitLocal() === "GBP" ? "£" + Math.abs(v).toFixed(2) : money(niceRound(Math.abs(v) * rate(splitLocal()), splitLocal()), splitLocal())}?` : `Mark that you paid ${m.name(p)} back?`, "Yes, settled")) return;
     m.paid(from, to, Math.abs(v)).then(() => { toast("Settled"); again(); }, fail);
   });
   const plan = splitSettle(splitBalances({people:m.people, items:m.items}));

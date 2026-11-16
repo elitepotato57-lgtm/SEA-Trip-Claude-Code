@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.12.0";
+const VERSION = "2.13.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -311,8 +311,21 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateFade
 
 /* ---------- toast ---------- */
 let toastTimer;
+// a small in-app "are you sure?" box; resolves true or false
+function askConfirm(msg, ok = "OK", danger = false){
+  return new Promise(res => {
+    let root = document.getElementById("confirmRoot");
+    if (!root){ root = document.createElement("div"); root.id = "confirmRoot"; document.body.appendChild(root); }
+    root.innerHTML = `<div class="cfm-wrap"><div class="cfm" role="alertdialog" aria-modal="true" aria-labelledby="cfm-t"><p id="cfm-t">${esc(msg)}</p>
+      <div class="row"><button class="btn" type="button" data-cfm="0">Cancel</button><button class="btn ${danger ? "danger" : "primary"}" type="button" data-cfm="1">${esc(ok)}</button></div></div></div>`;
+    const done = v => { root.innerHTML = ""; res(v); };
+    root.querySelectorAll("[data-cfm]").forEach(b => b.onclick = () => done(b.dataset.cfm === "1"));
+    root.querySelector(".cfm-wrap").onclick = e => { if (e.target.classList.contains("cfm-wrap")) done(false); };
+    root.querySelector('[data-cfm="1"]').focus();
+  });
+}
 function toast(msg, undo){
-  const root = $("#toastRoot");
+  const root = $("#toastRoot"); if (!root) return;
   root.innerHTML = `<div class="toast" role="status"><span>${esc(msg)}</span>${undo ? '<button type="button" id="undoBtn">Undo</button>' : ""}</div>`;
   if (undo) $("#undoBtn").onclick = () => { undo(); root.innerHTML = ""; };
   clearTimeout(toastTimer); toastTimer = setTimeout(() => root.innerHTML = "", undo ? 6000 : 3200);

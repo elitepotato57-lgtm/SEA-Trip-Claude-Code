@@ -597,6 +597,17 @@ test("split costs: your own tally only counts what's between you and each person
   eq(A.splitPairs(m), {b:0, c:0}, "both settled up");
 });
 
+test("split costs: custom amounts must add up to the total, and they change who owes what", () => {
+  eq(A.splitCustom(30, ["a", "b"], {a:"20", b:"10"}), {sh:{a:20, b:10}});
+  ok(/add up to 25/.test(A.splitCustom(30, ["a", "b"], {a:"20", b:"5"}).err));
+  ok(A.splitCustom(30, ["a", "b"], {a:"30"}).err, "everyone needs an amount");
+  const m = {me:"a", people:["a", "b", "c"], items:[{by:"a", to:["a", "b", "c"], a:30, c:"GBP", sh:{a:0, b:20, c:10}}]};
+  eq(A.splitPairs(m), {b:20, c:10}); eq(A.splitBalances({people:m.people, items:m.items}), {a:30, b:-20, c:-10});
+});
+test("Tools: the order Dylan asked for, and Split costs only in Friends", () => {
+  eq(A.toolsInOrder().map(t => t.id), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
@@ -641,8 +652,8 @@ test("split costs: your own tally only counts what's between you and each person
     const sent = await P1.frSendNow(true, ubud, "ok");
     const again = await P1.frSendNow(false, ubud, "ok");               // nothing new to send a moment later
     await P2.frPoll(); await P3.frPoll();
-    test("friends: your position goes only to friends you share with, only once you switch sharing on", () => {
-      eq([off, fake, sent, again], [false, false, true, false]);
+    test("friends: your position goes only to friends you share with, only once you switch sharing on (for now, a pretend test location counts)", () => {
+      eq([off, fake, sent, again], [false, true, true, false]);
       eq([fb.root.loc[me1.uid].lat, fb.root.loc[me1.uid].lng, fb.root.loc[me1.uid].t], [-8.50691, 115.26251, fb.now]);
       eq(P2.frLocs[me1.uid].lat, -8.50691, "Sam sees Dylan");
     });
@@ -688,7 +699,7 @@ test("split costs: your own tally only counts what's between you and each person
     // the location bug: with the pretend test location on, the app's own GPS position is what's sent
     P1.S.friends.list = {[me2.uid]:{n:"Sam", share:true, at:1}}; P1.S.friends.on = true;
     const sentFake = await P1.frSendNow(true, {lat:13.7, lng:100.5}, "test");
-    test("friends: the pretend test location is never sent to friends", () => eq(sentFake, false));
+    test("friends: while testing, the pretend location is what friends see", () => { eq(sentFake, true); eq(fb.root.loc[me1.uid].lat, 13.7); });
     test("rock paper scissors: scores, draws and unfinished rounds", () => {
       const g = {r:{1:{x:"rock", y:"scissors"}, 2:{x:"paper", y:"paper"}, 3:{x:"scissors", y:"rock"}, 4:{x:"paper", y:"rock"}, 5:{x:"rock"}}};
       eq(P1.rpsScore(g, "x", "y"), [2, 1]); eq(P1.rpsScore(g, "y", "x"), [1, 2]);
@@ -734,6 +745,21 @@ test("split costs: your own tally only counts what's between you and each person
     const m1c = await P1.liveSplitModel(gid);
     test("live split: a deleted payment goes from everyone's phone, and the last copy is kept for no signal", () => {
       ok(!m1c.items.some(x => x.w === "Taxi")); ok(P1.liveStore()[gid].items && Object.keys(P1.liveStore()[gid].items).length === 2);
+    });
+    // messages: a developer adds a sticker; anyone sends it to a friend; only the friend can read it, and only as themselves
+    const stk = await P3.frAddSticker("Cooked", "data:image/png;base64,AAAA").then(x => x, e => "ERR " + e.message);
+    const notDev = await P2.frAddSticker("Nope", "data:image/png;base64,AAAA").then(() => "ok", e => e.message);
+    const stickers2 = await P2.frLoadStickers(true);
+    const mid = await P2.frSendSticker(me1.uid, stk);
+    let forgedMsg = 0; try { await P3.frDb("PUT", `msgs/${me1.uid}/zz`, {f:me2.uid, s:stk, t:1}); } catch(e){ forgedMsg = e.status; }
+    let peekMsg = 0; try { await P3.frDb("GET", `msgs/${me1.uid}`); } catch(e){ peekMsg = e.status; }
+    const inbox = await P1.frDb("GET", `msgs/${me1.uid}`);
+    test("messages: stickers come from a developer phone, friends send them, only the receiver reads them", () => {
+      ok(/^k/.test(stk), stk); eq(notDev, "permission"); eq(stickers2[stk].n, "Cooked");
+      eq(inbox[mid].f, me2.uid); eq(inbox[mid].s, stk); eq([forgedMsg, peekMsg], [401, 401]);
+    });
+    test("developer mode: typing ELITE POTATO in the map search switches it on and off", () => {
+      eq(P1.frDevCode("elite potato"), false); eq(P1.frDevCode(" ELITE  POTATO "), true); eq(P1.S.dev, true); eq(P1.frDevCode("ELITE POTATO"), true); eq(P1.S.dev, false);
     });
   }
   console.log(`\n${passed} passed, ${failed} failed`);

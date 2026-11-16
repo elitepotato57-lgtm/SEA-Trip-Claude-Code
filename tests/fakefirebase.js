@@ -22,6 +22,9 @@ function makeFake(){
     if (top === "groups") return p.length >= 2 && !!get(["groups", a, "members", uid]);
     if (top === "mygroups") return a === uid;
     if (top === "admins") return p.length === 2;
+    if (top === "stickerIndex") return true;
+    if (top === "stickers") return p.length >= 2;
+    if (top === "msgs") return a === uid;
     if (top === "photos") return true;
     if (top === "invites") return a === uid;
     if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));
@@ -41,6 +44,8 @@ function makeFake(){
     }
     if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));
     if (top === "admins") return p.length === 2 && (get(["admins", uid]) === true || (a === uid && get(["admins"]) === undefined));
+    if (top === "stickerIndex" || top === "stickers") return p.length === 2 && get(["admins", uid]) === true && (val == null || top === "stickerIndex" || (val.d && val.d.length < 300000 && val.d.startsWith("data:image/")));
+    if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
     if (top === "photos") return p.length === 2 && get(["admins", uid]) === true && (val == null || (typeof val === "string" && val.length < 40000 && val.startsWith("data:image/jpeg;base64,")));
     if (top === "invites") return p.length === 3 && (uid === b || uid === a);
     if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));

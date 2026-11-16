@@ -629,6 +629,7 @@ function bindMapSearch(){
   };
   const paint = () => {
     const text = inp.value.trim(); clear.hidden = !text;
+    if (typeof frDevCode === "function" && frDevCode(text)){ inp.value = ""; clear.hidden = true; close(); inp.blur(); return; }
     if (!text){ close(); return; }
     const local = localMatches(text), names = new Set(local.map(s => s.n.toLowerCase()));
     const rem = remote.filter(s => !names.has(s.n.toLowerCase()));

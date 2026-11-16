@@ -91,6 +91,29 @@
         ".read": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))",
         ".write": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))"
       }
+    },
+    "stickerIndex": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 30)"
+      }
+    },
+    "stickers": {
+      "$id": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "!newData.exists() || (newData.hasChildren(['n', 'd']) && newData.child('d').isString() && newData.child('d').val().length < 300000 && newData.child('d').val().beginsWith('data:image/'))"
+      }
+    },
+    "msgs": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$mid": {
+          ".write": "auth != null && (auth.uid === $uid || (!data.exists() && newData.child('f').val() === auth.uid))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['f', 's', 't']) && newData.child('t').val() <= now)"
+        }
+      }
     }
   }
 }
