@@ -242,18 +242,18 @@ async function frPoll(){
   try {
     const me = frMyId(); if (me) frInvites = await frDb("GET", `invites/${me}`) || {};
     const fresh = Object.entries(frInvites).filter(([, v]) => v && v.t > frInviteSeen);
-    if (fresh.length && !(ui.view === "tools" && ui.sub === "friends")){ const [, v] = fresh[0]; toast(`${v.n || "A friend"} wants to play Rock Paper Scissors. Open Tools › Friends.`); }
+    if (fresh.length && !(ui.view === "tools" && /^friends/.test(ui.sub || ""))){ const [, v] = fresh[0]; toast(`${v.n || "A friend"} wants to play Rock Paper Scissors. Open Tools › Friends.`); }
     if (fresh.length){ frInviteSeen = Math.max(...fresh.map(([, v]) => v.t)); lsSet("fr-inv-seen", frInviteSeen); }
   } catch(e){}
   frLoadPhotos().catch(() => {});
   // someone added you to a live split group while Friends is open: show it
-  if (ui.view === "tools" && ui.sub === "friends" && $("#fr-split")){
+  if ($("#fr-split")){
     const before = liveGroupsCached().map(g => g.id).join();
     await liveListGroups().catch(() => {});
     const busy = document.activeElement && $("#fr-split").contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
     if (!busy && (liveGroupsCached().map(g => g.id).join() !== before || !frSplitGid)) frSplitPaint();
   }
-  drawFriends(); paintFriendsLive(); frFitOnce();
+  drawFriends(); paintFriendsLive();
 }
 function frLoop(){
   clearTimeout(frTimer);
@@ -265,9 +265,9 @@ function frLoop(){
 }
 if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", () => { if (!document.hidden) frLoop(); else { clearTimeout(frTimer); frGpsStop(); } });
 
-/* ---------- friends on a map (the main map, and the one on the Friends page) ---------- */
+/* ---------- friends on the main map (Essentials › Friends, first in the row) ---------- */
 const frAgo = t => { const m = Math.round((frNow() - t) / 60e3); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-const frMarkers = {}, frMapMarkers = {};
+const frMarkers = {};
 function frDrawOn(m, store, onTap){
   if (!m || typeof maplibregl === "undefined") return;
   const f = frState();
@@ -286,77 +286,74 @@ function frDrawOn(m, store, onTap){
     store[uid].setLngLat([v.lng, v.lat]);
   }
 }
-const frTapToast = uid => { const w = frLocs[uid], me = frMeHere(); if (w) toast(`${frNameOf(uid)}: seen ${frAgo(w.t)}${me ? `, ${distShort(dist(me, w))} away` : ""}`); };
+const frTapToast = uid => { const w = frLocs[uid], me = frMeHere(); if (w && isFinite(w.lat)) toast(`${frNameOf(uid)}: seen ${frAgo(w.t)}${me ? `, ${distShort(dist(me, w))} away` : ""}`); };
+const frOnMap = () => typeof ui === "undefined" || ui.mapFriends !== false;
 function drawFriends(){
-  if (typeof map !== "undefined" && map) frDrawOn(map, frMarkers, frTapToast);
-  if (frMapI) { frDrawOn(frMapI, frMapMarkers, uid => frFlyTo(uid)); frDrawMe(); }
+  if (typeof map === "undefined" || !map) return;
+  if (frOnMap()) frDrawOn(map, frMarkers, uid => { frFlyTo(uid); });
+  else Object.keys(frMarkers).forEach(uid => { frMarkers[uid].remove(); delete frMarkers[uid]; });
 }
-let frMapI = null, frMapEl = null, frMeMarker = null, frMapFitted = false;
-// the first time friends' positions are in after opening the page, glide out from you to show everyone
-function frFitOnce(){
-  if (frMapFitted || !frMapI || !frMapI.loaded()) return;
-  if (!Object.keys(frState().list).some(uid => frLocs[uid] && isFinite(frLocs[uid].lat))) return;
-  frMapFitted = true; setTimeout(frFitAll, 400);
-}
-function frDrawMe(){
-  const me = frMeHere(); if (!frMapI || !me) return;
-  if (!frMeMarker){ const el = document.createElement("div"); el.className = "fr-me"; frMeMarker = new maplibregl.Marker({element:el}).setLngLat([me.lng, me.lat]).addTo(frMapI); }
-  frMeMarker.setLngLat([me.lng, me.lat]);
-}
-function initFriendsMap(){
-  const slot = $("#frMap"); if (!slot || typeof maplibregl === "undefined") return;
-  if (frMapI){ slot.replaceWith(frMapEl); setTimeout(() => { try { frMapI.resize(); } catch(e){} drawFriends(); }, 0); return; }
-  frMapEl = slot;
-  const me = frMeHere(), c = D.countries[S.country];
-  try {
-    frMapI = new maplibregl.Map({container:slot, style:mapStyle(), center:me ? [me.lng, me.lat] : [c.c[1], c.c[0]], zoom:me ? 14 : c.z,
-      minZoom:2, maxZoom:18, attributionControl:false, dragRotate:false, pitchWithRotate:false, touchPitch:false, renderWorldCopies:false});
-  } catch(e){ frMapI = null; slot.innerHTML = `<div class="map-msg">The map can’t run on this device.</div>`; return; }
-  if (frMapI.touchZoomRotate && frMapI.touchZoomRotate.disableRotation) frMapI.touchZoomRotate.disableRotation();
-  frMapI.addControl(new maplibregl.AttributionControl({compact:true}), "bottom-left");
-  const shut = () => slot.querySelectorAll(".maplibregl-ctrl-attrib").forEach(a => a.classList.remove("maplibregl-compact-show"));
-  frMapI.once("load", shut); frMapI.once("idle", shut);
-  frMapI.on("load", () => { drawFriends(); frFitOnce(); });
-}
-// glide from where the map is to a view with you and everyone you can see (zooming out and back in, not a jump)
+// glide (zooming out and back in, not a jump) to a view with you and everyone you can see
 function frFitAll(){
-  if (!frMapI) return;
+  if (!map) return;
   const pts = Object.keys(frState().list).map(uid => frLocs[uid]).filter(v => v && isFinite(v.lat)), me = frMeHere();
   if (me) pts.push(me);
-  if (!pts.length) return;
-  if (pts.length === 1){ frMapI.flyTo({center:[pts[0].lng, pts[0].lat], zoom:15, duration:2200, essential:true}); return; }
-  const b = [[Math.min(...pts.map(p => p.lng)), Math.min(...pts.map(p => p.lat))], [Math.max(...pts.map(p => p.lng)), Math.max(...pts.map(p => p.lat))]];
-  const cam = frMapI.cameraForBounds(b, {padding:{top:50, bottom:50, left:50, right:50}, maxZoom:16});
-  if (cam) frMapI.flyTo(Object.assign(cam, {duration:2600, curve:1.5, essential:true}));
+  if (!pts.length){ toast("No friends are sharing a location right now"); return; }
+  if (pts.length === 1){ map.flyTo({center:[pts[0].lng, pts[0].lat], zoom:15, duration:2400, curve:1.5, essential:true}); return; }
+  const cam = map.cameraForBounds([[Math.min(...pts.map(p => p.lng)), Math.min(...pts.map(p => p.lat))], [Math.max(...pts.map(p => p.lng)), Math.max(...pts.map(p => p.lat))]],
+    {padding:{top:170, bottom:90, left:50, right:70}, maxZoom:16});
+  if (cam) map.flyTo(Object.assign(cam, {duration:2800, curve:1.5, essential:true}));
 }
 // glide to show you and one friend together
 function frFlyTo(uid){
-  const v = frLocs[uid]; if (!v || !isFinite(v.lat)){ const s = frLocs[uid]; toast(s && s.hidden ? `${frNameOf(uid)} isn’t sharing with you` : `${frNameOf(uid)} hasn’t sent a location yet`); return; }
-  if (!frMapI) return;
+  const v = frLocs[uid];
+  if (!v || !isFinite(v.lat)){ toast(v && v.hidden ? `${frNameOf(uid)} isn’t sharing with you` : `${frNameOf(uid)} hasn’t sent a location yet`); return; }
+  if (!map) return;
   const me = frMeHere();
-  if (!me){ frMapI.flyTo({center:[v.lng, v.lat], zoom:15, duration:2500, curve:1.5, essential:true}); return; }
-  const cam = frMapI.cameraForBounds([[Math.min(me.lng, v.lng), Math.min(me.lat, v.lat)], [Math.max(me.lng, v.lng), Math.max(me.lat, v.lat)]], {padding:60, maxZoom:16});
-  if (cam) frMapI.flyTo(Object.assign(cam, {duration:2600, curve:1.5, essential:true}));
+  if (!me) map.flyTo({center:[v.lng, v.lat], zoom:15, duration:2600, curve:1.5, essential:true});
+  else {
+    const cam = map.cameraForBounds([[Math.min(me.lng, v.lng), Math.min(me.lat, v.lat)], [Math.max(me.lng, v.lng), Math.max(me.lat, v.lat)]], {padding:{top:170, bottom:90, left:60, right:70}, maxZoom:16});
+    if (cam) map.flyTo(Object.assign(cam, {duration:2800, curve:1.5, essential:true}));
+  }
   frTapToast(uid);
+}
+// Friends › Map (or tapping a friend): the normal map showing just your friends (tap All for places again),
+// starting on you, then gliding to them
+function openFriendsMap(uid){
+  ui.mapFriends = true; ui.essOpen = true; ui.mapMode = "map"; ui.mapSel = null; ui.mapSurf = false; ui.mapSaved = false;
+  ui.mapCats = new Set(); ui.essKinds.clear(); if (typeof mapRun !== "undefined") mapRun.stash = null;
+  go("#map");
+  const run = () => {
+    const me = frMeHere();
+    if (me) map.jumpTo({center:[me.lng, me.lat], zoom:Math.max(map.getZoom(), 15)});
+    drawFriends();
+    setTimeout(() => { if (uid) frFlyTo(uid); else frFitAll(); }, 450);
+  };
+  const wait = (n = 0) => { if (!map) return n < 60 && setTimeout(() => wait(n + 1), 100); if (mapLoaded || map.loaded()) run(); else map.once("load", run); };
+  wait();
+  frPoll().catch(() => {});
 }
 
 /* ---------- the Friends page ----------
-   Top: your friends (face, name, where they are, whether they see you). Then the map. Then the live split costs. Then games.
-   "You", adding friends and the developer bits live behind the green Add friend button. */
+   Top: whether you're sharing (one big switch) and your friends (face, name, where, whether they see you).
+   Then three ways in: Map (the normal map with friends on), Split costs and Play, each full screen.
+   Your name, code, adding, renaming and the developer bits live behind the green Add friend button. */
 function friendsSetupHTML(){
   return `<div class="callout">${icon("info")}<div><b>Friends needs switching on once.</b> It uses a free Firebase project (Google’s, no card needed) so phones can see each other.
     Dylan sets it up and adds its two settings to <code>config.js</code> on GitHub: about 10 minutes, step by step in <code>FIREBASE-SETUP.md</code>. Everyone gets it after that.</div></div>`;
 }
 function frLocText(uid){
   const v = frLocs[uid], me = frMeHere();
-  return !v ? "Checking…" : v.hidden ? "Not sharing with you" : v.none ? "Hasn’t sent a location (their sharing is off, or their app is closed)" : v.err ? "Couldn’t check (no signal?)"
+  return !v ? "Checking…" : v.hidden ? "Not sharing with you" : v.none ? "Not sharing right now (their switch is off, or their app is closed)" : v.err ? "Couldn’t check (no signal?)"
     : `Seen ${frAgo(v.t)}${me ? ` · ${distShort(dist(me, v))} away` : ""}`;
 }
 function paintFriendsLive(){
   if (typeof document === "undefined" || !document.querySelector) return;
   document.querySelectorAll("[data-frloc]").forEach(el => el.textContent = frLocText(el.dataset.frloc));
   document.querySelectorAll("[data-frav]").forEach(el => el.innerHTML = frAvatar(el.dataset.frav, +el.dataset.size || 40));
-  const st = $("#fr-status"); if (st){ const s = frSendStatus(); st.textContent = s.t; st.classList.toggle("good", s.ok); }
+  const s = frSendStatus();
+  document.querySelectorAll(".fr-status").forEach(st => { st.textContent = s.t; st.classList.toggle("good", s.ok); });
+  document.querySelectorAll("[data-fron]").forEach(b => b.setAttribute("aria-pressed", frState().on));
   const al = $("#fr-alerts"); if (al) paintFrAlerts(al);
 }
 function paintFrAlerts(el){
@@ -369,7 +366,15 @@ function paintFrAlerts(el){
 }
 let frReqs = [];
 const frFail = e => toast(e && e.message === "permission" ? "Firebase said no. Re-publish its rules (FIREBASE-SETUP.md)." : (e && e.message) || "No signal? Try again.");
-TOOL_PAGES.friends = root => { frMapFitted = false; renderFriendsPage(root); };
+// the big "Share my location" switch (on the page and in the sheet)
+function frToggleOn(){
+  const f = frState();
+  if (!f.on && !f.name){ toast("Add your name first, so friends know it’s you"); openFriendSheet(); setTimeout(() => { const n = $("#sheetRoot #fr-name"); if (n) n.focus(); }, 300); return; }
+  if (!f.on && !Object.values(f.list).some(x => x.share)) toast("Sharing is on. Friends marked “Sees you” will see you.");
+  frSetOn(!f.on).then(() => { paintFriendsLive(); }, frFail);
+}
+const frShareHTML = () => `<button class="switch fr-bigswitch" type="button" data-fron aria-pressed="${frState().on}"><i></i>Share my location</button><p class="note fr-st fr-status"></p>`;
+TOOL_PAGES.friends = root => renderFriendsPage(root);
 function renderFriendsPage(root = $("#pageview")){
   if (!root || !(ui.view === "tools" && ui.sub === "friends")) return;
   const f = frState(), cfg = frCfg();
@@ -378,31 +383,43 @@ function renderFriendsPage(root = $("#pageview")){
   if (!cfg){ root.innerHTML = html + friendsSetupHTML() + `</div>`; return; }
   const list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
   html += `<div id="fr-alerts"></div>
+    <div class="block">${frShareHTML()}</div>
     <div class="block"><h2>Your friends</h2>${list.length ? list.map(([uid, x]) => `<div class="fr-row" data-frgo="${esc(uid)}" role="button" tabindex="0">
       <span data-frav="${esc(uid)}" data-size="40">${frAvatar(uid, 40)}</span>
       <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div></div>
       <button class="pill" type="button" data-frshare="${esc(uid)}" aria-pressed="${x.share}" aria-label="${x.share ? `${esc(x.n)} can see you. Tap to hide` : `${esc(x.n)} can’t see you. Tap to share`}">${x.share ? "Sees you" : "Hidden"}</button></div>`).join("")
       : `<p class="note">No friends yet. Tap <b>Add friend</b> at the top, send your code to your mates, or type theirs.</p>`}</div>
-    <div class="block"><div class="sect" style="margin:0 0 8px"><h2>Map</h2><button class="btn small" type="button" id="fr-all">${icon("fit","i s")}Everyone</button></div>
-      <div id="frMap" class="frmap" role="application" aria-label="Map of your friends"></div>
-      <p class="note fr-st" id="fr-status"></p></div>
-    <div class="block"><h2>Split costs</h2><div id="fr-split" class="split"><p class="note">Loading…</p></div></div>
-    <div class="block"><h2>Play</h2><div class="fr-game"><span class="fr-game-ic">✊✋✌️</span><div><b>Rock Paper Scissors</b><div class="note">Live against a friend, best of as many rounds as the bus ride lasts.</div></div></div>
-      ${list.length ? `<div class="flags" style="margin-top:8px">${list.map(([uid, x]) => `<button class="chip soft" type="button" data-frplay="${esc(uid)}">${frAvatar(uid, 20)} ${esc(x.n)}</button>`).join("")}</div>` : `<p class="note">Add a friend to play.</p>`}</div>
-  </div>`;
+    <div class="tgrid fr-tiles">
+      <a class="tool" href="#map" id="fr-go-map"><span class="ti">${icon("map")}</span><span><b>Map</b><small>See everyone on the map</small></span></a>
+      <a class="tool alt" href="#tools/friends-split"><span class="ti">${icon("cash")}</span><span><b>Split costs</b><small>Who owes who</small></span></a>
+      <a class="tool" href="#tools/friends-play"><span class="ti">${icon("spark")}</span><span><b>Play</b><small>Rock Paper Scissors</small></span></a>
+    </div></div>`;
   root.innerHTML = html;
-  initFriendsMap();
   paintFriendsLive();
   $("#fr-open").onclick = openFriendSheet;
-  $("#fr-all").onclick = () => frFitAll();
-  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => frFlyTo(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  root.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
+  $("#fr-go-map").onclick = e => { e.preventDefault(); openFriendsMap(); };
+  root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
   root.querySelectorAll("[data-frshare]").forEach(b => b.onclick = e => { e.stopPropagation(); const uid = b.dataset.frshare; frSetShare(uid, !f.list[uid].share).then(() => renderFriendsPage(root), frFail); });
-  root.querySelectorAll(".fr-game ~ .flags [data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
   frMe().then(() => frRequests()).then(rs => { frReqs = rs; paintFriendsLive(); }).catch(() => {});
   frLoadPhotos(true).then(paintFriendsLive).catch(() => {});
-  frSplitPaint();
   frLoop();
 }
+// Friends › Split costs, full screen
+TOOL_PAGES["friends-split"] = root => {
+  if (!frCfg()){ root.innerHTML = hero({title:"Split costs", back:["#tools/friends", "Friends"]}) + `<div class="page">${friendsSetupHTML()}</div>`; return; }
+  root.innerHTML = hero({title:"Split costs", sub:"What you owe your mates, and what they owe you", back:["#tools/friends", "Friends"]}) + `<div class="page"><div id="fr-split" class="split"><p class="note">Loading…</p></div></div>`;
+  frSplitPaint(); frLoop();
+};
+// Friends › Play, full screen
+TOOL_PAGES["friends-play"] = root => {
+  const f = frState(), list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
+  root.innerHTML = hero({title:"Play", sub:"Games with your mates, live", back:["#tools/friends", "Friends"]}) + `<div class="page friends">${frCfg() ? `<div id="fr-alerts"></div>
+    <div class="block"><div class="fr-game"><span class="fr-game-ic">✊✋✌️</span><div><b>Rock Paper Scissors</b><div class="note">Live against a friend, as many rounds as the bus ride lasts. Pick who to play:</div></div></div>
+      ${list.length ? `<div class="flags" style="margin-top:10px">${list.map(([uid, x]) => `<button class="chip soft" type="button" data-frplay="${esc(uid)}">${frAvatar(uid, 20)} ${esc(x.n)}</button>`).join("")}</div>` : `<p class="note">Add a friend first (Friends › Add friend).</p>`}</div>` : friendsSetupHTML()}</div>`;
+  root.querySelectorAll(".fr-game ~ .flags [data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
+  paintFriendsLive(); frLoop();
+};
 
 /* ---------- the Add friend sheet: you, your code, adding, removing, and the developer bits ---------- */
 function openFriendSheet(){
@@ -414,11 +431,11 @@ function openFriendSheet(){
       <div class="row" style="gap:10px;align-items:center"><span data-frav="${esc(frMyId())}" data-size="44">${frAvatar(frMyId(), 44)}</span>
         <label class="field" style="flex:1;margin:0">Your name (what friends see)<input id="fr-name" type="text" maxlength="30" autocomplete="nickname" value="${esc(f.name)}" placeholder="Your name"></label></div>
       <div class="fr-code"><div><div class="note">Your friend code</div><b id="fr-code">${esc(f.code || "……")}</b></div><button class="btn small" type="button" id="fr-sharecode">${icon("share","i s")}Send it</button></div>
-      <button class="switch" type="button" id="fr-on" aria-pressed="${f.on}"><i></i>Share my location</button>
-      <p class="note fr-st" id="fr-status"></p>
+      ${frShareHTML()}
       <p class="note">Your position goes only to friends marked “Sees you”, only while the app is open, through Google’s Firebase. Turning this off deletes your last position.</p></div>
     <div class="block"><h2>Add a friend</h2><div class="row"><input class="sp-in" id="fr-add" type="text" maxlength="8" autocapitalize="characters" autocomplete="off" placeholder="Their 6-letter code" aria-label="Friend code"><button class="btn small primary" type="button" id="fr-addb">Add</button></div></div>
     ${list.length ? `<div class="block"><h2>On your list</h2>${list.map(([uid, x]) => `<div class="fr-row"><span data-frav="${esc(uid)}" data-size="36">${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div>
+      <button class="icon-btn" type="button" data-frren="${esc(uid)}" aria-label="Rename ${esc(x.n)}">${icon("edit","i s")}</button>
       ${dev && frAdmin ? `<label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label>` : ""}
       <button class="icon-btn" type="button" data-frrm="${esc(uid)}" aria-label="Remove ${esc(x.n)}">${icon("x","i s")}</button></div>`).join("")}</div>` : ""}
     ${dev ? `<div class="block"><h2>Developer</h2><div id="fr-dev"><p class="note">Checking…</p></div></div>` : ""}
@@ -433,10 +450,13 @@ function openFriendSheet(){
     try { if (navigator.share){ await navigator.share({text}); return; } } catch(e){ return; }
     try { await navigator.clipboard.writeText(text); toast("Copied"); } catch(e){ toast(text); }
   };
-  $("#fr-on").onclick = () => {
-    if (!f.on && !f.name){ toast("Add your name first, so friends know it’s you"); $("#fr-name").focus(); return; }
-    frSetOn(!f.on).then(() => { const b = $("#fr-on"); if (b) b.setAttribute("aria-pressed", f.on); paintFriendsLive(); renderFriendsPage(); }, frFail);
-  };
+  sheet.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
+  sheet.querySelectorAll("[data-frren]").forEach(b => b.onclick = () => {
+    const uid = b.dataset.frren, x = f.list[uid]; if (!x) return;
+    const n = (prompt(`Rename ${x.n} (only on your phone)`, x.n) || "").trim().replace(/\s+/g, " ").slice(0, 30);
+    if (!n || n === x.n) return;
+    x.n = n; persist(); toast(`Renamed to ${n}`); renderFriendsPage(); openFriendSheet(); drawFriends();
+  });
   const add = () => { const v = $("#fr-add").value; if (!v.trim()) return; frAdd(v).then(n => { toast(`Added ${n}`); frLoop(); renderFriendsPage(); openFriendSheet(); }, frFail); };
   $("#fr-addb").onclick = add;
   $("#fr-add").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); add(); } };
@@ -532,7 +552,7 @@ async function openRps(them){
   rpsStop = frListen(`games/${room}`, v => { g = v || {g:"rps", round:1}; paint(); });
 }
 
-/* ---------- live split costs on the Friends page (the same groups as Tools › Split costs) ---------- */
+/* ---------- live split costs on Friends › Split costs (the same groups as Tools › Split costs) ---------- */
 async function frSplitPaint(){
   const box = $("#fr-split"); if (!box) return;
   await liveListGroups().catch(() => {});
@@ -613,7 +633,9 @@ async function liveSplitModel(id){
   try { g = await liveFetch(id) || null; } catch(e){ if (e.status === 401 || e.status === 403){ liveKeep(id, null); throw e; } stale = g && g.at ? frAgo(g.at) : "earlier"; }
   if (!g) throw new Error("gone");
   const me = (frAuthSaved() || {}).uid, people = Object.keys(g.members || {}).sort((a, b) => (a === me ? -1 : b === me ? 1 : String(g.members[a]).localeCompare(g.members[b])));
-  const names = Object.assign({}, g.members);
+  const names = Object.assign({}, g.members), fl = frState().list;
+  Object.keys(names).forEach(uid => { if (fl[uid]) names[uid] = fl[uid].n; });
+  if (me) names[me] = "You";
   const items = Object.entries(g.items || {}).map(([iid, x]) => ({id:iid, w:x.w, a:+x.a, c:x.c, by:x.by, to:Object.keys(x.to || {}), t:x.t, s:x.s ? 1 : 0, add:x.add}));
   const f = frState(), addable = Object.entries(f.list).filter(([uid]) => !names[uid]);
   const write = async x => { await frDb("PUT", `groups/${id}/items/${x.id}`, x); };
@@ -623,7 +645,8 @@ async function liveSplitModel(id){
       if (!isFinite(a) || a <= 0) return "Type how much it cost";
       if (a > 1e9) return "That amount looks wrong";
       if (!people.includes(by)) return "Pick who paid";
-      const who = (to || []).filter(p => people.includes(p)); if (!who.length) return "Pick who it was for";
+      const who = [...new Set([me].concat(to || []))].filter(p => people.includes(p));
+      if (who.length < 2) return "Pick at least one person to split it with";
       await write({id:splitId(), w:String(what || "").trim().slice(0, 60) || "Payment", a:r2(a), c:cur, by, to:Object.fromEntries(who.map(p => [p, true])), t:{".sv":"timestamp"}, add:me});
       return "";
     },

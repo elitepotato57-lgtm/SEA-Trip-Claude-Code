@@ -590,6 +590,13 @@ test("hostel cards: a Google review is shown only if it's 30 characters or fewer
   eq(A.shortReview([{text:"x".repeat(31)}]), null); eq(A.shortReview(null), null); eq(A.shortReview([{text:"  Clean   and quiet  "}]).t, "Clean and quiet");
 });
 
+test("split costs: your own tally only counts what's between you and each person", () => {
+  const m = {me:"a", people:["a", "b", "c"], items:[{by:"a", to:["a", "b", "c"], a:30, c:"GBP"}, {by:"b", to:["a", "b"], a:10, c:"GBP"}, {by:"c", to:["b", "c"], a:8, c:"GBP"}, {by:"c", to:["c", "a"], a:40, c:"GBP"}]};
+  eq(A.splitPairs(m), {b:5, c:-10}, "b owes you 10 less the 5 you owe b; you owe c 20 less the 10 c owes you");
+  m.items.push({by:"b", to:["a"], a:5, c:"GBP", s:1}, {by:"a", to:["c"], a:10, c:"GBP", s:1});
+  eq(A.splitPairs(m), {b:0, c:0}, "both settled up");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
@@ -701,11 +708,18 @@ test("hostel cards: a Google review is shown only if it's 30 characters or fewer
     const m1b = await P1.liveSplitModel(gid), bal = P1.splitBalances({people:m1b.people, items:m1b.items});
     test("live split: a group started with a friend shows up on their phone, and both add to one tally", () => {
       eq(g2.map(g => g.n), ["Bali crew"]);
-      eq(m1b.people.map(m1b.name), ["Dylan", "Sam"], "you first, by name");
+      eq(m1b.people.map(m1b.name), ["You", "Sam"], "you first, shown as You");
       eq(m1b.items.length, 2); ok(m1b.items.some(x => x.w === "Dinner" && x.add === me2.uid), "Sam's payment is on Dylan's phone");
       near(bal[me1.uid], P1.toGBP(50000, "IDR"), 0.02, "Dylan is owed half the difference");
       near(bal[me2.uid], -P1.toGBP(50000, "IDR"), 0.02);
     });
+    const solo = await m1b.add({what:"Snack", amount:"10", cur:"GBP", by:me1.uid, to:[me1.uid]});
+    const forOthers = await m1b.add({what:"Gift", amount:"10", cur:"GBP", by:me1.uid, to:[me2.uid]});
+    const m1g = await P1.liveSplitModel(gid), gift = m1g.items.find(x => x.w === "Gift");
+    test("live split: you're always in your own split, with at least one other person", () => {
+      ok(/at least one person/.test(solo), solo); eq(forOthers, ""); eq(gift.to.sort(), [me1.uid, me2.uid].sort());
+    });
+    await m1g.del(gift.id);
     const plan = P1.splitSettle(bal); await m1b.paid(plan[0].from, plan[0].to, plan[0].gbp);
     const m2b = await P2.liveSplitModel(gid), bal2 = P2.splitBalances({people:m2b.people, items:m2b.items});
     test("live split: Paid settles it for everyone", () => ok(Object.values(bal2).every(v => Math.abs(v) < 0.02), JSON.stringify(bal2)));

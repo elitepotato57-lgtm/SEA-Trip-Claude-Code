@@ -25,6 +25,20 @@ function splitBalances(sp = splitData()){
   Object.keys(bal).forEach(k => bal[k] = r2(bal[k]));
   return bal;
 }
+// your own view of a live group: for each other person, positive = they owe you, negative = you owe them (in pounds).
+// Only payments between the two of you count: one you paid that they were in, or one they paid that you were in.
+function splitPairs(m){
+  const me = m.me, out = {};
+  m.people.forEach(p => { if (p !== me) out[p] = 0; });
+  for (const x of m.items){
+    const to = (x.to || []).filter(Boolean); if (!to.length || !(x.a > 0)) continue;
+    const share = toGBP(x.a, x.c) / to.length;
+    if (x.by === me) to.forEach(p => { if (p in out) out[p] += share; });
+    else if (to.includes(me) && x.by in out) out[x.by] -= share;
+  }
+  Object.keys(out).forEach(k => out[k] = r2(out[k]));
+  return out;
+}
 // the fewest payments that settle everyone: the biggest debtor pays the biggest creditor, and so on
 function splitSettle(bal){
   const owe = Object.entries(bal).filter(([, v]) => v < -0.005).map(([p, v]) => [p, -v]).sort((a, b) => b[1] - a[1]);
@@ -137,7 +151,9 @@ function renderSplit(root, m, groups, live){
 function splitSectionHTML(m, groups, live, opt = {}){
   const lc = splitLocal(), embedded = !!opt.embedded;
   const key = (m.live ? m.id : "phone") + ":" + m.people.join(",");
-  if (splitUi.key !== key){ splitUi.key = key; splitUi.to = new Set(m.people); if (!m.people.includes(splitUi.by)) splitUi.by = m.me && m.people.includes(m.me) ? m.me : m.people[0] || ""; }
+  if (splitUi.key !== key){ splitUi.key = key; splitUi.to = new Set(m.people); splitUi.by = m.me && m.people.includes(m.me) ? m.me : m.people.includes(splitUi.by) ? splitUi.by : m.people[0] || ""; }
+  const mine = !!(m.live && m.me && m.people.includes(m.me));
+  if (mine) splitUi.to.add(m.me);
   if (!splitUi.cur) splitUi.cur = lc;
   const nm = p => esc(m.name(p)), bal = splitBalances({people:m.people, items:m.items}), plan = splitSettle(bal);
   const curs = [...new Set([lc, "GBP", ...Object.keys(D.rates)])].filter(k => k === "GBP" || D.rates[k]);
@@ -152,7 +168,7 @@ function splitSectionHTML(m, groups, live, opt = {}){
   }
   if (splitUi.newGroup) html += newGroupHTML();
   if (m.live){
-    html += `<div class="sp-members">${m.people.map(p => `<span class="sp-mem">${splitAvatar(m, p, 26)}<small>${nm(p)}${p === m.me ? " (you)" : ""}</small></span>`).join("")}
+    html += `<div class="sp-members">${m.people.map(p => `<span class="sp-mem">${splitAvatar(m, p, 26)}<small>${nm(p)}</small></span>`).join("")}
       ${embedded ? "" : `<small class="live-dot">live</small>`}</div>
       ${m.addable.length ? `<div class="flags" style="margin:6px 0">${m.addable.map(([uid, f]) => `<button class="chip soft" type="button" data-gadd="${esc(uid)}">+ ${esc(f.n)}</button>`).join("")}</div>` : ""}
       ${m.stale ? `<p class="note"><b>No signal: showing the tally as it was ${esc(m.stale)}.</b></p>` : ""}`;
@@ -184,16 +200,30 @@ function splitSectionHTML(m, groups, live, opt = {}){
         <label class="field">Money<select id="sp-cur">${curs.map(k => `<option value="${k}" ${k === splitUi.cur ? "selected" : ""}>${k}</option>`).join("")}</select></label></div>
       <label class="field">Paid by<select id="sp-by">${m.people.map(p => `<option value="${esc(p)}" ${p === splitUi.by ? "selected" : ""}>${nm(p)}</option>`).join("")}</select></label>
       <div class="note" style="margin:8px 0 4px">Split equally between</div>
-      <div class="flags">${m.people.map(p => `<button class="chip soft" type="button" data-to="${esc(p)}" aria-pressed="${splitUi.to.has(p)}">${nm(p)}</button>`).join("")}</div>
+      <div class="flags">${m.people.map(p => mine && p === m.me ? `<button class="chip soft locked" type="button" aria-pressed="true" disabled title="You’re always in your own split">${icon("check","i xs")}You</button>`
+        : `<button class="chip soft" type="button" data-to="${esc(p)}" aria-pressed="${splitUi.to.has(p)}">${nm(p)}</button>`).join("")}</div>
       <button class="btn primary wide" type="button" id="sp-add" style="margin-top:12px">Add payment</button></div>
-    <h3 style="margin-top:14px">Running tally</h3><div class="sp-bal">${m.people.map(p => {
+    ${mine ? splitMineHTML(m) : `<h3 style="margin-top:14px">Running tally</h3><div class="sp-bal">${m.people.map(p => {
       const v = bal[p] || 0;
       return `<div class="sp-row"><span class="who">${splitAvatar(m, p, 26)}<b>${nm(p)}</b></span><span class="${v > 0.005 ? "good" : v < -0.005 ? "bad" : ""}">${v > 0.005 ? `gets back ${showAmt(v)}` : v < -0.005 ? `owes ${showAmt(v)}` : "all square"}</span></div>`;
     }).join("")}</div>
-    ${plan.length ? `<h3 style="margin-top:12px">To settle up</h3>${plan.map((t, k) => `<div class="sp-row"><span>${nm(t.from)} pays ${nm(t.to)} <b>${showAmt(t.gbp)}</b></span><button class="btn small" type="button" data-paid="${k}">Paid</button></div>`).join("")}` : m.items.length ? `<p class="note">Everyone is square.</p>` : ""}
+    ${plan.length ? `<h3 style="margin-top:12px">To settle up</h3>${plan.map((t, k) => `<div class="sp-row"><span>${nm(t.from)} pays ${nm(t.to)} <b>${showAmt(t.gbp)}</b></span><button class="btn small" type="button" data-paid="${k}">Paid</button></div>`).join("")}` : m.items.length ? `<p class="note">Everyone is square.</p>` : ""}`}
     ${m.live ? "" : `<div class="row" style="margin-top:12px"><button class="btn small" type="button" id="sp-share">${icon("share","i s")}Send to the group</button></div>`}
     <p class="note">${m.live ? "Everyone in the group can add payments, and the tally updates on all your phones (with signal). " : "The tally is kept on this phone. Send it to the group and anyone who opens the link gets the same payments added to their app. "}Totals are worked out in pounds at today’s rates, shown in ${esc(CUR_NAME[lc] || lc)} too.</p>`;
   return html;
+}
+// your tally in a live group: one line per person, "owes you" in green or "you owe" in red, with a button to mark it paid
+function splitMineHTML(m){
+  const pr = splitPairs(m), others = m.people.filter(p => p !== m.me), nm = p => esc(m.name(p));
+  const owed = r2(Object.values(pr).filter(v => v > 0).reduce((s, v) => s + v, 0)), owe = r2(-Object.values(pr).filter(v => v < 0).reduce((s, v) => s + v, 0));
+  return `<h3 style="margin-top:14px">Your tally</h3>
+    <p class="note sp-sum">${owed || owe ? `${owed ? `<span class="good">You’re owed ${showAmt(owed)}</span>` : ""}${owed && owe ? " · " : ""}${owe ? `<span class="bad">you owe ${showAmt(owe)}</span>` : ""}` : "You’re all square with everyone."}</p>
+    <div class="sp-bal">${others.map(p => {
+      const v = pr[p] || 0;
+      return `<div class="sp-row"><span class="who">${splitAvatar(m, p, 26)}<b>${nm(p)}</b></span>
+        <span class="sp-v ${v > 0.005 ? "good" : v < -0.005 ? "bad" : ""}">${v > 0.005 ? `owes you ${showAmt(v)}` : v < -0.005 ? `you owe ${showAmt(v)}` : "all square"}</span>
+        ${Math.abs(v) > 0.005 ? `<button class="btn small" type="button" data-pair="${esc(p)}">${v > 0 ? "They paid me" : "I paid"}</button>` : ""}</div>`;
+    }).join("")}</div>`;
 }
 function newGroupHTML(){
   const fr = Object.entries(frState().list);
@@ -248,11 +278,18 @@ function bindSplit(root, m, again){
   q("#sp-add").onclick = async () => {
     keep();
     const btn = q("#sp-add"); btn.disabled = true;
+    if (m.live && m.me && m.people.includes(m.me)){ splitUi.to.add(m.me); if (splitUi.to.size < 2){ btn.disabled = false; toast("Pick at least one person to split it with"); return; } }
     const msg = await m.add({what:splitUi.what, amount:splitUi.amt, cur:splitUi.cur, by:splitUi.by, to:[...splitUi.to]}).catch(e => (e && e.message === "permission" ? "Firebase said no: are you still in this group?" : "No signal? Try again."));
     btn.disabled = false;
     if (msg){ toast(msg); return; }
     splitUi.what = ""; splitUi.amt = ""; splitUi.to = new Set(m.people); toast("Added"); again();
   };
+  root.querySelectorAll("[data-pair]").forEach(b => b.onclick = () => {
+    const p = b.dataset.pair, v = splitPairs(m)[p] || 0; if (Math.abs(v) < 0.005) return;
+    const from = v > 0 ? p : m.me, to = v > 0 ? m.me : p;
+    if (!confirm(v > 0 ? `Mark that ${m.name(p)} paid you back ${splitLocal() === "GBP" ? "£" + Math.abs(v).toFixed(2) : money(niceRound(Math.abs(v) * rate(splitLocal()), splitLocal()), splitLocal())}?` : `Mark that you paid ${m.name(p)} back?`)) return;
+    m.paid(from, to, Math.abs(v)).then(() => { toast("Settled"); again(); }, fail);
+  });
   const plan = splitSettle(splitBalances({people:m.people, items:m.items}));
   root.querySelectorAll("[data-paid]").forEach(b => b.onclick = () => { const t = plan[+b.dataset.paid]; m.paid(t.from, t.to, t.gbp).then(() => { toast(`${m.name(t.from)} paid ${m.name(t.to)} back`); again(); }, fail); });
   const sh = q("#sp-share"); if (sh) sh.onclick = splitShare;
