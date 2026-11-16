@@ -47,7 +47,7 @@ New features sometimes need new rules (live split groups did). If something says
 
 ## Developer phone (faces for everyone)
 
-On your iPhone: **Settings**, tap the **About the data** heading 7 times ("Developer mode on"). Then **Tools › Friends ›
+On your iPhone: type **ELITE POTATO** in the map search ("Developer mode on"). Then **Tools › Friends ›
 Add friend › Make this phone the developer**. Only the first phone to do this gets it; the database refuses anyone else.
 The developer phone gets a **Photo** button next to each friend (and **My photo**); the faces show for everyone.
 
@@ -66,3 +66,21 @@ The developer phone gets a **Photo** button next to each friend (and **My photo*
   what keep locations private. Optionally, in Google Cloud Console › APIs & Services › Credentials, restrict the key to
   the website `elitepotato57-lgtm.github.io`.
 - Free plan limits (1 GB stored, 10 GB downloaded a month, 100 phones connected at once) are far beyond what a group of mates uses.
+
+## GitHub says the API key is leaked
+
+GitHub warns about any Google key it sees, and the Firebase `apiKey` in `config.js` is one. A website has to send that key to
+every phone, so it can't be hidden. It isn't a password: the database rules keep data private. What stops anyone else using
+your key is locking it to this app:
+
+1. Go to https://console.cloud.google.com/apis/credentials (same Google account) and pick your Firebase project at the top.
+2. Click the key named **Browser key (auto created by Firebase)**.
+3. **Application restrictions** › **Websites**. Add `https://elitepotato57-lgtm.github.io/*` and `http://localhost:8765/*`.
+4. **API restrictions** › **Restrict key**. Tick **Identity Toolkit API** and **Token Service API** (those are all the app uses). Save.
+5. Back on GitHub: **Security** › **Secret scanning** › open the alert › **Close as** › "Used in tests / false positive"
+   (or "Revoked" if you made a new key and put it in `config.js` instead).
+
+## New rules (stickers and messages)
+
+Re-publish `firebase/database.rules.json` (Realtime Database › Rules › paste › Publish) so sticker messages work.
+Message stickers: a developer phone (type **ELITE POTATO** in the map search) adds them under Friends › Add friend › Developer.
