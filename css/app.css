@@ -598,6 +598,11 @@ body *{touch-action:manipulation}
 .fr-alert{align-items:center;margin-bottom:8px}
 .fr-alert>div{flex:1}
 .fr-game{display:flex;gap:12px;align-items:center}
+.fr-bigswitch{font-size:calc(16px * var(--ts,1));font-weight:700}
+.fr-tiles{margin-top:2px}
+.sp-v{flex:1;text-align:right}
+.sp-sum .good{color:var(--ok);font-weight:700}.sp-sum .bad{color:var(--bad,#e86a5a);font-weight:700}
+.chip.locked{opacity:1;cursor:default}
 .fr-game-ic{font-size:24px;letter-spacing:-3px;white-space:nowrap;flex:none}
 .friends .row{flex-wrap:nowrap}
 .friends .sp-in{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--surface);color:var(--ink);padding:0 10px;font:inherit}

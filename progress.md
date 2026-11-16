@@ -178,3 +178,14 @@ node tests/photos-perf.js     # photo timings (needs signal)
   (needs a Google key; none is set, so nothing shows yet). Long reviews are never cut down.
 - Re-publish firebase/database.rules.json (new: admins, photos, invites, games).
 - Tests: unit 95 passed; browser suite 121 passed (three pretend phones, pretend Firebase with the same rules).
+
+## Friends pages (branch `claude/friends-pages`)
+
+- Friends page: a big Share my location switch at the top (it was only inside Add friend, so both phones were off), your
+  friends, then three tiles: Map, Split costs, Play. Map opens the normal map showing just friends; Friends is the first
+  chip in Essentials (switch it off to hide them). Tapping a friend glides the map from you to show you both.
+- Rename a friend (only on your phone): Add friend › pencil.
+- Split costs (full screen): your own tally only: "owes you" in green or "you owe" in red per person, with
+  "They paid me" / "I paid" to settle. You are "You", always ticked in Split between (can't be removed), and a split needs at
+  least one other person.
+- Tests: unit 97 passed; browser suite 126 passed.
