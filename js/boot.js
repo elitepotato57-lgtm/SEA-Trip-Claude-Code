@@ -15,6 +15,9 @@
   let lastTouch = 0;
   document.addEventListener("touchend", e => { const now = Date.now(); if (now - lastTouch < 320 && !(e.target.closest && e.target.closest("#map, .tmap, input, textarea, select"))) e.preventDefault(); lastTouch = now; }, {passive:false});
   refreshLiveRates(false);              // and today's exchange rates, if there is signal
+  // friends: messages and game invites pop up on whatever screen you're on (does nothing until Friends is set up)
+  if (typeof frLoop === "function") setTimeout(() => { try { frLoop(); } catch(e){} }, 1500);
+  if (typeof funnyStart === "function") funnyStart();   // funny mode's intro video (only when switched on in Settings)
 })();
 
 

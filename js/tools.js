@@ -314,6 +314,10 @@ function setupPage(){
     <p class="note">${frCfg() ? (frState().on ? `Sharing your location with ${Object.values(frState().list).filter(x => x.share).length} of ${Object.keys(frState().list).length} friends.` : "You aren’t sharing your location.") + " Choose who sees you, one by one." : "Not switched on yet (needs a free Firebase project, see FIREBASE-SETUP.md)."}</p>
     <a class="btn small" href="#tools/friends" style="margin-top:8px">${icon("users","i s")}Friends and sharing</a>
   </section>
+  <section class="block"><h2>Funny mode</h2>
+    <p class="note">For the lads: Tommy says hello when the app opens, China talks back when you tap it on the map, and Ben waves when you open Friends.</p>
+    <button class="switch" type="button" id="funnyOn" aria-pressed="${S.funny === true}" style="margin-top:6px"><i></i>Funny mode</button>
+  </section>
   <section class="block"><h2>Exchange rates</h2>
     <p class="note">How much £1 gets you. ${S.live ? `Live rates were last updated ${esc(S.live.date)}.` : "Live rates load when you open the Currency tool with signal."} Type your own rate to override one.</p>
     ${Object.keys(D.rates).filter(k => k !== "GBP").map(k => `<div class="rate-row"><label for="rate-${k}">£1 in ${k}</label><input type="number" step="any" min="0" id="rate-${k}" data-rate="${k}" value="${rate(k)}"><small>${S.rates[k] > 0 ? `Your own rate. Built-in: ${fmtNum(D.rates[k].v)} (${esc(D.rates[k].note)})` : liveRate(k) ? `Live rate. Built-in: ${fmtNum(D.rates[k].v)}` : `Built-in, ${esc(D.rates[k].note)}`}</small></div>`).join("")}
@@ -342,6 +346,7 @@ function bindSetup(){
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);
+  $("#funnyOn").onclick = () => { if (typeof funnySet === "function") funnySet(S.funny !== true); else { S.funny = S.funny !== true; persist(); } toast(S.funny ? "Funny mode on. Close and reopen the app for Tommy." : "Funny mode off"); renderPage(); };
   $("#gkeySave").onclick = () => { S.gkey = $("#gkey").value.trim(); persist(); gReady = null; toast(S.gkey ? "Key saved on this phone" : "Key removed"); renderPage(); };
   $("#gkeyTest").onclick = async () => {
     const k = $("#gkey").value.trim(); if (k && k !== S.gkey){ S.gkey = k; persist(); gReady = null; }

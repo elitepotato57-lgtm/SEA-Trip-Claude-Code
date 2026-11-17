@@ -84,3 +84,13 @@ your key is locking it to this app:
 
 Re-publish `firebase/database.rules.json` (Realtime Database › Rules › paste › Publish) so sticker messages work.
 Message stickers: a developer phone (type **ELITE POTATO** in the map search) adds them under Friends › Add friend › Developer.
+
+## New rules (games and the Trip tally)
+
+The five games in **Friends › Play** need new rules: re-publish `firebase/database.rules.json` (Realtime Database › Rules ›
+delete everything › paste › **Publish**). They replace the old Rock Paper Scissors rule (`games`) with:
+
+- `parties`: a game. Only the people in it can see it or play; you can only start one with yourself in it.
+- `tally`: the Trip tally. Everyone in the app can read it; each phone can only change its own wins.
+
+Until you do, starting a game says "Firebase said no".

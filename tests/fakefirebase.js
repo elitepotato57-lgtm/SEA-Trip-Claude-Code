@@ -27,7 +27,8 @@ function makeFake(){
     if (top === "msgs") return a === uid;
     if (top === "photos") return true;
     if (top === "invites") return a === uid;
-    if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));
+    if (top === "parties") return p.length >= 2 && get(["parties", a, "m", uid]) !== undefined;
+    if (top === "tally") return p.length >= 2;
     return false;
   }
   function canWrite(uid, p, val){
@@ -48,7 +49,13 @@ function makeFake(){
     if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
     if (top === "photos") return p.length === 2 && get(["admins", uid]) === true && (val == null || (typeof val === "string" && val.length < 40000 && val.startsWith("data:image/jpeg;base64,")));
     if (top === "invites") return p.length === 3 && (uid === b || uid === a);
-    if (top === "games") return p.length >= 2 && (a.startsWith(uid + "_") || a.endsWith("_" + uid));
+    if (top === "parties"){
+      // a member of the game (in m) can change any of it; anyone can start a new one with themselves in m
+      if (p.length < 2) return false;
+      if (get(["parties", a, "m", uid]) !== undefined) return true;
+      return p.length === 2 && get(["parties", a]) === undefined && !!val && !!val.m && val.m[uid] !== undefined && !!val.g && !!val.h;
+    }
+    if (top === "tally") return a === uid && p.length >= 2 && (p.length !== 3 || val == null || (typeof val.w === "number" && typeof val.p === "number"));
     return false;
   }
   const json = (status, body) => ({ok:status >= 200 && status < 300, status, json:async () => body, text:async () => JSON.stringify(body)});
