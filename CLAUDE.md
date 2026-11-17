@@ -42,7 +42,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Each game shows its rules the first time (`gm-seen`), and from the ? button.
 - `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). On start `media/tommy.mp4`
   plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
-  (`funnyMapTap`, called from the map's click handler; GEO's China plus a coarse Natural Earth outline north of 30°N) plays
+  (`funnyMapTap`, called from the map's click handler; GEO's China, which stops at 30°N, plus a coarse Natural Earth outline north of that) plays
   `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
   `media/ben-wave.mp4` by `python3 tools/ben-sprite.py` (flood-fills the black from the edges, so his navy jumper stays), animated with CSS `steps()`.
 - `js/split.js`: Tools › Split costs: "On this phone" (`S.split`, shared by link) or a live group with friends (bottom of

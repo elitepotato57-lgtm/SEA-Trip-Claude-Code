@@ -681,11 +681,12 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const f = await pg.evaluate(() => Object.assign({}, window.__fun, {map:!document.querySelector("#mapview").hidden && !!document.querySelector("#map canvas")}));
     ok(f.seen != null && f.fit === "cover" && f.inline && f.size[0] === 393 && f.size[1] === 852 && /^blob:/.test(f.src || "") && f.gone > 0 && f.map, "funny mode: Tommy's intro fills the screen (from a blob, inline), then fades into the map " + JSON.stringify(f));
     const tap = async (lng, lat) => { const p = await pg.evaluate(([x, y]) => { const q = map.project([x, y]), r = map.getContainer().getBoundingClientRect(); return {x:r.left + q.x, y:r.top + q.y}; }, [lng, lat]); await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(700); };
-    await pg.evaluate(() => map.jumpTo({center:[106, 30], zoom:3.6})); await pg.waitForTimeout(1500);
+    // (the main map stops at 33°N, so this is southern China)
+    await pg.evaluate(() => map.jumpTo({center:[107.5, 24.5], zoom:5})); await pg.waitForTimeout(1500);
     const n0 = await pg.evaluate(() => window.__fun.played.length);
-    await tap(112, 36);                                  // northern China
+    await tap(106.63, 26.65);                            // Guiyang, China
     const china = await pg.evaluate(n => window.__fun.played.slice(n).map(x => x.src), n0);
-    await tap(105.85, 21.03); await tap(113, 14);        // Hanoi, and the sea
+    await tap(105.85, 21.03); await tap(107.6, 20.2);    // Hanoi, and the Gulf of Tonkin
     const notChina = await pg.evaluate(n => window.__fun.played.length - n, n0 + china.length);
     ok(china.length === 1 && (china[0] === await pg.evaluate(() => funnyAudioUrl) || /chinese\.mp3/.test(china[0])) && notChina === 0, "funny mode: tapping China plays the sound; Vietnam and the sea don't " + JSON.stringify({china, notChina}));
     await pg.goto(BASE + "#tools/friends"); await pg.waitForTimeout(600);
