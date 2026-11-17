@@ -315,7 +315,7 @@ function paintDice(box, ctx, s, res){
   const last = s.last;
   let lastHTML = "";
   if (last && last.r === s.r - 1){
-    lastHTML = `<div class="gm-reveal"><b>${gmName(ctx, last.by)} called Liar on ${gmName(ctx, last.bid.by)}’s “${ldBidText(last.bid)}”.</b>
+    lastHTML = `<div class="gm-reveal"><b>${gmName(ctx, last.by)} called Liar on ${last.bid.by === me ? "your" : gmName(ctx, last.bid.by) + "’s"} “${ldBidText(last.bid)}”.</b>
       <div>There ${last.count === 1 ? "was" : "were"} ${gmWord(last.count)}. ${gmName(ctx, last.loser)} ${last.loser === me ? "lose" : "loses"} a die.</div>
       <div class="ld-all">${Object.entries(last.dice || {}).map(([u, v]) => `<div><small>${gmName(ctx, u)}</small><span>${[...v].map(x => `<i class="${+x === last.bid.f ? "hl" : ""}">${DIE[+x]}</i>`).join("")}</span></div>`).join("")}</div></div>`;
   }
