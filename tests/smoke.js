@@ -436,8 +436,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(pick.includes("Send kata"), "Send a message under a friend shows the stickers, each saying Send and its name " + JSON.stringify(pick));
     await B.pg.click("#stk-pick [data-stksend]"); await B.pg.waitForTimeout(1500);
     await A.pg.evaluate(() => frPoll()); await A.pg.waitForTimeout(1500);
-    const got = await A.pg.evaluate(() => { const m = document.querySelector("#msgRoot .msg-pop"); return m ? {t:m.innerText.replace(/\s+/g, " "), img:!!m.querySelector("img"), view:ui.view, w:Math.round(m.getBoundingClientRect().right)} : null; });
-    ok(got && /PC sent you a message/.test(got.t) && !got.img && got.view === "map" && got.w <= 393, "a message pops up on whatever screen Dylan is on (here the map), without giving away what it is " + JSON.stringify(got));
+    const got = await A.pg.evaluate(() => { const m = document.querySelector("#msgRoot .msg-pop"); return m ? {t:m.innerText.replace(/\s+/g, " "), img:!!m.querySelector(".msg-stk"), face:!!m.querySelector(".msg-av .fr-av"), view:ui.view, w:Math.round(m.getBoundingClientRect().right)} : null; });
+    ok(got && /PC sent you a message/.test(got.t) && !got.img && got.face && got.view === "map" && got.w <= 393, "a message pops up on whatever screen Dylan is on (here the map), without giving away what it is " + JSON.stringify(got));
     await A.pg.click('#msgRoot [data-msg="open"]'); await A.pg.waitForTimeout(1500);
     const opened = await A.pg.evaluate(() => { const m = document.querySelector("#msgRoot .msg-pop"); return m ? {name:(m.querySelector(".msg-name") || {}).textContent, img:!!(m.querySelector("img.msg-stk") || {}).src} : null; });
     ok(opened && opened.name === "kata" && opened.img && !Object.keys((fb.root.msgs || {})[uidA] || {}).length, "Open shows the sticker and its name, and the message is deleted " + JSON.stringify(opened));
