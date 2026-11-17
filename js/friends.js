@@ -253,9 +253,8 @@ async function frPoll(){
     const me = frMyId();
     if (me){
       const got = await frDb("GET", `msgs/${me}`) || {};
-      const fresh = Object.entries(got).filter(([id]) => !frMsgs[id]);
       frMsgs = got;
-      if (fresh.length){ await frLoadStickers().catch(() => {}); if (!(ui.view === "tools" && ui.sub === "friends")){ const [, mm] = fresh[0]; const st = frStickers[mm.s]; toast(`${frNameOf(mm.f)} sent you a ${st ? st.n : "sticker"}. Open Tools › Friends.`); } }
+      frMsgPopup();
     }
   } catch(e){}
   // someone added you to a live split group while Friends is open: show it
@@ -274,9 +273,8 @@ function frGotInvites(v){
   const fresh = Object.entries(frInvites).filter(([uid, x]) => x && x.t > frInviteSeen && frState().list[uid]);
   if (!fresh.length) return;
   frInviteSeen = Math.max(...fresh.map(([, x]) => x.t)); lsSet("fr-inv-seen", frInviteSeen);
-  const [uid] = fresh[fresh.length - 1];
-  if (rpsWith === uid && $("#rpsBox")) return;
-  if (typeof askConfirm === "function") askConfirm(`${frNameOf(uid)} wants to play Rock Paper Scissors`, "Play").then(yes => { if (yes) openRps(uid); });
+  const [uid, inv] = fresh.sort((a, b) => a[1].t - b[1].t)[fresh.length - 1];
+  if (typeof gmInvited === "function") gmInvited(uid, inv);
   paintFriendsLive();
 }
 function frListenInvites(){
@@ -317,7 +315,7 @@ function frDrawOn(m, store, onTap){
   }
 }
 const frTapToast = uid => { const w = frLocs[uid], me = frMeHere(); if (w && isFinite(w.lat)) toast(`${frNameOf(uid)}: seen ${frAgo(w.t)}${me ? `, ${distShort(dist(me, w))} away` : ""}`); };
-const frOnMap = () => typeof ui === "undefined" || ui.mapFriends !== false;
+const frOnMap = () => typeof ui !== "undefined" && ui.mapFriends === true;
 function drawFriends(){
   if (typeof map === "undefined" || !map) return;
   if (frOnMap()) frDrawOn(map, frMarkers, uid => { frFlyTo(uid); });
@@ -387,12 +385,10 @@ function paintFriendsLive(){
   const al = $("#fr-alerts"); if (al) paintFrAlerts(al);
 }
 function paintFrAlerts(el){
-  const inv = Object.entries(frInvites).filter(([uid, v]) => v && frState().list[uid]);
-  const msgs = Object.entries(frMsgs).sort((a, b) => (b[1].t || 0) - (a[1].t || 0));
-  el.innerHTML = msgs.map(([id, mm]) => { const st = frStickers[mm.s]; return `<div class="callout fr-alert fr-msg">${st && st.d ? `<img class="fr-sticker" src="${esc(st.d)}" alt="${esc(st.n)}">` : frAvatar(mm.f, 40)}<div><b>${esc(frNameOf(mm.f))}</b> sent you a ${st ? esc(st.n) : "sticker"}<div class="note">${esc(frWhen(mm.t))}</div></div><button class="icon-btn" type="button" data-frmsgdel="${esc(id)}" aria-label="Dismiss">${icon("x","i s")}</button></div>`; }).join("") + inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play Rock Paper Scissors</div><button class="btn small primary" type="button" data-frplay="${esc(uid)}">Play</button></div>`).join("")
+  const inv = Object.entries(frInvites).filter(([uid, v]) => v && v.p && frState().list[uid] && typeof GAMES !== "undefined" && GAMES[v.g]);
+  el.innerHTML = inv.map(([uid, v]) => `<div class="callout fr-alert">${frAvatar(uid, 32)}<div><b>${esc(frNameOf(uid))}</b> wants to play ${esc(GAMES[v.g].n)}</div><button class="btn small primary" type="button" data-frplay="${esc(v.p)}">Play</button></div>`).join("")
     + (frReqs || []).map(r => `<div class="callout fr-alert">${frAvatar(r.uid, 32, r.n)}<div><b>${esc(r.n)}</b> added you</div><button class="btn small primary" type="button" data-frback="${esc(r.c || "")}">Add back</button><button class="icon-btn" type="button" data-frign="${esc(r.uid)}" aria-label="Ignore ${esc(r.n)}">${icon("x","i s")}</button></div>`).join("");
-  el.querySelectorAll("[data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
-  el.querySelectorAll("[data-frmsgdel]").forEach(b => b.onclick = () => { const id = b.dataset.frmsgdel; delete frMsgs[id]; paintFriendsLive(); frDb("DELETE", `msgs/${frMyId()}/${id}`).catch(() => {}); });
+  el.querySelectorAll("[data-frplay]").forEach(b => b.onclick = () => openParty(b.dataset.frplay));
   el.querySelectorAll("[data-frback]").forEach(b => b.onclick = () => frAdd(b.dataset.frback).then(n => { toast(`Added ${n}`); frReqs = frReqs.filter(r => r.c !== b.dataset.frback); frLoop(); renderFriendsPage(); }, frFail));
   el.querySelectorAll("[data-frign]").forEach(b => b.onclick = () => frIgnore(b.dataset.frign).then(() => { frReqs = frReqs.filter(r => r.uid !== b.dataset.frign); paintFriendsLive(); }, frFail));
 }
@@ -439,7 +435,7 @@ function renderFriendsPage(root = $("#pageview")){
     <div class="tgrid fr-tiles">
       <a class="tool" href="#map" id="fr-go-map"><span class="ti">${icon("map")}</span><span><b>Map</b><small>See everyone on the map</small></span></a>
       <a class="tool alt" href="#tools/friends-split"><span class="ti">${icon("cash")}</span><span><b>Split costs</b><small>Who owes who</small></span></a>
-      <a class="tool" href="#tools/friends-play"><span class="ti">${icon("spark")}</span><span><b>Play</b><small>Rock Paper Scissors</small></span></a>
+      <a class="tool" href="#tools/friends-play"><span class="ti">${icon("spark")}</span><span><b>Play</b><small>Five games and the Trip tally</small></span></a>
     </div></div>`;
   root.innerHTML = html;
   paintFriendsLive();
@@ -460,16 +456,6 @@ TOOL_PAGES["friends-split"] = root => {
   root.innerHTML = hero({title:"Split costs", sub:"What you owe your mates, and what they owe you", back:["#tools/friends", "Friends"]}) + `<div class="page"><div id="fr-split" class="split"><p class="note">Loading…</p></div></div>`;
   frSplitPaint(); frLoop();
 };
-// Friends › Play, full screen
-TOOL_PAGES["friends-play"] = root => {
-  const f = frState(), list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
-  root.innerHTML = hero({title:"Play", sub:"Games with your mates, live", back:["#tools/friends", "Friends"]}) + `<div class="page friends">${frCfg() ? `<div id="fr-alerts"></div>
-    <div class="block"><div class="fr-game"><span class="fr-game-ic">✊✋✌️</span><div><b>Rock Paper Scissors</b><div class="note">Live against a friend, as many rounds as the bus ride lasts. Pick who to play:</div></div></div>
-      ${list.length ? `<div class="flags" style="margin-top:10px">${list.map(([uid, x]) => `<button class="chip soft" type="button" data-frplay="${esc(uid)}">${frAvatar(uid, 20)} ${esc(x.n)}</button>`).join("")}</div>` : `<p class="note">Add a friend first (Friends › Add friend).</p>`}</div>` : friendsSetupHTML()}</div>`;
-  root.querySelectorAll(".fr-game ~ .flags [data-frplay]").forEach(b => b.onclick = () => openRps(b.dataset.frplay));
-  paintFriendsLive(); frLoop();
-};
-
 /* ---------- the Add friend sheet: you, your code, adding, removing, and the developer bits ---------- */
 function openFriendSheet(){
   const f = frState(), list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0)), dev = S.dev === true;
@@ -574,9 +560,9 @@ async function paintDev(){
   // the shared face (not your own photo of them)
   const sharedAv = uid => { const x = frState().list[uid], keep = x && x.pic; if (keep) delete x.pic; const h = frAvatar(uid, 40); if (keep) x.pic = keep; return h; };
   el.innerHTML = `<div class="block"><h2>Message stickers</h2>
-      <p class="note">Pictures your mates send each other. The name is what it says: “Send Cooked”, and “Sam sent you a Cooked”. Kept in Firebase, not on the public website.</p>
-      <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk" data-stk="${esc(id)}">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<small>${esc(st.n)}</small>
-        <div class="fr-stkact"><button class="icon-btn" type="button" data-stkren="${esc(id)}" aria-label="Rename ${esc(st.n)}">${icon("edit","i s")}</button><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
+      <p class="note">Pictures your mates send each other. Tap a name to change it: it’s what people see when they open the message (“Sam sent you: Cooked”). Kept in Firebase, not on the public website.</p>
+      <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk" data-stk="${esc(id)}">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<input class="sp-in fr-stkname" type="text" maxlength="30" value="${esc(st.n)}" data-stkname="${esc(id)}" aria-label="Name of this sticker" enterkeyhint="done">
+        <div class="fr-stkact"><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
       <label class="btn small fr-photo" style="margin-top:10px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label></div>
     <div class="block"><h2>Developers</h2><p class="note">Who else can do all this. Switch a friend on to make them a developer.</p>
       <div class="fr-row"><span>${frAvatar(me, 36)}</span><div><b>This phone</b><div class="note">Developer</div></div></div>
@@ -596,18 +582,16 @@ async function paintDev(){
     }
     paintDev();
   };
-  el.querySelectorAll("[data-stkren]").forEach(b => b.onclick = () => {
-    const id = b.dataset.stkren, st = frStickers[id], box = b.closest(".fr-stk"); if (!st) return;
-    box.querySelector("small").outerHTML = `<span class="fr-ren"><input class="sp-in" type="text" maxlength="30" value="${esc(st.n)}" aria-label="New name"><button class="btn small primary" type="button">Save</button></span>`;
-    box.querySelector(".fr-stkact").hidden = true;
-    const inp = box.querySelector(".fr-ren input"), save = () => {
-      const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 30);
-      if (!n || n === st.n){ paintDev(); return; }
-      frRenameSticker(id, n).then(() => { toast(`Renamed to ${n}`); paintDev(); }, frFail);
+  el.querySelectorAll("[data-stkname]").forEach(inp => {
+    const id = inp.dataset.stkname;
+    const save = () => {
+      const st = frStickers[id], n = inp.value.trim().replace(/\s+/g, " ").slice(0, 30);
+      if (!st || n === st.n) return;
+      if (!n){ inp.value = st.n; return; }
+      frRenameSticker(id, n).then(() => toast(`Renamed to ${n}`), e => { inp.value = st.n; frFail(e); });
     };
-    box.querySelector(".fr-ren button").onclick = save;
-    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); save(); } };
-    inp.focus(); inp.select();
+    inp.onchange = save;
+    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); inp.blur(); } };
   });
   el.querySelectorAll("[data-stkdel]").forEach(b => b.onclick = async () => { const st = frStickers[b.dataset.stkdel]; if (!(await askConfirm(`Delete the ${st ? st.n : ""} sticker for everyone?`, "Delete", true))) return; frDeleteSticker(b.dataset.stkdel).then(paintDev, frFail); });
   el.querySelectorAll("[data-mkdev]").forEach(b => b.onclick = async () => {
@@ -626,7 +610,8 @@ function frDevCode(text){
   return true;
 }
 
-/* ---------- messages: send a friend one of the stickers; it shows at the top of their Friends page ----------
+/* ---------- messages: send a friend one of the stickers. On their phone, whatever screen they're on, a popup says
+   "Sam sent you a message" (not what it is); Open shows the sticker and its name, then it's gone. ----------
    stickerIndex/{id} name (small, checked often)   stickers/{id} {n, d: small PNG}   msgs/{toUid}/{id} {f: from, s: sticker, t}
    Stickers are added by a developer phone (rules); only signed-in app users can load them, they're not on the public site. */
 const FR_STK_KEY = "fr-stickers-v1";
@@ -683,6 +668,33 @@ async function frSendSticker(to, id){
   await frDb("PUT", `msgs/${to}/${mid}`, {f:me.uid, s:id, t:{".sv":"timestamp"}});
   return mid;
 }
+let frMsgShown = new Set();
+function frMsgPopup(){
+  if (typeof document === "undefined" || $("#msgRoot")) return;
+  const next = Object.entries(frMsgs || {}).filter(([id, mm]) => mm && mm.f && !frMsgShown.has(id)).sort((a, b) => (a[1].t || 0) - (b[1].t || 0))[0];
+  if (!next) return;
+  const [id, mm] = next; frMsgShown.add(id);
+  const root = document.createElement("div"); root.id = "msgRoot"; document.body.appendChild(root);
+  const close = () => { root.remove(); setTimeout(frMsgPopup, 400); };
+  root.innerHTML = `<div class="cfm-wrap msg-wrap"><div class="cfm msg-pop" role="alertdialog" aria-modal="true" aria-labelledby="msg-t">
+    <div class="msg-av">${frAvatar(mm.f, 56)}</div><p id="msg-t"><b>${esc(frNameOf(mm.f))}</b> sent you a message</p>
+    <div class="row"><button class="btn" type="button" data-msg="later">Later</button><button class="btn primary" type="button" data-msg="open">Open</button></div></div></div>`;
+  root.querySelector('[data-msg="later"]').onclick = close;
+  root.querySelector('[data-msg="open"]').onclick = async () => {
+    const box = root.querySelector(".msg-pop"); box.innerHTML = `<p class="note">Opening…</p>`;
+    await frLoadStickers().catch(() => {});
+    if (!frStickers[mm.s]) await frLoadStickers(true).catch(() => {});
+    const st = frStickers[mm.s];
+    box.innerHTML = `<p id="msg-t"><b>${esc(frNameOf(mm.f))}</b> sent you${st ? ":" : " a sticker"}</p>
+      ${st && st.d ? `<img class="msg-stk" src="${esc(st.d)}" alt="">` : ""}${st ? `<div class="msg-name">${esc(st.n)}</div>` : `<p class="note">It’s been deleted since.</p>`}
+      <div class="note">${esc(frWhen(mm.t))}</div>
+      <div class="row"><button class="btn" type="button" data-msg="reply">Send one back</button><button class="btn primary" type="button" data-msg="done">Close</button></div>`;
+    delete frMsgs[id]; frDb("DELETE", `msgs/${frMyId()}/${id}`).catch(() => {});
+    box.querySelector('[data-msg="done"]').onclick = close;
+    box.querySelector('[data-msg="reply"]').onclick = () => { root.remove(); openStickerPicker(mm.f); };
+  };
+  root.querySelector('[data-msg="open"]').focus();
+}
 async function openStickerPicker(to){
   openSheet(`<div class="sheet-head"><div><h2 id="stk-t">Message ${esc(frNameOf(to))}</h2><div class="note">Pick one to send</div></div><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
     <div class="fr-stkpick" id="stk-pick"><p class="note">Loading…</p></div>`, "stk-t");
@@ -695,68 +707,6 @@ async function openStickerPicker(to){
     b.disabled = true;
     frSendSticker(to, b.dataset.stksend).then(() => { toast(`Sent ${frStickers[b.dataset.stksend].n} to ${frNameOf(to)}`); $("#sheetRoot").querySelector(".sheet-head [data-close]").click(); }, e => { b.disabled = false; frFail(e); });
   });
-}
-
-/* ---------- Rock Paper Scissors, live between two friends ----------
-   games/{a_b} (the two IDs, sorted) {g:"rps", round:n, r:{n:{uid:"rock"|"paper"|"scissors"}}}. Only the two players can read it.
-   Each phone shows the other's pick only once both have picked; a round ends a few seconds after both picks are in. */
-const RPS = {rock:"✊", paper:"✋", scissors:"✌️"};
-const rpsBeats = {rock:"scissors", paper:"rock", scissors:"paper"};
-const rpsRoom = (a, b) => [a, b].sort().join("_");
-function rpsScore(g, me, them){
-  const r = (g && g.r) || {}; let mine = 0, theirs = 0;
-  for (const k of Object.keys(r)){ const a = r[k][me], b = r[k][them]; if (!a || !b || a === b) continue; if (rpsBeats[a] === b) mine++; else theirs++; }
-  return [mine, theirs];
-}
-let rpsStop = null, rpsWith = "";
-async function openRps(them){
-  rpsWith = them;
-  const me = await frMe().catch(frFail); if (!me) return;
-  const room = rpsRoom(me.uid, them), f = frState();
-  frDb("DELETE", `invites/${me.uid}/${them}`).catch(() => {}); delete frInvites[them];
-  frDb("PUT", `invites/${them}/${me.uid}`, {g:"rps", n:f.name || "A friend", t:{".sv":"timestamp"}}).catch(() => {});
-  const g0 = await frDb("GET", `games/${room}`).catch(() => null);
-  if (!g0 || !g0.round) await frDb("PUT", `games/${room}`, {g:"rps", round:1}).catch(frFail);
-  openSheet(`<div class="sheet-head"><div><h2 id="rps-t">Rock Paper Scissors</h2><div class="note">You vs ${esc(frNameOf(them))}</div></div><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
-    <div class="rps" id="rpsBox">
-      <div class="rps-score"><div>${frAvatar(me.uid, 44)}<b id="rps-me">0</b><small>You</small></div><div class="rps-round" id="rps-round">Round 1</div><div>${frAvatar(them, 44)}<b id="rps-them">0</b><small>${esc(frNameOf(them))}</small></div></div>
-      <div class="rps-stage"><span class="hand me" id="rps-hme">✊</span><span class="vs">vs</span><span class="hand them" id="rps-hthem">✊</span></div>
-      <p class="rps-msg" id="rps-msg">Pick one</p>
-      <div class="rps-pick">${Object.entries(RPS).map(([k, e]) => `<button type="button" data-rps="${k}"><span>${e}</span><small>${k[0].toUpperCase() + k.slice(1)}</small></button>`).join("")}</div>
-      <p class="note">${esc(frNameOf(them))} gets an invite next time their app checks. Picks stay hidden until you’ve both chosen.</p>
-    </div>`, "rps-t");
-  let g = g0, shown = 0, nextT = null;
-  const paint = () => {
-    const box = $("#rpsBox"); if (!box){ if (rpsStop) rpsStop(); rpsStop = null; clearTimeout(nextT); return; }
-    const round = (g && g.round) || 1, cur = ((g && g.r) || {})[round] || {}, mine = cur[me.uid], theirs = cur[them];
-    const [a, b] = rpsScore({r:Object.fromEntries(Object.entries((g && g.r) || {}).filter(([k]) => +k < round || (cur[me.uid] && cur[them] && +k === round)))}, me.uid, them);
-    $("#rps-me").textContent = a; $("#rps-them").textContent = b; $("#rps-round").textContent = `Round ${round}`;
-    box.querySelectorAll("[data-rps]").forEach(x => { x.disabled = !!mine; x.classList.toggle("on", x.dataset.rps === mine); });
-    const hm = $("#rps-hme"), ht = $("#rps-hthem"), msg = $("#rps-msg");
-    if (mine && theirs){
-      if (shown !== round){
-        shown = round; hm.textContent = ht.textContent = "✊"; box.classList.add("shake"); msg.textContent = "Rock… paper… scissors…";
-        setTimeout(() => {
-          box.classList.remove("shake"); hm.textContent = RPS[mine]; ht.textContent = RPS[theirs];
-          msg.textContent = mine === theirs ? "Draw!" : rpsBeats[mine] === theirs ? "You win! 🎉" : `${frNameOf(them)} wins`;
-          msg.className = "rps-msg " + (mine === theirs ? "" : rpsBeats[mine] === theirs ? "good" : "bad");
-          clearTimeout(nextT); nextT = setTimeout(() => { if ($("#rpsBox") && g.round === round) frDb("PUT", `games/${room}/round`, round + 1).catch(() => {}); }, 2600);
-        }, 900);
-      }
-    } else {
-      hm.textContent = mine ? RPS[mine] : "✊"; ht.textContent = "✊"; msg.className = "rps-msg";
-      msg.textContent = mine ? (theirs ? "" : `Waiting for ${frNameOf(them)}…`) : theirs ? `${frNameOf(them)} has picked. Your turn!` : "Pick one";
-    }
-  };
-  $("#rpsBox").querySelectorAll("[data-rps]").forEach(b => b.onclick = () => {
-    const round = (g && g.round) || 1;
-    if ((((g && g.r) || {})[round] || {})[me.uid]) return;
-    g = frSetIn(g, `r/${round}/${me.uid}`, b.dataset.rps); paint();
-    frDb("PUT", `games/${room}/r/${round}/${me.uid}`, b.dataset.rps).catch(frFail);
-  });
-  paint();
-  if (rpsStop) rpsStop();
-  rpsStop = frListen(`games/${room}`, v => { g = v || {g:"rps", round:1}; paint(); });
 }
 
 /* ---------- live split costs on Friends › Split costs (the same groups as Tools › Split costs) ---------- */
