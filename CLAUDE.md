@@ -88,7 +88,11 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Spend cap GBP 2/month: cache results, only fetch for cards on screen, minimal fields, per-phone daily allowance
   (`G_DAILY`: photo 40, details 25, vision 15).
 - Documents stay on the phone (IndexedDB) and are read on the phone. Never send them to a server.
-- Work on a branch and open a PR. Don't push to `main` unless Dylan asks.
+- **Standing permission from Dylan (given 17 Nov 2026), for while he's travelling with only his phone:** once a change is done,
+  merge it straight into `main` and push, so it goes live, **but only if `npm test` passes in full**. Work on a branch first,
+  then merge into `main` (don't rewrite `main`'s history). If any test fails and you can't fix it, don't merge: push the branch,
+  open a PR and tell Dylan in plain English what's wrong. After merging, tell him it's live and to close and reopen the app twice.
+  If he asks to undo a change, revert its commit on `main` (a new commit; never force-push).
 
 ## Design Lab look codes
 
