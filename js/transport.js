@@ -305,7 +305,12 @@ function initTransportMap(){
     tmap.addLayer({id:"trip-fly", type:"line", source:"trip", filter:["==", ["get", "fly"], true], paint:{"line-color":["get", "col"], "line-width":3, "line-dasharray":[1, 2.5]}});
     tmap.addSource("hubs", {type:"geojson", data:fc([])});
     tmap.addLayer({id:"hub-dot", type:"circle", source:"hubs", paint:{"circle-radius":["case", ["get", "big"], 8, 5.5], "circle-color":["get", "col"], "circle-stroke-color":cssv("--bg"), "circle-stroke-width":2}});
-    tmap.addLayer({id:"hub-name", type:"symbol", source:"hubs", minzoom:5.4, layout:{"text-field":["get", "n"], "text-font":["Noto Sans Regular"], "text-size":10.5, "text-offset":[0, .9], "text-anchor":"top", "text-optional":true},
+    // the trip's towns and islands by name (those that aren't also a stop, which has its own name below its dot)
+    const hubNames = new Set(Object.values(HUB).map(h => h.n.toLowerCase()));
+    tmap.addSource("cities", {type:"geojson", data:fc(D.cities.filter(c => !hubNames.has(String(c[0]).toLowerCase())).map(c => ({type:"Feature", geometry:{type:"Point", coordinates:[c[2], c[1]]}, properties:{n:c[0]}})))});
+    tmap.addLayer({id:"city-name", type:"symbol", source:"cities", minzoom:4, layout:{"text-field":["get", "n"], "text-font":["Noto Sans Regular"], "text-size":11, "text-optional":true, "text-padding":3},
+      paint:{"text-color":cssv("--ink"), "text-halo-color":cssv("--halo"), "text-halo-width":1.2}});
+    tmap.addLayer({id:"hub-name", type:"symbol", source:"hubs", minzoom:4.6, layout:{"text-field":["get", "n"], "text-font":["Noto Sans Regular"], "text-size":10.5, "text-offset":[0, .9], "text-anchor":"top", "text-optional":true},
       paint:{"text-color":cssv("--muted"), "text-halo-color":cssv("--halo"), "text-halo-width":1.1}});
     tmap.addSource("ends", {type:"geojson", data:fc([])});
     tmap.addLayer({id:"end-dot", type:"circle", source:"ends", paint:{"circle-radius":8, "circle-color":["get", "col"], "circle-stroke-color":cssv("--bg"), "circle-stroke-width":2}});

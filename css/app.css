@@ -612,13 +612,11 @@ html:root .crumb.fr-addbtn,html:root:root:root .crumb.fr-addbtn{background:#E3FA
 .fr-st.good{color:var(--ok)}
 .fr-alert{align-items:center;margin-bottom:8px}
 .fr-alert>div{flex:1}
-.fr-game{display:flex;gap:12px;align-items:center}
 .fr-bigswitch{font-size:calc(16px * var(--ts,1));font-weight:700}
 .fr-tiles{margin-top:2px}
 .sp-v{flex:1;text-align:right}
 .sp-sum .good{color:var(--ok);font-weight:700}.sp-sum .bad{color:var(--bad,#e86a5a);font-weight:700}
 .chip.locked{opacity:1;cursor:default}
-.fr-game-ic{font-size:24px;letter-spacing:-3px;white-space:nowrap;flex:none}
 .friends .row{flex-wrap:nowrap}
 .friends .sp-in{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--surface);color:var(--ink);padding:0 10px;font:inherit}
 .fr-photo{cursor:pointer}
@@ -632,47 +630,21 @@ html:root .crumb.fr-addbtn,html:root:root:root .crumb.fr-addbtn{background:#E3FA
 .sp-hist .amt{display:flex;flex-direction:column;align-items:flex-end;flex:none;text-align:right}
 .sp-hist .amt small{color:var(--muted)}
 .sp-hist .amt .icon-btn{margin-top:4px;width:28px;height:28px}
-.rps{text-align:center;padding-bottom:10px}
-.rps-score{display:flex;justify-content:space-between;align-items:center;margin:6px 0 10px}
-.rps-score>div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:80px}
-.rps-score b{font-size:28px;line-height:1}
-.rps-score small{color:var(--muted)}
-.rps-round{font-weight:700;color:var(--muted)}
-.rps-stage{display:flex;justify-content:center;align-items:center;gap:22px;margin:8px 0}
-.rps .hand{font-size:64px;line-height:1;display:inline-block}
-.rps .hand.me{transform:scaleX(-1)}
-.rps .vs{color:var(--muted);font-weight:700}
-.rps.shake .hand{animation:rpsShake .3s ease-in-out 3}
-.rps.shake .hand.me{animation-name:rpsShakeMe}
-@keyframes rpsShake{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
-@keyframes rpsShakeMe{0%,100%{transform:scaleX(-1) translateY(0)}50%{transform:scaleX(-1) translateY(-18px)}}
-.rps-msg{font-size:18px;font-weight:700;min-height:26px;margin:6px 0 12px}
-.rps-msg.good{color:var(--ok)}.rps-msg.bad{color:var(--bad,#e86a5a)}
-.rps-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.rps-pick button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:12px 0 8px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
-.rps-pick button span{font-size:38px;line-height:1}
-.rps-pick button.on{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
-.rps-pick button:disabled:not(.on){opacity:.45}
-@media (prefers-reduced-motion:reduce){.rps.shake .hand{animation:none}}
 .card .rev{margin:2px 0 3px;font-size:calc(13px * var(--ts,1));color:var(--ink);font-style:italic}
 .card .rev small{font-style:normal;color:var(--muted)}
-.cfm-wrap{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);display:grid;place-items:center;padding:16px}
+.cfm-wrap{position:fixed;inset:0;z-index:2600;background:rgba(0,0,0,.5);display:grid;place-items:center;padding:16px}
 .cfm{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:16px;max-width:340px;width:100%;box-shadow:var(--shadow)}
 .cfm p{margin:0 0 14px;line-height:1.4}
 .cfm .row{justify-content:flex-end;gap:8px}
 .btn.danger{background:var(--bad,#e86a5a);border-color:var(--bad,#e86a5a);color:#fff}
 .fr-namefirst .fr-bigin{width:100%;height:46px;font-size:18px;margin-top:6px}
 .fr-msgbtn{display:inline-flex;align-items:center;gap:4px;margin-top:3px;font-size:13px}
-.fr-ren{display:flex;gap:6px;align-items:center;flex:1;min-width:0}
-.fr-msg .fr-sticker{width:64px;height:64px;object-fit:contain;flex:none}
 .fr-stickers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
 .fr-stk{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);border-radius:var(--r-s);padding:6px}
 .fr-stk img{width:64px;height:64px;object-fit:contain}
-.fr-stk small{font-size:11px;text-align:center}
 .fr-stkact{display:flex;gap:2px}
 .fr-stkact .icon-btn{width:30px;height:30px}
-.fr-stk .fr-ren{flex-direction:column;align-items:stretch;width:100%}
-.fr-stk .fr-ren input{min-height:34px;padding:4px 6px;font-size:14px}
+.friends .fr-stkname{flex:none;width:100%;height:32px;padding:0 6px;font-size:13px;text-align:center}
 .fr-row .fr-edit{flex:none;width:34px;height:34px}
 .fr-editav{display:flex;align-items:center;gap:14px;margin-bottom:12px}
 .fr-editpics{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
@@ -705,3 +677,136 @@ html:root .crumb.fr-addbtn,html:root:root:root .crumb.fr-addbtn{background:#E3FA
 /* the map preview's photo, when the place has one (falls back to its icon) */
 .preview .ph{position:relative;overflow:hidden}
 .preview .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* ---------- Friends › Play: the five games (js/games.js). Everything fits a 393 px screen (361 px inside a sheet). ---------- */
+.gm{padding:4px 0 10px}
+.gm-headbtns{flex:none;gap:6px;flex-wrap:nowrap}
+.gm-help{font-size:18px;font-weight:800;color:var(--ink)}
+.gm-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.gm-list{display:grid;gap:8px;margin-bottom:12px}
+.gm-tile{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:10px 12px;color:var(--ink);font:inherit}
+.gm-tile b{display:block;font-size:calc(15px * var(--ts,1));line-height:1.2}
+.gm-tile small{display:block;font-size:calc(12px * var(--ts,1));color:var(--muted);line-height:1.3;margin-top:2px}
+.gm-tile>.i{color:var(--muted)}
+.gm-tic{font-size:22px;letter-spacing:-4px;white-space:nowrap;line-height:1;text-align:center;flex:none}
+.gm-rec{width:100%;background:none;border:0;border-bottom:1px solid var(--line);color:var(--ink);font:inherit;text-align:left}
+.gm-rec .gm-tic{width:44px}
+.gm-rec>.i{color:var(--muted);flex:none}
+/* the rules card */
+.gm-rules{position:fixed;inset:0;z-index:2100;background:rgba(10,13,15,.66);display:grid;place-items:center;padding:16px}
+.gm-rcard{width:100%;max-width:360px;max-height:100%;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:18px 16px 16px;box-shadow:var(--shadow)}
+.gm-ric{font-size:34px;letter-spacing:-4px;text-align:center;line-height:1.1}
+.gm-rcard h3{text-align:center;font-size:calc(19px * var(--ts,1));margin:6px 0 8px}
+.gm-rcard ol{margin:0 0 14px;padding-left:20px;display:grid;gap:6px;font-size:calc(14px * var(--ts,1));line-height:1.4}
+/* shared bits */
+.gm-players{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:2px 0 8px}
+.gm-pl{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:calc(13px * var(--ts,1));font-weight:600;max-width:100%}
+.gm-pl.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.gm-pl.out{opacity:.45;text-decoration:line-through}
+.gm-pl small{font-size:11px;letter-spacing:-2px}
+.gm-pl b{font-size:calc(15px * var(--ts,1))}
+.gm-msg{text-align:center;font-weight:700;font-size:calc(15px * var(--ts,1));min-height:22px;margin:4px 0 10px}
+.gm-c{text-align:center}
+.gm-row{justify-content:center;margin-top:12px}
+.gm-round{text-align:center;color:var(--muted);font-weight:700;font-size:calc(12.5px * var(--ts,1));text-transform:uppercase;letter-spacing:.06em;margin:2px 0 8px}
+.gm-lobby .fr-row .i{color:var(--ok);flex:none}
+.gm-lobby>.note{margin:12px 0}
+.gm-end{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--surface);text-align:center}
+.gm-end>b{display:block;font-size:calc(19px * var(--ts,1));margin-bottom:10px}
+.gm-end.good{border-color:var(--ok)}
+.gm-end.good>b{color:var(--ok)}
+.gm-end .row{justify-content:center}
+.gm-reveal{margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.gm-reveal>b{display:block;margin-bottom:4px}
+.gm-ans{margin:8px 0 12px;padding-left:22px;display:grid;gap:3px}
+.gm-ans li.win{font-weight:700;color:var(--ok)}
+/* 1. Four in a row */
+.c4-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none}
+.c4-dot.a,.c4-c.a{background:#E5484D}
+.c4-dot.b,.c4-c.b{background:#F5C542}
+.c4{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;width:100%;max-width:340px;margin:0 auto;padding:7px;border-radius:var(--r);background:#24508C}
+.c4-c{aspect-ratio:1;width:100%;border:0;padding:0;border-radius:50%;background:var(--bg);box-shadow:inset 0 2px 4px rgba(0,0,0,.35);pointer-events:none}
+.c4.go .c4-c{pointer-events:auto;cursor:pointer}
+.c4-c.last{box-shadow:inset 0 2px 4px rgba(0,0,0,.35),0 0 0 2px #fff}
+.c4-c.win{animation:gmPulse .9s ease-in-out infinite alternate;box-shadow:0 0 0 3px #fff}
+@keyframes gmPulse{from{transform:scale(1)}to{transform:scale(.82)}}
+/* 2. Sink the fleet */
+.sf-lbl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;margin:10px 0 6px}
+.sf-lbl small{font-weight:500;color:var(--muted)}
+.sf-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin:0 auto;padding:4px;border-radius:var(--r-s);background:#1E5263}
+.sf-grid.big{width:100%;max-width:340px}
+.sf-grid.small{width:100%;max-width:184px;gap:2px;padding:3px}
+.sf-c{aspect-ratio:1;width:100%;border:0;padding:0;border-radius:4px;background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;font-size:16px;line-height:1}
+.sf-grid.small .sf-c{border-radius:2px;font-size:9px}
+button.sf-c{cursor:pointer}
+button.sf-c:disabled{cursor:default;opacity:1}
+.sf-grid.go button.sf-c:not(:disabled){background:rgba(255,255,255,.18)}
+.sf-c.ship{background:#9AA5AE}
+.sf-c.miss{background:rgba(255,255,255,.05)}
+.sf-c.hit{background:#7A2E26}
+.sf-c.sunk{background:#C2453A;box-shadow:inset 0 0 0 2px #fff}
+.sf-grid.small .sf-c.sunk{box-shadow:inset 0 0 0 1px #fff}
+/* 3. Liar's dice */
+.ld-mine{display:flex;justify-content:center;gap:4px;font-size:44px;line-height:1;min-height:48px;margin:6px 0 2px}
+.ld-mine span{display:inline-block}
+.ld-all{display:grid;gap:4px;margin-top:8px}
+.ld-all>div{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ld-all span{font-size:24px;line-height:1;letter-spacing:1px}
+.ld-all i{font-style:normal;opacity:.45}
+.ld-all i.hl{opacity:1;color:var(--ok)}
+.ld-bid{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 10px;margin-top:6px}
+.ld-step{display:flex;align-items:center;gap:8px}
+.ld-step b{min-width:28px;text-align:center;font-size:24px}
+.ld-step .icon-btn{width:40px;height:40px}
+.ld-faces{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.ld-faces button{width:44px;height:48px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-s);font-size:32px;line-height:1;padding:0}
+.ld-faces button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+/* 4. Guess the price */
+.gp-card{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--surface);margin-bottom:12px}
+.gp-card b{display:block;font-size:calc(16px * var(--ts,1));line-height:1.25}
+.gp-ic{width:44px;height:44px;flex:none;border-radius:var(--r);display:grid;place-items:center;background:var(--raised)}
+.gp-in{display:flex;align-items:center;gap:8px}
+.gp-in span{font-weight:700;flex:none}
+.gp-in input{flex:1;min-width:0;height:44px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink);padding:0 12px;font-size:17px}
+.gp-in .btn{flex:none}
+/* 5. Where in the world */
+.ww-photo{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r);background:var(--surface)}
+.ww-map{position:relative;height:250px;margin:8px 0;border-radius:var(--r);overflow:hidden;background:var(--sea);touch-action:none}
+.ww-pin{display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.ww-pin::after{content:"";width:14px;height:14px;border-radius:50%;border:2px solid #fff;background:var(--c,#7FB2D2);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.ww-pin span{margin-bottom:2px;padding:1px 6px;border-radius:8px;background:rgba(18,20,23,.88);color:#fff;font-size:11px;font-weight:700;white-space:nowrap}
+.ww-pin.me{--c:#7FB2D2}
+.ww-pin.them{--c:#E39FF6}
+.ww-pin.ans{--c:#8CC3A6}
+/* the Trip tally */
+.gm-tally{display:grid;font-size:calc(13px * var(--ts,1))}
+.gm-th,.gm-tr{display:grid;grid-template-columns:24px minmax(0,1fr) repeat(5,26px) 46px;gap:4px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.gm-th{color:var(--muted);font-size:calc(12px * var(--ts,1));font-weight:700}
+.gm-th span,.gm-tr span{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gm-th span:nth-child(2),.gm-tr span:nth-child(2){text-align:left}
+.gm-tr.me{font-weight:700}
+.gm-tr span:last-child small{color:var(--muted);font-weight:500}
+.gm-forfeit{margin-top:12px}
+.gm-forfeit input{height:40px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--ink);padding:0 10px;font-size:calc(15px * var(--ts,1));font-weight:500}
+@media (prefers-reduced-motion:reduce){.c4-c.win{animation:none}}
+/* ---------- a message from a friend: pops up on any screen (js/friends.js frMsgPopup) ---------- */
+.msg-wrap{z-index:2700}
+.msg-pop{text-align:center}
+.msg-pop .row{justify-content:center}
+.msg-av{display:flex;justify-content:center;margin-bottom:10px}
+.msg-stk{display:block;width:100%;max-width:200px;max-height:200px;aspect-ratio:1;object-fit:contain;margin:6px auto 4px}
+.msg-name{font-size:calc(22px * var(--ts,1));font-weight:800;letter-spacing:-.01em;margin:2px 0 4px}
+.msg-pop>.note{margin-bottom:14px}
+/* ---------- funny mode (js/funny.js) ---------- */
+.funny-intro{position:fixed;inset:0;z-index:5000;background:#000;transition:opacity .6s ease}
+.funny-intro video{display:block;width:100%;height:100%;object-fit:cover}
+.funny-intro.out{opacity:0;pointer-events:none}
+.funny-skip{position:absolute;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));min-height:36px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.45);color:#fff;font-weight:600}
+/* Ben pops up from behind the tab bar, waves twice and goes (16 frames of 112 x 100 in one strip) */
+.funny-ben-wrap{position:absolute;inset:0;z-index:7;overflow:hidden;pointer-events:none}
+.funny-ben{position:absolute;right:10px;bottom:0;width:112px;height:100px;background:url(../img/ben-wave.png) 0 0/1792px 100px no-repeat;
+  animation:benIn .35s ease-out both,benWave 1.07s steps(16) .35s 2,benOut .35s ease-in 2.6s forwards}
+@keyframes benIn{from{transform:translateY(100%)}to{transform:none}}
+@keyframes benOut{to{transform:translateY(100%)}}
+@keyframes benWave{to{background-position:-1792px 0}}
+@media (prefers-reduced-motion:reduce){.funny-ben{animation:benWave 1.07s steps(16) 2}}

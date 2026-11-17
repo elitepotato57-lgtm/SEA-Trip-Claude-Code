@@ -86,10 +86,20 @@
         }
       }
     },
-    "games": {
-      "$room": {
-        ".read": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))",
-        ".write": "auth != null && ($room.beginsWith(auth.uid + '_') || $room.endsWith('_' + auth.uid))"
+    "parties": {
+      "$pid": {
+        ".read": "auth != null && data.child('m').child(auth.uid).exists()",
+        ".write": "auth != null && (data.child('m').child(auth.uid).exists() || (!data.exists() && newData.child('m').child(auth.uid).exists()))",
+        ".validate": "newData.hasChildren(['g', 'h', 'm'])"
+      }
+    },
+    "tally": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        "$game": {
+          ".validate": "newData.hasChildren(['w', 'p']) && newData.child('w').isNumber() && newData.child('p').isNumber()"
+        }
       }
     },
     "stickerIndex": {

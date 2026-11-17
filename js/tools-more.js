@@ -95,7 +95,7 @@ const wantsSurf = it => isSurf(it) || it.k === "beach" || (!it.osm && hasT(it, "
 // Activities › Surf: straight to the map with only the researched surf spots near you (or in this country)
 function openSurfMap(){
   const pt = userLoc || focusPt(), spots = surfNear(pt, S.country);
-  if (!spots.length){ toast(`No surf spots researched in ${D.countries[S.country].name} yet. Bali, Lombok, Krui and Phuket have them.`); return; }
+  if (!spots.length){ toast(`No surf spots researched in ${D.countries[S.country].name} yet. Bali, Lombok, Krui, Phuket, Khao Lak, Samui and Malaysia’s east coast have them.`); return; }
   ui.mapSurf = true; ui.mapCats = new Set(); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = null;
   go("#map");
   const fit = () => {

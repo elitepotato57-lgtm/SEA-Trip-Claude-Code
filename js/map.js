@@ -148,7 +148,11 @@ function onMapLoad(){
     });
     ["pt-icon-" + g, "cl-circle-" + g].forEach(l => { map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", l, () => map.getCanvas().style.cursor = ""); });
   });
-  map.on("click", e => { if (!(e.originalEvent && e.originalEvent._hit) && ui.mapSel) selectPlace(null); });
+  map.on("click", e => {
+    const hit = !!(e.originalEvent && e.originalEvent._hit);
+    if (typeof funnyMapTap === "function") funnyMapTap(e.lngLat, hit);      // funny mode: tapping China (js/funny.js)
+    if (!hit && ui.mapSel) selectPlace(null);
+  });
   const moved = debounce(() => { refreshMapData(); if (soloCat()) renderMapFilt(); const c = map.getCenter(); S.mapView = {c:[+c.lng.toFixed(5), +c.lat.toFixed(5)], z:+map.getZoom().toFixed(2)}; persist(); }, 140);
   map.on("moveend", moved);
   map.on("sourcedata", e => { if (e.sourceId === "openmaptiles" && e.tile && !mapRun.tilesOk){ mapRun.tilesOk = true; setOfflineBase(false); } });
@@ -456,7 +460,7 @@ function renderMapUI(){
     + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved);
   const essRow = $("#mapEss");
   essRow.hidden = !(ui.essOpen || ui.essKinds.size);
-  essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends !== false}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
+  essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends === true}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
   $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   const top = $("#mapTop");
@@ -476,7 +480,7 @@ function renderMapUI(){
   top.querySelector("[data-saved]").onclick = () => { ui.mapSaved = !ui.mapSaved; if (ui.mapSaved && !Object.keys(S.saved).length) toast("Nothing saved yet. Tap the bookmark on a place."); renderMapUI(); };
   top.querySelectorAll("[data-essk]").forEach(b => b.onclick = () => toggleEssential(b.dataset.essk));
   const fr = top.querySelector("[data-essfr]");
-  if (fr) fr.onclick = () => { ui.mapFriends = ui.mapFriends === false; ui.essOpen = true; renderMapUI(); drawFriends(); if (ui.mapFriends){ frPoll().then(() => frFitAll()).catch(() => {}); } };
+  if (fr) fr.onclick = () => { ui.mapFriends = ui.mapFriends !== true; ui.essOpen = true; renderMapUI(); drawFriends(); if (ui.mapFriends){ frPoll().then(() => frFitAll()).catch(() => {}); } };
   top.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mapMode = b.dataset.mode; renderMapUI(); });
 
   $("#mapSide").innerHTML = `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>

@@ -55,11 +55,20 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
+  ok(await page.evaluate(() => S.funny === false && !document.querySelector("#funnyIntro") && ui.mapFriends === false), "a new phone: funny mode is off (no intro) and friends aren't on the map");
 
-  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "tools/friends", "saved"]){
+  for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "tools/friends", "tools/friends-play", "saved"]){
     await page.goto(BASE + "#" + tab); await page.waitForTimeout(1500);
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     ok(w <= 393, `${tab}: no sideways scroll (width ${w})`);
+    if (tab === "tools/friends") ok(await page.evaluate(() => !document.querySelector("#funnyBen")), "funny mode off: nobody waves on Friends");
+    if (tab === "tools/transport"){
+      await page.waitForTimeout(1500);
+      // (the names themselves need the map's font server, which some test machines can't reach, so this checks the layer and its data)
+      const tm = await page.evaluate(() => { const d = tmap && tmap.getSource("cities") ? tmap.getSource("cities").serialize().data.features.map(f => f.properties.n) : [];
+        return {layer:!!(tmap && tmap.getLayer("city-name")), hubMin:tmap && tmap.getLayer("hub-name").minzoom, n:d.length, hubsLeftOut:!d.some(n => Object.values(HUB).some(h => h.n === n)), some:d.slice(0, 4)}; });
+      ok(tm.layer && tm.hubMin < 5 && tm.n > 10 && tm.hubsLeftOut, "the Transport map names the trip's towns and islands (stops keep their own names) " + JSON.stringify(tm));
+    }
   }
 
   await page.goto(BASE + "#munch"); await page.waitForTimeout(2000);
@@ -401,6 +410,9 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await B.pg.click("#mapEss [data-essfr]"); await B.pg.waitForTimeout(500);
     ok(await B.pg.evaluate(() => !document.querySelector("#map .fr-pin")), "switching the Friends essential off hides them");
     await B.pg.click("#mapEss [data-essfr]"); await B.pg.waitForTimeout(800);
+    await B.pg.reload(); await B.pg.waitForTimeout(3000);
+    const fresh = await B.pg.evaluate(() => ({on:ui.mapFriends, chip:(document.querySelector("#mapEss [data-essfr]") || {getAttribute:() => null}).getAttribute("aria-pressed"), pins:document.querySelectorAll("#map .fr-pin").length}));
+    ok(fresh.on === false && fresh.chip === "false" && fresh.pins === 0, "opening the map again: friends are hidden until the Friends chip is switched on " + JSON.stringify(fresh));
     // renaming: Dylan's friend "Sam" becomes "PC", only on Dylan's phone
     await A.pg.click(`#pageview [data-fredit="${uidB}"]`); await A.pg.waitForTimeout(500);
     await A.pg.setInputFiles("#sheetRoot #fre-pic", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(1500);
@@ -417,21 +429,23 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await A.pg.setInputFiles("#fr-dev #stk-add", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(3000);
     const stk = await A.pg.evaluate(() => Object.values(frStickers).map(x => x.n));
     ok(stk.includes("kata") && Object.keys(fb.root.stickerIndex || {}).length === 1, "the developer adds a message sticker, named after its file " + JSON.stringify(stk));
-    await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1200);
+    await A.pg.goto(BASE + "#map"); await A.pg.waitForTimeout(1500);                // Dylan is on the map, not on Friends
     await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1500);
     await B.pg.click(`[data-frmsg="${uidA}"]`); await B.pg.waitForTimeout(2500);
     const pick = await B.pg.evaluate(() => [...document.querySelectorAll("#stk-pick [data-stksend] span")].map(x => x.textContent));
     ok(pick.includes("Send kata"), "Send a message under a friend shows the stickers, each saying Send and its name " + JSON.stringify(pick));
     await B.pg.click("#stk-pick [data-stksend]"); await B.pg.waitForTimeout(1500);
-    await A.pg.click("#sheetRoot .sheet-head [data-close]").catch(() => {}); await A.pg.evaluate(() => frPoll()); await A.pg.waitForTimeout(1500);
-    const got = await A.pg.evaluate(() => { const m = document.querySelector("#fr-alerts .fr-msg"); return m ? {t:m.innerText.replace(/\s+/g, " "), img:!!m.querySelector("img.fr-sticker")} : null; });
-    ok(got && /PC sent you a kata/.test(got.t) && got.img, "Dylan sees the sticker at the top of Friends: “PC sent you a kata” " + JSON.stringify(got));
-    await A.pg.click("#fr-alerts [data-frmsgdel]"); await A.pg.waitForTimeout(800);
-    ok(await A.pg.evaluate(() => !document.querySelector("#fr-alerts .fr-msg")) && !Object.keys((fb.root.msgs || {})[uidA] || {}).length, "dismissing it removes it");
+    await A.pg.evaluate(() => frPoll()); await A.pg.waitForTimeout(1500);
+    const got = await A.pg.evaluate(() => { const m = document.querySelector("#msgRoot .msg-pop"); return m ? {t:m.innerText.replace(/\s+/g, " "), img:!!m.querySelector("img"), view:ui.view, w:Math.round(m.getBoundingClientRect().right)} : null; });
+    ok(got && /PC sent you a message/.test(got.t) && !got.img && got.view === "map" && got.w <= 393, "a message pops up on whatever screen Dylan is on (here the map), without giving away what it is " + JSON.stringify(got));
+    await A.pg.click('#msgRoot [data-msg="open"]'); await A.pg.waitForTimeout(1500);
+    const opened = await A.pg.evaluate(() => { const m = document.querySelector("#msgRoot .msg-pop"); return m ? {name:(m.querySelector(".msg-name") || {}).textContent, img:!!(m.querySelector("img.msg-stk") || {}).src} : null; });
+    ok(opened && opened.name === "kata" && opened.img && !Object.keys((fb.root.msgs || {})[uidA] || {}).length, "Open shows the sticker and its name, and the message is deleted " + JSON.stringify(opened));
+    await A.pg.click('#msgRoot [data-msg="done"]'); await A.pg.waitForTimeout(600);
+    ok(!(await A.pg.$("#msgRoot")), "Close puts the popup away");
     await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(2500);
-    await A.pg.click("#fr-dev [data-stkren]"); await A.pg.waitForTimeout(300);
-    await A.pg.fill("#fr-dev .fr-stk .fr-ren input", "Cooked"); await A.pg.click("#fr-dev .fr-stk .fr-ren button"); await A.pg.waitForTimeout(2000);
-    ok(Object.values(fb.root.stickerIndex || {}).includes("Cooked"), "a developer renames a sticker in Tools › Developer");
+    await A.pg.fill("#fr-dev [data-stkname]", "Cooked"); await A.pg.press("#fr-dev [data-stkname]", "Enter"); await A.pg.waitForTimeout(2000);
+    ok(Object.values(fb.root.stickerIndex || {}).includes("Cooked"), "a developer renames a sticker by typing over its name in Tools › Developer");
     await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(1200);
     await A.pg.click("#fr-open"); await A.pg.waitForTimeout(800);
     await B.pg.evaluate(() => { S.dev = true; }); await B.pg.goto(BASE + "#tools/friends"); await B.pg.waitForTimeout(1200);
@@ -477,23 +491,92 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await A.pg.click(`#fr-split [data-pair="${uidB}"]`); await A.pg.waitForTimeout(400);
     await A.pg.click('#confirmRoot [data-cfm="1"]'); await A.pg.waitForTimeout(1500);
     ok(await A.pg.evaluate(() => /all square/.test(document.querySelector("#fr-split .sp-bal").textContent)), "They paid me settles it");
-    // Rock Paper Scissors: Dylan challenges Sam; both pick; both phones agree on the result
-    await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(800);
-    await A.pg.click(`.fr-game ~ .flags [data-frplay="${uidB}"]`); await A.pg.waitForTimeout(1500);
-    await B.pg.goto(BASE + "#tools/friends-play"); await B.pg.waitForTimeout(800);
-    await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(800);
-    // the invite pops up straight away (Play / Not now), and also sits at the top of the page
-    const pop = await B.pg.$('#confirmRoot [data-cfm="1"]');
-    ok(!!pop || !!(await B.pg.$(`#fr-alerts [data-frplay="${uidA}"]`)), "Sam gets the game invite");
-    if (pop) await pop.click(); else await B.pg.click(`#fr-alerts [data-frplay="${uidA}"]`);
-    await B.pg.waitForTimeout(1500);
-    await A.pg.click('#rpsBox [data-rps="rock"]'); await A.pg.waitForTimeout(400);
-    await B.pg.click('#rpsBox [data-rps="scissors"]'); await B.pg.waitForTimeout(3500);
-    const ra = await A.pg.evaluate(() => [document.querySelector("#rps-msg").textContent, document.querySelector("#rps-me").textContent, document.querySelector("#rps-them").textContent]);
-    const rb = await B.pg.evaluate(() => [document.querySelector("#rps-msg").textContent, document.querySelector("#rps-me").textContent, document.querySelector("#rps-them").textContent]);
-    ok(/You win/.test(ra[0]) && ra[1] === "1" && ra[2] === "0" && /Dylan wins/.test(rb[0]) && rb[1] === "0" && rb[2] === "1", "Rock Paper Scissors: rock beats scissors on both phones " + JSON.stringify({ra, rb}));
-    await A.pg.waitForTimeout(3500);
-    ok(await A.pg.evaluate(() => /Round 2/.test(document.querySelector("#rps-round").textContent)) && await B.pg.evaluate(() => /Round 2/.test(document.querySelector("#rps-round").textContent)), "and both move on to round 2 by themselves");
+    // Games (Friends › Play): Dylan starts Four in a row with Sam; Sam gets the invite on whatever screen he's on; both phones agree
+    await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(1500);
+    const pl = await A.pg.evaluate(() => ({games:[...document.querySelectorAll(".gm-tile b")].map(b => b.textContent), tally:!!document.querySelector("#gm-tally"), w:document.documentElement.scrollWidth}));
+    ok(pl.games.join() === "Four in a row,Sink the fleet,Liar’s dice,Guess the price,Where in the world" && pl.tally && pl.w <= 393, "Friends › Play: five games and the Trip tally " + JSON.stringify(pl));
+    // start a game with Sam from Dylan's phone; Sam says yes to the popup; both get past the rules card
+    const startWith = async (id, title) => {
+      fb.tick(1000);                                                         // a new invite is newer than the last
+      await A.pg.click(`#pageview [data-game="${id}"]`); await A.pg.waitForTimeout(600);
+      const rules = await A.pg.$("#gmRules"); if (rules) await A.pg.click("#gmRulesOk");
+      await A.pg.click(`[data-gmpick="${uidB}"]`); await A.pg.click("#gmGo"); await A.pg.waitForTimeout(1000);
+      await B.pg.waitForSelector('#confirmRoot [data-cfm="1"]', {timeout:10000}).catch(() => {});
+      const ask = await B.pg.evaluate(() => (document.querySelector("#cfm-t") || {}).textContent || "");
+      await B.pg.click('#confirmRoot [data-cfm="1"]').catch(() => {}); await B.pg.waitForTimeout(1200);
+      const r2 = await B.pg.$("#gmRules"); if (r2) await B.pg.click("#gmRulesOk");
+      await A.pg.waitForTimeout(3000);
+      return ask;
+    };
+    await B.pg.goto(BASE + "#gaffs"); await B.pg.waitForTimeout(1200);
+    await A.pg.click('#pageview [data-game="c4"]'); await A.pg.waitForTimeout(600);
+    ok(await A.pg.evaluate(() => !!document.querySelector("#gmRules") && /Four in a row/.test(document.querySelector("#gmRules").textContent)), "the first time you open a game, its rules come up");
+    await A.pg.click("#gmRulesOk"); await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    const ask = await startWith("c4");
+    ok(/Dylan wants to play Four in a row/.test(ask), "Sam, on the Gaffs page, gets “Dylan wants to play Four in a row” " + ask);
+    const myTurn = P => P.pg.evaluate(() => !!document.querySelector("#gmBox .c4.go"));
+    const [X, Y] = (await myTurn(A)) ? [A, B] : [B, A];
+    ok((await myTurn(X)) && !(await myTurn(Y)), "the game starts by itself once Sam opens it, and it's one player's turn");
+    const drop = async (P, col, next) => { await P.pg.click(`#gmBox .c4.go [data-col="${col}"]`); await next.pg.waitForSelector(next === P ? "#gmBox .gm-end" : "#gmBox .c4.go", {timeout:10000}).catch(() => {}); };
+    for (let k = 0; k < 3; k++){ await drop(X, 0, Y); await drop(Y, 1, X); }
+    await X.pg.click('#gmBox .c4.go [data-col="0"]'); await Y.pg.waitForSelector("#gmBox .gm-end", {timeout:10000}).catch(() => {}); await X.pg.waitForTimeout(1500);
+    const endX = await X.pg.evaluate(() => (document.querySelector("#gmBox .gm-end b") || {}).textContent || "");
+    const endY = await Y.pg.evaluate(() => (document.querySelector("#gmBox .gm-end b") || {}).textContent || "");
+    const fit = await A.pg.evaluate(() => { const b = document.querySelector("#gmBox .c4").getBoundingClientRect(); return {right:Math.round(b.right), w:document.documentElement.scrollWidth}; });
+    ok(/You win/.test(endX) && /(Dylan|PC) wins/.test(endY) && fit.right <= 393 && fit.w <= 393, "four in a column wins, on both phones, and the board fits the screen " + JSON.stringify({endX, endY, fit}));
+    const uidX = X === A ? uidA : uidB, uidY = X === A ? uidB : uidA;
+    const t1 = JSON.stringify([fb.root.tally && fb.root.tally[uidX], fb.root.tally && fb.root.tally[uidY]]);
+    ok(t1 === JSON.stringify([{c4:{w:1, p:1}}, {c4:{w:0, p:1}}]), "the Trip tally: a win for the winner, a game played for both " + t1);
+    await Y.pg.click("#gmAgain"); await Y.pg.waitForTimeout(3500);
+    const again = await X.pg.evaluate(() => ({end:!!document.querySelector("#gmBox .gm-end"), counters:document.querySelectorAll("#gmBox .c4-c.a, #gmBox .c4-c.b").length}));
+    ok(!again.end && again.counters === 0 && JSON.stringify([fb.root.tally[uidX], fb.root.tally[uidY]]) === t1, "Play again: a fresh board on both phones, and the last game isn't counted twice " + JSON.stringify(again));
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    // Liar's dice: a guess, then Liar!, and both phones show the same reveal and dice left
+    await startWith("dice");
+    const turnP = async () => (await A.pg.$("#ldBid")) ? A : (await B.pg.$("#ldBid")) ? B : null;
+    const bidder = await turnP();
+    ok(!!bidder && await A.pg.evaluate(() => document.querySelectorAll("#gmBox .ld-mine span").length === 5), "everyone rolls five dice and sees only their own; one player's turn to guess");
+    if (bidder){
+      const other = bidder === A ? B : A;
+      await bidder.pg.click("#ldBid"); await other.pg.waitForSelector("#ldLiar", {timeout:10000}).catch(() => {});
+      await other.pg.click("#ldLiar"); await bidder.pg.waitForTimeout(3000);
+      const rd = P => P.pg.evaluate(() => ({reveal:((document.querySelector("#gmBox .gm-reveal") || {}).textContent || "").replace(/\s+/g, " ").replace(/^(\S+) called Liar/, "X called Liar"), dice:[...document.querySelectorAll("#gmBox .gm-pl small")].map(s => [...s.textContent].length).reduce((a, b) => a + b, 0)}));
+      const ra = await rd(A), rb = await rd(B);
+      ok(/called Liar/.test(ra.reveal) && /loses? a die/.test(ra.reveal) && /called Liar/.test(rb.reveal) && Object.values(fb.root.parties).some(p => p.g === "dice" && p.s && Object.values(p.s.n).reduce((a, b) => a + b, 0) === 9), "Liar! reveals everyone's dice on both phones and the loser drops to four " + JSON.stringify({ra, rb}));
+    }
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    // Sink the fleet: both hide their boats, then the first shot
+    await startWith("fleet");
+    const sea = await A.pg.evaluate(() => { const g = document.querySelector("#gmBox .sf-grid.big"); return g ? {right:Math.round(g.getBoundingClientRect().right), cells:g.children.length, ships:g.querySelectorAll(".ship").length} : null; });
+    ok(sea && sea.cells === 64 && sea.ships === 12 && sea.right <= 393, "Sink the fleet: an 8×8 sea with your 4 boats, fitting the screen " + JSON.stringify(sea));
+    await A.pg.click("#sfShuffle"); await A.pg.click("#sfReady"); await B.pg.click("#sfReady"); await A.pg.waitForTimeout(3000);
+    const shooter = (await A.pg.$("#gmBox .sf-grid.go")) ? A : B, target = shooter === A ? B : A;
+    await shooter.pg.click("#gmBox .sf-grid.go button.sf-c:not([disabled])"); await target.pg.waitForTimeout(3000);
+    const shot = await target.pg.evaluate(() => ({mine:document.querySelectorAll("#gmBox .sf-grid.small .hit, #gmBox .sf-grid.small .miss").length, myTurn:!!document.querySelector("#gmBox .sf-grid.go")}));
+    ok(shot.mine === 1 && shot.myTurn, "the shot lands on the other phone's fleet, and it's their turn " + JSON.stringify(shot));
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    // Guess the price, on your own: a researched price, your guess, the real one
+    await A.pg.click('#pageview [data-game="price"]'); await A.pg.waitForTimeout(500);
+    if (await A.pg.$("#gmRules")) await A.pg.click("#gmRulesOk");
+    ok(await A.pg.evaluate(() => /Play on my own/.test(document.querySelector("#gmGo").textContent)), "the quiz games can be played on your own");
+    await A.pg.click("#gmGo"); await A.pg.waitForTimeout(2000);
+    await A.pg.fill("#gpG", "100"); await A.pg.click("#gpGo"); await A.pg.waitForTimeout(800);
+    const gp = await A.pg.evaluate(() => ({real:((document.querySelector("#gmBox .gm-reveal b") || {}).textContent || ""), right:Math.round(document.querySelector("#gmBox .gp-card").getBoundingClientRect().right)}));
+    ok(/Real price: \S/.test(gp.real) && gp.right <= 393, "Guess the price: lock in a guess and the real price shows " + JSON.stringify(gp));
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    // Where in the world: a destination photo and a map to drop a pin on
+    await A.pg.click('#pageview [data-game="where"]'); await A.pg.waitForTimeout(500);
+    if (await A.pg.$("#gmRules")) await A.pg.click("#gmRulesOk");
+    await A.pg.click("#gmGo"); await A.pg.waitForTimeout(3500);
+    const wm = await A.pg.$("#wwMap canvas");
+    if (wm){ const bb = await wm.boundingBox(); await A.pg.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.pg.waitForTimeout(400); }
+    await A.pg.click("#wwGo").catch(() => {}); await A.pg.waitForTimeout(1500);
+    const ww = await A.pg.evaluate(() => ({photo:(document.querySelector("#gmBox .ww-photo") || {}).naturalWidth || 0, it:((document.querySelector("#gmBox .gm-reveal b") || {}).textContent || ""), right:Math.round(document.querySelector("#wwMap").getBoundingClientRect().right)}));
+    ok(!!wm && ww.photo > 0 && /^It’s \S/.test(ww.it) && ww.right <= 393, "Where in the world: a photo, a map to tap, and the answer " + JSON.stringify(ww));
+    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    await A.pg.goto(BASE + "#tools"); await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(2500);
+    const tl = await A.pg.evaluate(() => ({rows:[...document.querySelectorAll("#gm-tally .gm-tr")].map(r => r.innerText.replace(/\s+/g, " ")), recent:document.querySelectorAll("#gm-recent [data-party]").length, w:document.documentElement.scrollWidth}));
+    ok(tl.rows.length === 2 && tl.rows.some(r => /👑/.test(r)) && tl.recent >= 3 && tl.w <= 393, "Friends › Play: the Trip tally with a crown for the leader, and games to carry on " + JSON.stringify(tl));
     await B.pg.goto(BASE + "#tools/settings"); await B.pg.waitForTimeout(800);
     ok(await B.pg.evaluate(() => /Friends and location sharing/.test(document.querySelector("#pageview").textContent) && !!document.querySelector('#pageview a[href="#tools/friends"]')), "Settings has Friends and location sharing");
     await A.c.close(); await B.c.close();
@@ -573,6 +656,52 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
       return out;
     });
     ok(Object.values(near).every(r => r.stay != null && r.food != null && r.do != null), "a stay, food and something to do within 10 km of all 8 Cambodian destinations " + JSON.stringify(near));
+    await c.close();
+  }
+
+  // Funny mode (Settings): Tommy's intro when the app opens, China talks back on the map, Ben waves on Friends
+  {
+    const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
+    await c.addInitScript(st => { if (!localStorage.getItem("sea-trip-app-v1")) localStorage.setItem("sea-trip-app-v1", JSON.stringify(st)); }, {v:2, funny:true, testLoc:"off", countryMode:"auto", country:"TH", saved:{}});
+    await c.addInitScript(() => {
+      const f = window.__fun = {played:[]}, t0 = Date.now();
+      const look = () => {
+        const i = document.getElementById("funnyIntro");
+        if (i && f.seen == null){ f.seen = Date.now() - t0; f.fit = getComputedStyle(i.querySelector("video")).objectFit; f.inline = i.querySelector("video").playsInline; const r = i.getBoundingClientRect(); f.size = [Math.round(r.width), Math.round(r.height)]; }
+        const v = document.querySelector("#funnyIntro video"); if (v && v.src) f.src = v.src;
+        if (f.seen != null && !i && f.gone == null) f.gone = Date.now() - t0;
+      };
+      new MutationObserver(look).observe(document, {childList:true, subtree:true, attributes:true, attributeFilter:["src"]});
+      setInterval(look, 25);
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function(){ f.played.push({src:this.currentSrc || this.src, tag:this.tagName, muted:this.muted}); return play.call(this); };
+    });
+    const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(8000);
+    const f = await pg.evaluate(() => Object.assign({}, window.__fun, {map:!document.querySelector("#mapview").hidden && !!document.querySelector("#map canvas")}));
+    ok(f.seen != null && f.fit === "cover" && f.inline && f.size[0] === 393 && f.size[1] === 852 && /^blob:/.test(f.src || "") && f.gone > 0 && f.map, "funny mode: Tommy's intro fills the screen (from a blob, inline), then fades into the map " + JSON.stringify(f));
+    const tap = async (lng, lat) => { const p = await pg.evaluate(([x, y]) => { const q = map.project([x, y]), r = map.getContainer().getBoundingClientRect(); return {x:r.left + q.x, y:r.top + q.y}; }, [lng, lat]); await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(700); };
+    await pg.evaluate(() => map.jumpTo({center:[106, 30], zoom:3.6})); await pg.waitForTimeout(1500);
+    const n0 = await pg.evaluate(() => window.__fun.played.length);
+    await tap(112, 36);                                  // northern China
+    const china = await pg.evaluate(n => window.__fun.played.slice(n).map(x => x.src), n0);
+    await tap(105.85, 21.03); await tap(113, 14);        // Hanoi, and the sea
+    const notChina = await pg.evaluate(n => window.__fun.played.length - n, n0 + china.length);
+    ok(china.length === 1 && (china[0] === await pg.evaluate(() => funnyAudioUrl) || /chinese\.mp3/.test(china[0])) && notChina === 0, "funny mode: tapping China plays the sound; Vietnam and the sea don't " + JSON.stringify({china, notChina}));
+    await pg.goto(BASE + "#tools/friends"); await pg.waitForTimeout(600);
+    const ben = await pg.evaluate(() => { const b = document.querySelector("#funnyBen .funny-ben"); if (!b) return null; const cs = getComputedStyle(b), r = b.getBoundingClientRect(); return {w:r.width, h:r.height, right:Math.round(r.right), bg:/ben-wave\.png/.test(cs.backgroundImage), anim:cs.animationName}; });
+    ok(ben && ben.w === 112 && ben.h === 100 && ben.right <= 393 && ben.bg && /benWave/.test(ben.anim), "funny mode: opening Friends, Ben pops up and waves " + JSON.stringify(ben));
+    ok(await pg.evaluate(() => new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalWidth === 16 * 224 && i.naturalHeight === 200); i.onerror = () => r(false); i.src = "img/ben-wave.png"; })), "Ben's cut-out strip loads: 16 frames, see-through round him");
+    await pg.waitForTimeout(3000);
+    ok(await pg.evaluate(() => !document.querySelector("#funnyBen")), "and he goes again after waving");
+    await pg.goto(BASE + "#tools/settings"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => document.querySelector("#funnyOn").getAttribute("aria-pressed") === "true"), "Settings shows Funny mode on");
+    await pg.click("#funnyOn"); await pg.waitForTimeout(500);
+    ok(await pg.evaluate(() => S.funny === false && JSON.parse(localStorage.getItem("sea-trip-app-v1")).funny === false && document.querySelector("#funnyOn").getAttribute("aria-pressed") === "false"), "switching Funny mode off in Settings is saved");
+    await pg.goto(BASE + "#tools/friends"); await pg.waitForTimeout(500);
+    const offBen = await pg.evaluate(() => !document.querySelector("#funnyBen"));
+    await pg.reload(); await pg.waitForTimeout(2500);
+    ok(offBen && await pg.evaluate(() => window.__fun.seen == null && !document.querySelector("#funnyIntro")), "with it off: no Ben, and no intro when the app opens");
     await c.close();
   }
 

@@ -5,8 +5,8 @@
      window.SEA_FIREBASE = {apiKey:"…", databaseURL:"https://….firebasedatabase.app"};
    Who can read what is enforced by the database's rules (firebase/database.rules.json; tests/fakefirebase.js copies them).
    Data:  users/{uid} {n,c}   codes/{CODE} uid   requests/{uid}/{from} {n,c}   share/{uid}/{friend} true   loc/{uid} {lat,lng,acc,t}
-          photos/{uid} small JPEG (only the developer phone can set them)   admins/{uid} true   invites/{uid}/{from} {g,n,t}
-          games/{uidA_uidB} {g,round,r:{n:{uid:choice}}}   groups/… and mygroups/… (live split, at the bottom)
+          photos/{uid} small JPEG (only the developer phone can set them)   admins/{uid} true   invites/{uid}/{from} {g,n,t,p}
+          parties/{pid} and tally/{uid} (the games: js/games.js)   msgs/{uid}/{id} (stickers)   groups/… and mygroups/… (live split, at the bottom)
    Sharing uses the phone's own GPS (never the pretend test location) and only while the app is open: iPhones don't let
    web apps run in the background.
    ============================================================ */

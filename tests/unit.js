@@ -536,7 +536,11 @@ test("your own maximum price is typed in pounds", () => {
 });
 test("surf spots are researched breaks with sources, no schools or shops, each in a covered country", () => {
   ok(A.SURF.length >= 18, "enough spots");
-  ok(A.SURF.every(p => p.k === "surf" && p.src.length && p.src.every(s => /^https:\/\//.test(s[1])) && A.ccAt(p.lat, p.lng) === p.cc), "every spot has a source and sits in its country");
+  // a beach break can sit a little off the app's simplified coastline: then the land within about 5 km must be its own country
+  const landNear = p => { const out = new Set(); for (let k = 0; k < 16; k++) for (const r of [0.017, 0.033, 0.05]){ const c = A.ccAt(p.lat + r * Math.sin(k * Math.PI / 8), p.lng + r * Math.cos(k * Math.PI / 8)); if (c) out.add(c); } return [...out]; };
+  const inCountry = p => A.ccAt(p.lat, p.lng) === p.cc || (A.ccAt(p.lat, p.lng) == null && landNear(p).join() === p.cc);
+  const bad = A.SURF.filter(p => !(p.k === "surf" && p.src.length && p.src.every(s => /^https:\/\//.test(s[1])) && inCountry(p)));
+  ok(!bad.length, "every spot has a source and sits in (or just off the coast of) its country: " + bad.map(p => p.n).join(", "));
   ok(!A.SURF.some(p => /school|shop|hire|rental|surf camp|indoor|flow|wave pool|artificial/i.test(p.n)), "no schools, shops or artificial waves");
   ok(["Uluwatu", "Padang Padang", "Gerupuk Inside", "Kata Beach", "Medewi"].every(n => A.SURF.some(p => p.n === n)));
   ok(A.SURF.filter(p => p.pic).every(p => /^img\/surf\/[a-z]+\.jpg$/.test(p.pic[0]) && require("fs").existsSync(require("path").join(__dirname, "..", p.pic[0])) && /Wikimedia Commons/.test(p.pic[2])), "photos are stored with the app, with credits");
@@ -636,6 +640,80 @@ test("feeling rough: hangover and the shits get the right list for the country, 
   ok(/Prescription/.test(A.REMEDIES.ID.find(r => /Imodium/.test(r.n)).rx), "Imodium needs a prescription in Indonesia");
 });
 
+/* ---------- games (js/games.js) ---------- */
+test("Four in a row: four across, up or diagonal wins; a counter drops to the lowest free row", () => {
+  const W = A.C4_W, b = r => ".".repeat(42).split("");
+  const across = b(); [0, 1, 2, 3].forEach(c => across[5 * W + c + 2] = "a"); eq(A.c4Win(across.join("")).v, "a");
+  const up = b(); [2, 3, 4, 5].forEach(r => up[r * W] = "b"); eq(A.c4Win(up.join("")).v, "b");
+  const diag = b(); [0, 1, 2, 3].forEach(k => diag[(5 - k) * W + k] = "a"); eq(A.c4Win(diag.join("")).cells.length, 4);
+  const three = b(); [0, 1, 2].forEach(c => three[5 * W + c] = "a"); eq(A.c4Win(three.join("")), null);
+  eq(A.c4Drop(".".repeat(42), 3), 5 * W + 3);
+  const full = b(); for (let r = 0; r < 6; r++) full[r * W] = r % 2 ? "a" : "b"; eq(A.c4Drop(full.join(""), 0), -1);
+  eq(A.GAMES.c4.result({p:["x", "y"], b:across.join("")}).w, ["x"]);
+  eq(A.GAMES.c4.result({p:["x", "y"], b:"bbabbbaabaaabbbaaababaababbabbabaaabababba"}), {w:[]}, "a full board with no line is a draw");
+});
+test("Sink the fleet: 4 boats (4, 3, 3, 2) that never touch, hits, sinking and winning", () => {
+  for (let n = 0; n < 30; n++){
+    const f = A.sfRandomFleet(), N = A.SF_N;
+    eq(f.length, 64); eq([...f].filter(v => v !== ".").length, 12);
+    for (let i = 0; i < 64; i++){ if (f[i] === ".") continue; const y = Math.floor(i / N), x = i % N;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){ const yy = y + dy, xx = x + dx; if (yy < 0 || yy >= N || xx < 0 || xx >= N) continue; const v = f[yy * N + xx]; ok(v === "." || v === f[i], "boats never touch"); } }
+  }
+  const f = A.sfRandomFleet(), shots = [...f].map(v => v === "3" ? "x" : ".").join("");
+  eq(A.sfShipsLeft(f, shots), 3); eq(A.sfSunkCells(f, shots).size, 2); eq(A.sfAllSunk(f, shots), false);
+  const all = [...f].map(v => v === "." ? "o" : "x").join("");
+  ok(A.sfAllSunk(f, all)); eq(A.GAMES.fleet.result({p:["x", "y"], f:{x:f, y:f}, h:{y:all}}).w, ["x"]);
+});
+test("Liar's dice: guesses must go up, turns skip anyone who's out, last one with dice wins", () => {
+  const s = {p:["a", "b", "c"], n:{a:5, b:0, c:3}, r:2, t:"a"};
+  eq(A.ldAlive(s), ["a", "c"]); eq(A.ldNext(s, "a"), "c"); eq(A.ldNext(s, "c"), "a"); eq(A.ldTotal(s), 8);
+  ok(A.ldOk(s, 2, 4)); ok(!A.ldOk(s, 9, 4), "never more dice than are on the table");
+  const bid = Object.assign({}, s, {bid:{q:3, f:4, by:"c"}});
+  ok(A.ldOk(bid, 3, 5) && A.ldOk(bid, 4, 1)); ok(!A.ldOk(bid, 3, 4) && !A.ldOk(bid, 3, 2) && !A.ldOk(bid, 2, 6));
+  eq(A.ldTurn(bid), "a"); eq(A.ldBidText({q:1, f:6}), "one 6"); eq(A.ldBidText({q:4, f:2}), "four 2s");
+  eq(A.GAMES.dice.result(s), null); eq(A.GAMES.dice.result({p:["a", "b"], n:{a:0, b:2}}).w, ["b"]);
+  eq(A.ldRoll(5).length, 5); ok(/^[1-6]{5}$/.test(A.ldRoll(5)));
+});
+test("Guess the price uses only researched prices (never estimates), and the closest guess wins each round", () => {
+  for (let n = 0; n < 10; n++){
+    const q = A.gpQuestions(); eq(q.length, 5);
+    q.forEach(k => { const it = A.gpItem(k); ok(it && it.p.length && it.cur && it.cur !== "GBP" && it.q, k); });
+  }
+  const it = {p:[100, 200]};
+  eq(A.gpOff(it, 150), 0); eq(A.gpOff(it, 50), 0.5); eq(A.gpOff(it, 300), 0.5);
+  const s = {p:["a", "b"], q:["p:x", "p:y"], i:2, g:{0:{a:1, b:5}, 1:{a:9, b:9}}};
+  const fake = {off:(key, v) => Math.abs(+v - 4)};
+  eq(A.quizScores(fake, s), {a:1, b:2}, "round 1 to b (closest), round 2 a tie: both score");
+  const done = {p:["a", "b"], q:["p:x"], i:1, g:[{a:100, b:1000}]};
+  const key = A.gpQuestions()[0], item = A.gpItem(key), lo = Math.min(...item.p);
+  eq(A.GAMES.price.result(Object.assign({}, done, {q:[key], g:[{a:lo, b:lo * 10}]})).w, ["a"]);
+  eq(A.GAMES.price.result(Object.assign({}, done, {i:0})), null, "not over until every round is played");
+});
+test("Where in the world: a trip destination photo, scored by how far your pin is from it", () => {
+  const q = A.wwQuestions(); eq(q.length, 5); ok(q.every(n => A.DEST_IMG[n] && A.wwCity(n)), q.join());
+  const bkk = A.wwCity("Bangkok");
+  ok(A.GAMES.where.off("Bangkok", `${bkk.lat},${bkk.lng}`) < 0.01); near(A.GAMES.where.off("Bangkok", "18.7883,98.9853"), 580, 30, "Chiang Mai is about 580 km away");
+  eq(A.GAMES.where.off("Bangkok", "nonsense"), Infinity);
+});
+test("every game has a name, rules and a player range; the order on the Play page", () => {
+  eq(A.GAME_ORDER, ["c4", "fleet", "dice", "price", "where"]);
+  A.GAME_ORDER.forEach(id => { const g = A.GAMES[id]; ok(g.n && g.rules.length >= 2 && g.min >= 1 && g.max >= g.min && typeof g.init === "function", id); });
+  const s = A.GAMES.dice.init(["a", "b"]); eq(Object.values(s.n), [5, 5]); ok(s.p.includes(s.t));
+});
+test("Friends aren't on the map until you switch them on; funny mode is off for a new phone", () => {
+  eq(A.ui.mapFriends, false); eq(A.frOnMap(), false); eq(A.S_DEFAULTS.funny, false); eq(A.S.funny, false);
+  eq(A.funnyMapTap({lat:39.9, lng:116.4}, false), false, "funny mode off: tapping China does nothing");
+});
+test("funny mode: China is found from the built-in outline; only a tap inside China (not on a place) plays the sound", () => {
+  ok(A.funnyInChina(39.9, 116.4), "Beijing"); ok(A.funnyInChina(30.66, 104.07), "Chengdu"); ok(A.funnyInChina(43.8, 87.6), "Urumqi");
+  ok(!A.funnyInChina(13.75, 100.5), "Bangkok"); ok(!A.funnyInChina(21.03, 105.85), "Hanoi"); ok(!A.funnyInChina(-8.65, 115.2), "Bali");
+  A.S.funny = true;
+  try {
+    eq(A.funnyMapTap({lat:39.9, lng:116.4}, false), true); eq(A.funnyMapTap({lat:39.9, lng:116.4}, true), false, "a tap on a place pin");
+    eq(A.funnyMapTap({lat:13.75, lng:100.5}, false), false);
+  } finally { A.S.funny = false; }
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
@@ -728,13 +806,35 @@ test("feeling rough: hangover and the shits get the right list for the country, 
     P1.S.friends.list = {[me2.uid]:{n:"Sam", share:true, at:1}}; P1.S.friends.on = true;
     const sentFake = await P1.frSendNow(true, {lat:13.7, lng:100.5}, "test");
     test("friends: while testing, the pretend location is what friends see", () => { eq(sentFake, true); eq(fb.root.loc[me1.uid].lat, 13.7); });
-    test("rock paper scissors: scores, draws and unfinished rounds", () => {
-      const g = {r:{1:{x:"rock", y:"scissors"}, 2:{x:"paper", y:"paper"}, 3:{x:"scissors", y:"rock"}, 4:{x:"paper", y:"rock"}, 5:{x:"rock"}}};
-      eq(P1.rpsScore(g, "x", "y"), [2, 1]); eq(P1.rpsScore(g, "y", "x"), [1, 2]);
-      eq(P1.rpsRoom("b", "a"), "a_b"); eq(P1.rpsRoom("a", "b"), "a_b");
+    // games: Dylan starts Four in a row with Sam (parties/{pid}); only the people in it can see or change it
+    const pid = "ptest1";
+    const made = await P1.frDb("PUT", `parties/${pid}`, {g:"c4", h:me1.uid, m:{[me1.uid]:"Dylan", [me2.uid]:"Sam"}, j:{[me1.uid]:true}, k:1}).then(() => "ok", e => e.message);
+    await P1.frDb("PUT", `invites/${me2.uid}/${me1.uid}`, {g:"c4", n:"Dylan", t:{".sv":"timestamp"}, p:pid});
+    const inv = await P2.frDb("GET", `invites/${me2.uid}`);
+    const joined = await P2.frDb("PUT", `parties/${pid}/j/${me2.uid}`, true).then(() => "ok", e => e.message);
+    const st = {p:[me1.uid, me2.uid], b:".".repeat(42), t:0, last:-1};
+    const moved = await P1.frDb("PATCH", `parties/${pid}`, {k:1, s:st}).then(() => "ok", e => e.message);
+    const seen2 = await P2.frDb("GET", `parties/${pid}`);
+    const status = async p => { try { await p; return "ok"; } catch(e){ return e.status; } };
+    const peekParty = await status(P3.frDb("GET", `parties/${pid}`)), peekState = await status(P3.frDb("GET", `parties/${pid}/s`));
+    const cheat = await status(P3.frDb("PUT", `parties/${pid}/s/t`, 1)), joinIn = await status(P3.frDb("PUT", `parties/${pid}/m/${me3.uid}`, "Stranger"));
+    const takeOver = await status(P3.frDb("PUT", `parties/${pid}`, {g:"c4", h:me3.uid, m:{[me3.uid]:"Stranger"}}));
+    const forgeNew = await status(P3.frDb("PUT", `parties/pforged`, {g:"c4", h:me1.uid, m:{[me1.uid]:"Dylan", [me2.uid]:"Sam"}}));
+    const ownNew = await status(P3.frDb("PUT", `parties/pown`, {g:"price", h:me3.uid, m:{[me3.uid]:"Stranger"}}));
+    test("games: a game is made with yourself in it; the friends invited can join and play; nobody else can see, join or change it", () => {
+      eq([made, joined, moved], ["ok", "ok", "ok"]); eq(inv[me1.uid].p, pid); eq(seen2.s.b, st.b);
+      eq([peekParty, peekState, cheat, joinIn, takeOver, forgeNew], [401, 401, 401, 401, 401, 401]); eq(ownNew, "ok");
     });
-    let otherGame = 0; try { await P3.frDb("GET", `games/${P1.rpsRoom(me1.uid, me2.uid)}`); } catch(e){ otherGame = e.status; }
-    test("rock paper scissors: only the two players can see their game", () => eq(otherGame, 401));
+    // the Trip tally: your own row only, but everyone signed in can read it; each finished game counts once, games alone don't
+    const ctx = {pid, me:me1.uid, party:{g:"c4", k:1, s:st}};
+    await P1.gmRecord(ctx, P1.GAMES.c4, {w:[me1.uid]}); await P1.gmRecord(ctx, P1.GAMES.c4, {w:[me1.uid]});
+    const ctx2 = {pid, me:me2.uid, party:{g:"c4", k:1, s:st}};
+    await P2.gmRecord(ctx2, P2.GAMES.c4, {w:[me1.uid]});
+    await P1.gmRecord({pid:"psolo", me:me1.uid, party:{g:"price", k:1, s:{p:[me1.uid]}}}, P1.GAMES.price, {w:[me1.uid]});
+    const t1 = await P3.frDb("GET", `tally/${me1.uid}`), forgeTally = await status(P3.frDb("PUT", `tally/${me1.uid}/c4`, {w:99, p:99}));
+    test("games: the Trip tally counts each game once per phone, only against someone, and nobody can change another's", () => {
+      eq(t1, {c4:{w:1, p:1}}); eq(fb.root.tally[me2.uid], {c4:{w:0, p:1}}); eq(forgeTally, 401);
+    });
     test("frListen falls back to checking every second when there's no live stream", () => {
       eq(P1.frSetIn({a:{b:1}}, "/a/c", 2), {a:{b:1, c:2}}); eq(P1.frSetIn({a:{b:1}}, "/", {z:1}), {z:1}); eq(P1.frSetIn({a:{b:1}}, "/a/b", null), {a:{}});
     });

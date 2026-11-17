@@ -68,7 +68,7 @@ const ldBidText = b => `${gmWord(b.q)} ${b.f}${b.q === 1 ? "" : "s"}`;
 // Guess the price: only researched prices (places with a price, journeys with a fare), never estimates
 function gpQuestions(){
   const pl = D.places.filter(p => p.p && p.p.length && p.cur && p.cur !== "GBP" && !/budget|evening/.test(p.pu || "")).map(p => "p:" + p.id);
-  const ed = D.net.edges.map((e, i) => e.p && e.p.length && e.cur ? "e:" + i : "").filter(Boolean);
+  const ed = D.net.edges.map((e, i) => e.p && e.p.length && e.cur && e.cur !== "GBP" ? "e:" + i : "").filter(Boolean);
   return gmShuffle(gmShuffle(pl).slice(0, 4).concat(gmShuffle(ed).slice(0, 2))).slice(0, 5);
 }
 const gpHub = id => { const h = Object.values(D.net.hubs).find(x => x[0] === id); return h ? h[1] : id; };
@@ -80,7 +80,8 @@ function gpItem(key){
     return {q:`${p.n}, ${p.city}`, sub:what, p:p.p, cur:p.cur, ic:p.c === "gaff" ? "bed" : p.c === "munch" ? "food" : "ticket", src:p.rs || (p.src && p.src[0] && p.src[0][0]) || ""};
   }
   const e = D.net.edges[+id]; if (!e) return null;
-  return {q:`${e.mode} from ${gpHub(e.a)} to ${gpHub(e.b)}`, sub:e.op ? `${e.op}, one way` : "one way", p:e.p, cur:e.cur, ic:"bus", src:(e.src && e.src[0] && e.src[0][0]) || ""};
+  const ic = /flight|plane/i.test(e.mode) ? "plane" : /train/i.test(e.mode) ? "train" : /ferry|boat|speed/i.test(e.mode) ? "ship" : "bus";
+  return {q:`${e.mode} from ${gpHub(e.a)} to ${gpHub(e.b)}`, sub:e.op ? `${e.op}, one way` : "one way", p:e.p, cur:e.cur, ic, src:(e.src && e.src[0] && e.src[0][0]) || ""};
 }
 // how far off a guess is: 0 inside the real range, else the gap as a share of the price
 function gpOff(item, g){ const lo = Math.min(...item.p), hi = Math.max(...item.p); return g >= lo && g <= hi ? 0 : g < lo ? (lo - g) / lo : (g - hi) / hi; }
@@ -184,7 +185,7 @@ async function openParty(pid){
   let party = await frDb("GET", `parties/${pid}`).catch(() => null);
   if (!party || !GAMES[party.g]){ toast("That game has finished or was closed"); return; }
   const g = GAMES[party.g];
-  gmPid = pid; gmCache = {};
+  gmEnd(); gmPid = pid; gmCache = {};
   openSheet(`<div class="sheet-head"><div><h2 id="gm-t">${g.ic} ${esc(g.n)}</h2><div class="note" id="gm-sub"></div></div>
       <div class="row gm-headbtns"><button class="icon-btn gm-help" type="button" id="gmHelp" aria-label="How to play">?</button><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div></div>
     <div class="gm" id="gmBox" data-pid="${esc(pid)}"><p class="note">Loading…</p></div>`, "gm-t");
@@ -195,19 +196,26 @@ async function openParty(pid){
   if (!gmArr(lsGet(GM_RECENT, [])).some(x => x.pid === pid)) gmRemember(pid, party.g, Object.keys(party.m || {}).filter(u => u !== me.uid));
   const ctx = {pid, me:me.uid, get party(){ return party; },
     put:(path, v) => frDb("PUT", `parties/${pid}/${path}`, v).catch(frFail),
-    set:(path, v) => { party = frSetIn(party, path, v); paint(); return ctx.put(path, v); }};
+    set:(path, v) => { party = frSetIn(party, path, v); paint(); return ctx.put(path, v); },
+    patch:obj => { for (const [k, v] of Object.entries(obj)) party = frSetIn(party, k, v); paint(); return frDb("PATCH", `parties/${pid}`, obj).catch(frFail); }};
+  const gone = () => { const box = $("#gmBox"); return !box || box.dataset.pid !== pid; };
+  const stop = () => { clearInterval(watch); if (gmStop && gmPid === pid){ gmStop(); gmStop = null; gmEnd(); } };
   const paint = () => {
-    const box = $("#gmBox");
-    if (!box || box.dataset.pid !== pid){ if (gmStop && gmPid === pid){ gmStop(); gmStop = null; } return; }
-    try { gmPaint(box, ctx); } catch(e){ console.error(e); }
+    if (gone()){ stop(); return; }
+    try { gmPaint($("#gmBox"), ctx); } catch(e){ console.error(e); }
   };
-  paint();
   if (gmStop) gmStop();
   gmStop = frListen(`parties/${pid}`, v => { if (v) party = v; paint(); });
+  const watch = setInterval(() => { if (gone()) stop(); }, 1500);       // closed the sheet: stop following the game
+  paint();
 }
+// the Where in the world map, when a game closes
+function gmEnd(){ if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; } }
 const gmName = (ctx, u) => u === ctx.me ? "You" : esc(frState().list[u] ? frNameOf(u) : ((ctx.party.m || {})[u] || "Friend"));
 function gmPaint(box, ctx){
   const party = ctx.party, g = GAMES[party.g], s = party.s, me = ctx.me;
+  // a new game in the same party (Play again): forget this phone's bits of the last one (your boats, your dice, the map)
+  if (gmCache.k !== (party.k || 1)){ gmEnd(); gmCache = {k:party.k || 1}; }
   const sub = $("#gm-sub"), others = Object.keys(party.m || {}).filter(u => u !== me);
   if (sub) sub.innerHTML = others.length ? `You vs ${others.map(u => gmName(ctx, u)).join(", ")}` : "Just you";
   // the lobby: waiting for the people invited to open it
@@ -229,14 +237,14 @@ function gmPaint(box, ctx){
     const wn = res.w.length ? res.w.map(u => gmName(ctx, u)).join(" and ") : "";
     box.insertAdjacentHTML("beforeend", `<div class="gm-end ${res.w.includes(me) ? "good" : ""}"><b>${res.w.length ? (res.w.includes(me) && res.w.length === 1 ? "You win! 🎉" : `${wn} win${res.w.length === 1 && !res.w.includes(me) ? "s" : ""}!`) : "It’s a draw"}</b>
       <div class="row"><button class="btn primary" type="button" id="gmAgain">Play again</button><a class="btn" href="#tools/friends-play" id="gmTally">Trip tally</a></div></div>`);
-    $("#gmAgain").onclick = () => { ctx.put("k", (party.k || 1) + 1); gmCache = {}; ctx.set("s", g.init(gmArr(s.p))); };
-    $("#gmTally").onclick = () => closeDetail();
+    $("#gmAgain").onclick = () => { gmEnd(); gmCache = {}; ctx.patch({k:(party.k || 1) + 1, s:g.init(gmArr(s.p))}); };
+    $("#gmTally").onclick = () => { closeDetail(); if (ui.view === "tools" && ui.sub === "friends-play") setTimeout(paintTally, 300); };
   }
 }
 // the Trip tally: each phone adds its own result once per game
 async function gmRecord(ctx, g, res){
   const key = ctx.pid + ":" + (ctx.party.k || 1), done = lsGet(GM_DONE, {}) || {};
-  if (done[key]) return;
+  if (done[key] || gmArr((ctx.party.s || {}).p).length < 2) return;
   done[key] = 1; const keys = Object.keys(done); if (keys.length > 200) keys.slice(0, keys.length - 200).forEach(k => delete done[k]); lsSet(GM_DONE, done);
   const id = ctx.party.g, me = ctx.me;
   try {
@@ -337,7 +345,7 @@ function paintQuiz(box, ctx, s, res){
   const party = ctx.party, g = GAMES[party.g], me = ctx.me, p = gmArr(s.p), q = gmArr(s.q), i = s.i || 0, ww = party.g === "where";
   const sc = quizScores(g, s);
   const scores = `<div class="gm-players">${p.map(u => `<span class="gm-pl">${gmName(ctx, u)} <b>${sc[u] || 0}</b></span>`).join("")}</div>`;
-  if (res){ if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; } box.innerHTML = scores + `<p class="gm-msg">Final score after ${q.length} rounds</p>`; return; }
+  if (res){ gmEnd(); box.innerHTML = scores + `<p class="gm-msg">Final score after ${q.length} rounds</p>`; return; }
   const key = q[i], gs = (s.g || {})[i] || {}, all = p.every(u => gs[u] != null), mine = gs[me];
   const item = ww ? wwCity(key) : gpItem(key);
   if (!item){ ctx.set("s/i", i + 1); return; }
@@ -360,7 +368,7 @@ function paintQuiz(box, ctx, s, res){
   } else {
     // keep the photo and map while the round lasts (redrawing would reset the map)
     if (gmCache.wwRound !== i || !$("#wwMap")){
-      if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; }
+      gmEnd();
       gmCache.wwRound = i; gmCache.pin = null;
       box.innerHTML = `<div id="wwScores"></div>${head}<img class="ww-photo" src="${esc(DEST_IMG[key])}" alt="A trip destination: where is it?"><div class="ww-map" id="wwMap"></div><div id="wwBottom"></div>`;
       wwMakeMap(ctx);

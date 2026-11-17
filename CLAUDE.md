@@ -22,15 +22,29 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
   Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
-- `js/friends.js`: Tools › Friends: friends list, a friends map (`frMapI`, glides with flyTo), live split (embedded `splitSectionHTML`),
-  Rock Paper Scissors (`games/`, live via `frListen` event stream with polling fallback). Firebase REST (anonymous sign-in + Realtime Database, free Spark plan).
+- `js/friends.js`: Tools › Friends: friends list, friends on the main map (only while the map's Friends chip is on: `ui.mapFriends === true`,
+  off on every start), live split (embedded `splitSectionHTML`), sticker messages (`msgs/`: a "Sam sent you a message" popup on any
+  screen, `frMsgPopup`; Open shows the sticker and its name, then deletes it). `boot.js` starts `frLoop`, so messages and game invites
+  pop up wherever you are. Firebase REST (anonymous sign-in + Realtime Database, free Spark plan); live data via `frListen` (event stream,
+  polling fallback).
   Sharing uses its own GPS watch (`frHere`), never the pretend test location. Developer phone (7 taps on Settings › About the data,
   then claim; `admins/`) is the only one that can set friends' photos (`photos/`, small JPEGs).
   Typing ELITE POTATO in the map search sets `S.dev`: Tools › Developer (last tool) has the Design Lab switch, stickers (add, rename,
   delete), who is a developer, and everyone's photos. The Design Lab is only ever shown on developer phones. Anyone can give a friend
   their own name and photo with the pencil (kept on the phone, `S.friends.list[uid].pic`).
   Dylan adds `window.SEA_FIREBASE = {apiKey, databaseURL}` to `config.js` himself (FIREBASE-SETUP.md); rules in `firebase/database.rules.json`
-  (keep them and `tests/fakefirebase.js` in step). Sharing is off until switched on, per friend; only real GPS is sent, only while open.
+  (keep them and `tests/fakefirebase.js` in step; when they change, tell Dylan to re-publish them). Sharing is off until switched on, per friend; only real GPS is sent, only while open.
+- `js/games.js`: Friends › Play (`TOOL_PAGES["friends-play"]`): Four in a row, Sink the fleet, Liar's dice, Guess the price (researched
+  prices only, never estimates or GBP) and Where in the world (`DEST_IMG` photos). A game is `parties/{pid}` `{g,h,m:{uid:name},j,k,s}`
+  (members only); invites `invites/{uid}/{from}` `{g,n,t,p}` (`gmInvited`/`openParty`); Trip tally `tally/{uid}` `{game:{w,p}}`
+  (each finished game against someone counts once per phone; the loser's forfeit is kept on the phone). Turn games are written only by
+  the player whose turn it is; Play again writes the new game and its number together (PATCH) so nothing is counted twice.
+  Each game shows its rules the first time (`gm-seen`), and from the ? button.
+- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). On start `media/tommy.mp4`
+  plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
+  (`funnyMapTap`, called from the map's click handler; GEO's China plus a coarse Natural Earth outline north of 30°N) plays
+  `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
+  `media/ben-wave.mp4` by `python3 tools/ben-sprite.py` (flood-fills the black from the edges, so his navy jumper stays), animated with CSS `steps()`.
 - `js/split.js`: Tools › Split costs: "On this phone" (`S.split`, shared by link) or a live group with friends (bottom of
   `js/friends.js`: `groups/{gid}` in Firebase, members only; last copy kept on the phone for no signal). The page works from a "model".
 - Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`): no lookup on the phone.
@@ -38,7 +52,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
-- `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta).
+- `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta). Its map
+  names the `D.cities` that aren't stops (`city-name` layer) and the stops from zoom 4.6.
   Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
@@ -55,7 +70,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Luggage lockers and gluten-free (`gf`) were added to the existing folders by `node tools/osm/add-extras.js` (Overpass); extract.py now keeps both.
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
-- `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`).
+- `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
 - `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`.
 
 ## Rules
@@ -91,7 +106,8 @@ PORT=8766 npm run test:smoke   # if port 8765 is busy
 
 The browser run checks every tab at 393 px, the map and clusters, filters, a place opening, both looks, the Design Lab,
 Documents (a real PDF and a picture read on the device), the camera translator (Google replies faked),
-saving Bangkok for offline and using it with no signal, and that there are no JavaScript errors.
+two phones on a pretend Firebase (friends, messages, live split, and the games played against each other),
+funny mode, saving Bangkok for offline and using it with no signal, and that there are no JavaScript errors.
 Errors from blocked hosts and the missing `config.js` are ignored.
 
 ## How to publish
