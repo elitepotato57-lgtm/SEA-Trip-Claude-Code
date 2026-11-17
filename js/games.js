@@ -196,8 +196,9 @@ async function openParty(pid){
   if (!gmArr(lsGet(GM_RECENT, [])).some(x => x.pid === pid)) gmRemember(pid, party.g, Object.keys(party.m || {}).filter(u => u !== me.uid));
   const ctx = {pid, me:me.uid, get party(){ return party; },
     put:(path, v) => frDb("PUT", `parties/${pid}/${path}`, v).catch(frFail),
-    set:(path, v) => { party = frSetIn(party, path, v); paint(); return ctx.put(path, v); },
-    patch:obj => { for (const [k, v] of Object.entries(obj)) party = frSetIn(party, k, v); paint(); return frDb("PATCH", `parties/${pid}`, obj).catch(frFail); }};
+    // the write goes out before the redraw, so anything the redraw writes (your dice for a new round) lands after it
+    set:(path, v) => { party = frSetIn(party, path, v); const w = ctx.put(path, v); paint(); return w; },
+    patch:obj => { for (const [k, v] of Object.entries(obj)) party = frSetIn(party, k, v); const w = frDb("PATCH", `parties/${pid}`, obj).catch(frFail); paint(); return w; }};
   const gone = () => { const box = $("#gmBox"); return !box || box.dataset.pid !== pid; };
   const stop = () => { clearInterval(watch); if (gmStop && gmPid === pid){ gmStop(); gmStop = null; gmEnd(); } };
   const paint = () => {
@@ -209,8 +210,8 @@ async function openParty(pid){
   const watch = setInterval(() => { if (gone()) stop(); }, 1500);       // closed the sheet: stop following the game
   paint();
 }
-// the Where in the world map, when a game closes
-function gmEnd(){ if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; } }
+// when a game closes or a new one starts: the Where in the world map, and a dice roll still waiting to be sent
+function gmEnd(){ clearTimeout(gmCache.rollT); if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; } }
 const gmName = (ctx, u) => u === ctx.me ? "You" : esc(frState().list[u] ? frNameOf(u) : ((ctx.party.m || {})[u] || "Friend"));
 function gmPaint(box, ctx){
   const party = ctx.party, g = GAMES[party.g], s = party.s, me = ctx.me;
@@ -301,8 +302,15 @@ function paintFleet(box, ctx, s, res){
 }
 function paintDice(box, ctx, s, res){
   const me = ctx.me, p = gmArr(s.p), n = s.n || {}, d = s.d || {}, alive = ldAlive(s);
-  // roll your own dice at the start of each round (only your phone knows them until someone calls Liar)
-  if (!res && alive.includes(me) && !(d[me] && d[me].r === s.r) && gmCache.rolled !== s.r){ gmCache.rolled = s.r; ctx.set(`s/d/${me}`, {r:s.r, v:ldRoll(n[me])}); return; }
+  // roll your own dice at the start of each round (only your phone shows them until someone calls Liar). The roll is made
+  // once per round; if it hasn't reached the game yet (a write crossed with another), the same dice are sent again.
+  if (!res && alive.includes(me) && !(d[me] && d[me].r === s.r)){
+    if (!gmCache.roll || gmCache.roll.r !== s.r) gmCache.roll = {r:s.r, v:ldRoll(n[me])};
+    const roll = gmCache.roll, wait = 2500 - (Date.now() - (gmCache.rollAt || 0));
+    if (wait <= 0){ gmCache.rollAt = Date.now(); ctx.set(`s/d/${me}`, roll); return; }
+    clearTimeout(gmCache.rollT);
+    gmCache.rollT = setTimeout(() => { const s2 = ctx.party.s; if (s2 && s2.r === roll.r && !((s2.d || {})[me] && s2.d[me].r === roll.r)){ gmCache.rollAt = Date.now(); ctx.set(`s/d/${me}`, roll); } }, wait);
+  }
   const ready = ldReady(s), turn = ldTurn(s), myTurn = !res && ready && turn === me, mineV = d[me] && d[me].r === s.r ? d[me].v : "";
   const last = s.last;
   let lastHTML = "";
