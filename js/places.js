@@ -76,15 +76,25 @@ const P_MAP = {w:"web", v:"veg", vg:"vegan", d:"desc"};       // gf (gluten-free
 /* The places databases, one folder each in places/ (built by tools/osm/extract.py; see tools/osm/README.md).
    Thailand covers the whole country. Indonesia so far covers Lampung, South Sumatra and Bengkulu (Sumatra), Bali and Lombok:
    the boxes below match "regions" in places/id/meta.json. */
-// Cambodia covers the whole country; its boxes are its 25 provinces (from places/kh/meta.json), so the islands off
-// Sihanoukville count as Cambodia even where the simplified country outline misses them. Thailand is checked first.
-const PLACE_DBS = [{dir:"th", cc:"TH"}, {dir:"id", cc:"ID", bbs:[[100.62, -6.455, 106.847, -1.514], [114.413, -9.05, 115.832, -7.463], [115.75, -9.0, 116.74, -8.15]]},
-  {dir:"kh", cc:"KH", bbs:[[102.3338, 13.3579, 103.4427, 14.2502], [102.3451, 12.3711, 103.9012, 13.4794], [104.8198, 11.7342, 105.7759, 12.5015], [104.1711, 11.7344, 104.902, 12.6074], [103.773, 11.0779, 104.7926, 12.0768], [104.1735, 12.1887, 105.7348, 13.4496], [103.839, 10.3536, 104.7271, 11.1722], [104.6562, 10.8967, 105.2972, 11.8943], [102.585, 10.6542, 104.0646, 12.1163], [105.5872, 11.9494, 106.802, 13.4073], [106.3386, 12.0615, 107.6087, 13.4175], [104.7204, 11.4201, 105.0374, 11.735], [104.358, 13.0553, 105.8992, 14.4374], [105.104, 10.8598, 105.8091, 11.8713], [102.7035, 11.8433, 104.3952, 13.0891], [106.5302, 13.1722, 107.6312, 14.6903], [103.3892, 12.772, 104.6832, 13.9719], [102.6296, 9.4111, 104.0773, 11.436], [105.5195, 13.1137, 106.7892, 14.5927], [105.5796, 10.79, 106.2058, 11.5996], [104.4102, 10.5189, 105.0983, 11.353], [103.0319, 13.8769, 104.5086, 14.4404], [104.071, 10.1548, 104.4259, 10.5909], [102.4854, 12.6639, 102.7533, 13.1167], [105.4084, 11.6007, 106.4675, 12.3005]]}];
+// Cambodia, Vietnam, Laos and Singapore cover the whole country. Their boxes are their provinces (from each meta.json), so islands
+// that the simplified country outlines miss (Koh Rong, Phu Quoc, Sentosa) still count. "part" means only the boxes are covered.
+const PLACE_DBS = [{dir:"th", cc:"TH"}, {dir:"id", cc:"ID", part:true, bbs:[[100.62, -6.455, 106.847, -1.514], [114.413, -9.05, 115.832, -7.463], [115.75, -9.0, 116.74, -8.15]]},
+  {dir:"kh", cc:"KH", bbs:[[102.3338, 13.3579, 103.4427, 14.2502], [102.3451, 12.3711, 103.9012, 13.4794], [104.8198, 11.7342, 105.7759, 12.5015], [104.1711, 11.7344, 104.902, 12.6074], [103.773, 11.0779, 104.7926, 12.0768], [104.1735, 12.1887, 105.7348, 13.4496], [103.839, 10.3536, 104.7271, 11.1722], [104.6562, 10.8967, 105.2972, 11.8943], [102.585, 10.6542, 104.0646, 12.1163], [105.5872, 11.9494, 106.802, 13.4073], [106.3386, 12.0615, 107.6087, 13.4175], [104.7204, 11.4201, 105.0374, 11.735], [104.358, 13.0553, 105.8992, 14.4374], [105.104, 10.8598, 105.8091, 11.8713], [102.7035, 11.8433, 104.3952, 13.0891], [106.5302, 13.1722, 107.6312, 14.6903], [103.3892, 12.772, 104.6832, 13.9719], [102.6296, 9.4111, 104.0773, 11.436], [105.5195, 13.1137, 106.7892, 14.5927], [105.5796, 10.79, 106.2058, 11.5996], [104.4102, 10.5189, 105.0983, 11.353], [103.0319, 13.8769, 104.5086, 14.4404], [104.071, 10.1548, 104.4259, 10.5909], [102.4854, 12.6639, 102.7533, 13.1167], [105.4084, 11.6007, 106.4675, 12.3005]]},
+  {dir:"vn", cc:"VN", bbs:[[105.289, 20.5645, 106.02, 21.3854], [106.1242, 19.9178, 107.9519, 21.237], [106.4392, 20.4646, 108.2086, 21.6635], [103.5294, 21.3259, 105.1004, 22.8449], [102.3206, 21.6861, 103.9858, 22.8139], [105.2667, 22.3569, 106.8376, 23.1188], [103.2123, 20.573, 105.0253, 22.0307], [104.3343, 21.4976, 105.5983, 23.3927], [106.0954, 21.3252, 107.3641, 22.4615], [105.5417, 19.4111, 106.9524, 20.7044], [104.376, 19.1875, 106.2691, 20.67], [103.8746, 18.5521, 106.2645, 20.0024], [105.1035, 17.9096, 106.7537, 18.767], [105.6077, 16.3022, 107.692, 18.1316], [107.0343, 15.9949, 108.4806, 17.1109], [107.2109, 14.9514, 109.0236, 16.334], [107.3354, 13.9217, 109.4632, 15.7973], [107.4508, 12.9962, 109.5849, 14.7032], [107.4842, 12.1605, 109.6665, 13.6953], [108.55, 11.25, 109.47, 12.88], [107.2061, 9.378, 109.4019, 12.8125], [105.5004, 10.3948, 106.7472, 11.7829], [106.4116, 10.5792, 107.5778, 12.2985], [105.9769, 8.3457, 108.4311, 11.5016], [103.0522, 8.9946, 105.5756, 10.9623], [105.1856, 10.1348, 106.9934, 10.9735], [105.6819, 9.0801, 106.9934, 10.3403], [105.2257, 8.7025, 106.4538, 10.3252], [103.4821, 8.1791, 106.0553, 9.6375], [105.8806, 20.9693, 107.0336, 21.6263], [105.8953, 20.0772, 107.1193, 21.007], [104.8143, 20.3054, 105.8571, 21.7196], [105.4311, 21.3265, 106.247, 22.7414], [102.1439, 20.8927, 103.5988, 22.5479]]},
+  {dir:"la", cc:"LA", bbs:[[102.0117, 17.8031, 103.1028, 18.438], [101.3862, 17.8135, 102.8986, 19.4136], [101.7224, 19.0423, 103.4005, 21.1357], [106.1702, 14.2923, 107.5915, 15.2886], [100.0843, 19.7696, 101.2553, 20.8445], [102.8102, 17.8698, 105.2588, 19.1212], [105.2052, 13.9097, 106.8282, 15.4701], [103.1073, 19.6102, 104.9938, 20.9766], [104.2704, 16.9017, 106.426, 18.2666], [100.5092, 20.3016, 101.7762, 21.5646], [100.7271, 19.8178, 102.3578, 21.2172], [101.5492, 20.8335, 102.9929, 22.5087], [105.3422, 15.2783, 107.1571, 16.5496], [104.7333, 15.8768, 106.7988, 17.1234], [100.4038, 17.466, 101.8967, 19.9355], [106.3001, 15.0284, 107.635, 16.1895], [102.6509, 18.7953, 104.2808, 20.0408], [102.5283, 18.4542, 103.8994, 19.3126]]},
+  {dir:"sg", cc:"SG", bbs:[[103.59, 1.15, 104.1, 1.475]]}];
 const inPlaceDb = (lat, lng) => !!placeDbCc(lat, lng);
-// which country's database covers a point (islands and coasts can fall outside the simplified country outlines, so the boxes win)
+// which country's database covers a point. The country outline decides first (province boxes overlap the neighbours:
+// Singapore's takes in Johor Bahru); the boxes only decide for islands and coasts that the simplified outlines miss.
+const inDbBoxes = (x, lat, lng) => !!x.bbs && x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3]);
 function placeDbCc(lat, lng){
-  const d = PLACE_DBS.find(x => x.bbs ? x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3]) : countryAt(lat, lng) === x.cc);
-  return d ? d.cc : null;
+  const o = outlineAt(lat, lng);
+  if (o != null){ const d = PLACE_DBS.find(x => x.cc === o); return d && (!d.part || inDbBoxes(d, lat, lng)) ? d.cc : null; }
+  const d = PLACE_DBS.find(x => inDbBoxes(x, lat, lng));
+  if (d) return d.cc;
+  // Thailand has no boxes: its islands and coasts fall back to the nearest trip city (countryAt)
+  const c = countryAt(lat, lng), w = PLACE_DBS.find(x => x.cc === c && !x.part);
+  return w ? w.cc : null;
 }
 const ccAt = (lat, lng) => placeDbCc(lat, lng) || countryAt(lat, lng);
 function osmPlace(row, areas, grp, cc = "TH"){
@@ -244,7 +254,7 @@ const Places = {
   }
 };
 function foldText(s){
-  return String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9฀-๿]+/g, " ").trim();
+  return String(s || "").replace(/[đĐ]/g, "d").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9฀-๿]+/g, " ").trim();
 }
 /* ---------- Thai to Latin letters, worked out on the phone (no signal needed) ----------
    A small rule-based romaniser written for this app. Two styles:
@@ -519,6 +529,9 @@ const PLACE_DESTS = D.cities.filter(c => inPlaceDb(c[1], c[2]));
 const SUMATRA_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] < 110);
 const BALI_LOMBOK_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "ID" && c[2] >= 114);
 const KH_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "KH");
+const VN_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "VN");
+const LA_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "LA");
+const SG_DESTS = PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === "SG");
 function focusPt(){
   if (S.focus && isFinite(S.focus.lat)) return S.focus;
   if (userLoc) return {lat:userLoc.lat, lng:userLoc.lng, here:true};
@@ -557,9 +570,13 @@ const CHIPS = {
   munch: [
     {id:"all", l:"All", ic:"food"},
     {id:"street", l:"Street Food", ic:"food", f:STREETISH},
-    // the country's own food: Thai in Thailand, Indonesian (including Padang food, pempek and satay) in Indonesia
-    {id:"thai", get l(){ return S.country === "ID" ? "Indonesian Food" : "Thai Food"; }, ic:"pot",
-      f:it => it.cc === "ID" ? ["Indonesian", "Padang food", "Pempek", "Satay"].includes(foodType(it)) : it.osm ? hasCu(it, THAI_CU) && !it.br : it.cc === "TH" && !WESTERN.test(ptext(it))},
+    // the country's own food: Thai in Thailand, Indonesian (including Padang food, pempek and satay) in Indonesia,
+    // Khmer, Vietnamese, Lao; in Singapore, hawker centres and food courts
+    {id:"thai", get l(){ return S.country === "SG" ? "Hawker Food" : (LOCAL_FOOD[S.country] || "Thai") + " Food"; }, ic:"pot",
+      f:it => it.cc === "ID" ? ["Indonesian", "Padang food", "Pempek", "Satay"].includes(foodType(it))
+        : it.cc === "SG" ? it.k === "foodcourt" || it.k === "market" || /hawker|food cent(re|er)|kopitiam/i.test(it.n || "")
+        : it.cc && it.cc !== "TH" ? foodType(it) === LOCAL_FOOD[it.cc] || (!it.osm && hasT(it, "Local", "Street food"))
+        : it.osm ? hasCu(it, THAI_CU) && !it.br : !WESTERN.test(ptext(it))},
     {id:"cheap", l:"Cheap Eats", ic:"cash", f:it => it.osm ? STREETISH(it) : (it.p ? toGBP(it.p[0], it.cur) * rate("THB") <= 100 : false),
       note:"Researched places with a checked price of ฿100 or less, then street stalls, food courts and markets, which are normally cheap. OpenStreetMap has no prices, so none are shown for those."},
     {id:"picks", l:"Local Favourites", ic:"star", f:it => !it.osm, note:"Places recommended by travel guides and blogs, each with its sources."},

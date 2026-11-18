@@ -9,6 +9,10 @@
 /* ---------- food type ---------- */
 // [label, OSM cuisine values, words in the name (English or Thai)]
 const FOOD_TYPES = [
+  // a fourth value means the row is only used in that country. Vietnam's and Laos's everyday food comes first there,
+  // so a "Phở" stall in Hanoi is Vietnamese food (priced in dong) and "lao" cuisine in Laos isn't filed under Isaan
+  ["Vietnamese",        /^(vietnamese|regional|local)$/,                                                           /\bpho\b|\bbun\b|\bcom\b|banh mi|banh xeo|banh cuon|hu tieu|mi quang|cao lau|quan an|\bquan\b|vietnam/, "VN"],
+  ["Lao",               /^(lao|laotian|regional|local)$/,                                                         /\blao\b|laap|larb|khao piak|khao poon|khao soi|tam mak hoong|or lam|sai oua|sticky rice|khao niao|\bfeu\b/, "LA"],
   // Indonesian specialities first, so "RM Padang" or "Pempek Candy" aren't filed under something general
   ["Pempek",            /^(pempek|empek-empek|empek empek)$/,                                                      /pempek|empek|tekwan|celimpungan|\blaksan\b|\bburgo\b|model ikan/],
   ["Padang food",       /^(padang|minangkabau|minang)$/,                                                           /padang|minang|rendang|nasi kapau|\bkapau\b/],
@@ -38,9 +42,9 @@ const FOOD_TYPES = [
   ["Bakery & cakes",    /^(cake|donut|bakery|pastry|bread)$/,                                                      /bakery|เบเกอรี่|cake|เค้ก|ขนมปัง|donut|โดนัท|pastry|croissant|\broti\b|\bkue\b/],
   ["Café & coffee",     /^(coffee shop|coffee|cafe)$/,                                                             /coffee|café|cafe|กาแฟ|คาเฟ่|espresso|roaster|\bkopi\b|warkop|ngopi/],
   // the everyday local food of each country: only used for places in that country (see foodType)
-  ["Khmer",             /^(khmer|cambodian)$/,                                                                     /\bamok\b|lok ?lak|num ?banh|nom ?banh|kuy ?teav|kuy ?tieu|bai sach|khmer|cambodian|prahok|\bbbq khmer\b/],
-  ["Indonesian",        /^(indonesian|regional|local|sundanese|javanese|balinese|betawi)$/,                        /warung|rumah makan|\brm\b|\bnasi\b|\bsoto\b|gado|pecel|lalapan|bebek|\bayam\b|indonesian|sambal|lontong|ketoprak|rawon|gudeg|martabak|sunda|seblak|batagor|siomay|\bmasakan\b/],
-  ["Thai",              /^(thai|regional|local|thai;regional|southern thai|northern thai)$/,                       /thai|ไทย|อาหารตามสั่ง|ตามสั่ง|ครัว|ร้านอาหาร|แกง|ผัดไทย|pad thai|tom yum|ต้มยำ|kaphrao|krapow|กะเพรา|khao|ข้าว/],
+  ["Khmer",             /^(khmer|cambodian)$/,                                                                     /\bamok\b|lok ?lak|num ?banh|nom ?banh|kuy ?teav|kuy ?tieu|bai sach|khmer|cambodian|prahok|\bbbq khmer\b/, "KH"],
+  ["Indonesian",        /^(indonesian|regional|local|sundanese|javanese|balinese|betawi)$/,                        /warung|rumah makan|\brm\b|\bnasi\b|\bsoto\b|gado|pecel|lalapan|bebek|\bayam\b|indonesian|sambal|lontong|ketoprak|rawon|gudeg|martabak|sunda|seblak|batagor|siomay|\bmasakan\b/, "ID"],
+  ["Thai",              /^(thai|regional|local|thai;regional|southern thai|northern thai)$/,                       /thai|ไทย|อาหารตามสั่ง|ตามสั่ง|ครัว|ร้านอาหาร|แกง|ผัดไทย|pad thai|tom yum|ต้มยำ|kaphrao|krapow|กะเพรา|khao|ข้าว/, "TH"],
   ["Asian",             /^(asian|thai;asian|fusion)$/,                                                             /asian|fusion/]
 ];
 // chains: food type and typical spend per person in baht
@@ -76,8 +80,10 @@ const brandOf = it => {
   return Object.keys(FOOD_BRANDS).find(b => b.length > 3 && n.toLowerCase().startsWith(b.toLowerCase())) || null;
 };
 // each country's everyday food label is only used there ("regional" cuisine means Thai food in Thailand, Indonesian food in Indonesia)
-const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer"};
-const typeFits = (label, it) => !Object.values(LOCAL_FOOD).includes(label) || LOCAL_FOOD[it.cc || "TH"] === label;
+const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer", VN:"Vietnamese", LA:"Lao"};
+const typeFits = (row, it) => !row[3] || row[3] === (it.cc || "TH");
+// Vietnamese names carry accents (Phở, Bún chả, Cơm tấm): match them without
+const plainName = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[đĐ]/g, "d");
 // cache per place: these run for thousands of map points
 function foodType(it){
   if (it._ft !== undefined) return it._ft;
@@ -85,10 +91,10 @@ function foodType(it){
   const b = brandOf(it);
   if (b) label = FOOD_BRANDS[b][0];
   const cus = (it.cu || []).map(c => String(c).toLowerCase().trim());
-  if (!label) for (const [l, cuRe] of FOOD_TYPES){ if (typeFits(l, it) && cus.some(c => cuRe.test(c))){ label = l; break; } }
+  if (!label) for (const row of FOOD_TYPES){ const [l, cuRe] = row; if (typeFits(row, it) && cus.some(c => cuRe.test(c))){ label = l; break; } }
   if (!label){
-    const name = `${it.n || ""} ${it.nt || ""}`.toLowerCase();
-    for (const [l, , nameRe] of FOOD_TYPES){ if (typeFits(l, it) && nameRe.test(name)){ label = l; break; } }
+    const name = plainName(`${it.n || ""} ${it.nt || ""}`.toLowerCase());
+    for (const row of FOOD_TYPES){ const [l, , nameRe] = row; if (typeFits(row, it) && nameRe.test(name)){ label = l; break; } }
   }
   if (!label){
     if (it.k === "cafe") label = "Café & coffee";
@@ -155,11 +161,36 @@ const FOOD_TYPE_PRICE_KH = {"Khmer":[2, 6], "Street food":[1, 4], "Market food":
 const FOOD_KIND_PRICE_KH = {fastfood:[1, 4], market:[1, 4], foodcourt:[2, 5], restaurant:[3, 10]};
 const DO_PRICE_KH = {bar:[1, 2, "A local beer."], market:[0, 0, "Free to walk round."]};
 const STAY_PRICE_KH = {hostel:[5, 10, "A dorm bed."], guesthouse:[10, 25]};
+/* Vietnam, in dong. Only kinds of place that 2026 backpacker cost guides cover: a central dorm bed 150,000–250,000,
+   phở at a street stall 40,000–60,000, bánh mì 20,000–35,000, rice plates (cơm tấm) about 40,000–70,000, a glass of
+   bia hơi 10,000–20,000 (vietnamtourism.com "Vietnam on a backpacker budget" and its Ho Chi Minh City and Hoi An cost
+   pages, discover-vietnam "Budget backpacker guide 2026", checked 18 Nov 2026). Other kinds get no estimate. */
+const FOOD_TYPE_PRICE_VN = {"Vietnamese":[30000, 70000], "Noodles":[40000, 60000], "Rice dishes":[40000, 70000], "Street food":[20000, 60000], "Market food":[20000, 60000]};
+const FOOD_KIND_PRICE_VN = {fastfood:[20000, 60000], market:[20000, 60000]};
+const DO_PRICE_VN = {bar:[10000, 20000, "A glass of bia hơi; bottled beer in bars costs more."], market:[0, 0, "Free to walk round."]};
+const STAY_PRICE_VN = {hostel:[150000, 250000, "A dorm bed."]};
+/* Laos, in kip: a dorm bed 70,000–150,000 (about $3–7), noodle soup (khao piak sen, feu) 15,000–30,000, a large
+   Beerlao 15,000–25,000 in a shop and 25,000–40,000 in a bar or restaurant (southeastasiabackpacker.com "Cost of
+   travel: Laos", travelwithhello.com "Laos travel budget guide", 12go.asia "Laos travel costs", checked 18 Nov 2026). */
+const FOOD_TYPE_PRICE_LA = {"Lao":[15000, 40000], "Noodles":[15000, 30000], "Street food":[10000, 30000], "Market food":[10000, 30000]};
+const FOOD_KIND_PRICE_LA = {fastfood:[10000, 30000], market:[10000, 30000]};
+const DO_PRICE_LA = {bar:[25000, 40000, "A large Beerlao."], market:[0, 0, "Free to walk round."]};
+const STAY_PRICE_LA = {hostel:[70000, 150000, "A dorm bed."]};
+/* Singapore, in Singapore dollars: a dorm bed S$30–40, a hawker meal S$5–10, a pint in a bar S$10–20, an MRT ride
+   S$1–3 (Lonely Planet "10 tips for enjoying Singapore on a budget", Feb 2026; checked 18 Nov 2026). Mall food courts
+   S$6–10 (travelguidestip.com "Singapore travel cost 2026"). */
+const FOOD_TYPE_PRICE_SG = {"Food court":[6, 10], "Market food":[5, 10], "Street food":[5, 10]};
+const FOOD_KIND_PRICE_SG = {foodcourt:[5, 10], market:[5, 10]};
+const DO_PRICE_SG = {bar:[10, 20, "A pint."], market:[0, 0, "Free to walk round."], park:[0, 0], beach:[0, 0]};
+const STAY_PRICE_SG = {hostel:[30, 40, "A dorm bed."]};
 // which tables each country uses (others use Thailand's, converted)
 const PRICE_TABLES = {
   TH:{cur:"THB", food:FOOD_TYPE_PRICE, kind:FOOD_KIND_PRICE, do:DO_PRICE, stay:STAY_PRICE, stars:STAY_STARS},
   ID:{cur:"IDR", food:FOOD_TYPE_PRICE_ID, kind:FOOD_KIND_PRICE_ID, do:DO_PRICE_ID, stay:STAY_PRICE_ID, stars:STAY_STARS_ID},
-  KH:{cur:"USD", food:FOOD_TYPE_PRICE_KH, kind:FOOD_KIND_PRICE_KH, do:DO_PRICE_KH, stay:STAY_PRICE_KH, stars:{}, only:true}
+  KH:{cur:"USD", food:FOOD_TYPE_PRICE_KH, kind:FOOD_KIND_PRICE_KH, do:DO_PRICE_KH, stay:STAY_PRICE_KH, stars:{}, only:true},
+  VN:{cur:"VND", food:FOOD_TYPE_PRICE_VN, kind:FOOD_KIND_PRICE_VN, do:DO_PRICE_VN, stay:STAY_PRICE_VN, stars:{}, only:true},
+  LA:{cur:"LAK", food:FOOD_TYPE_PRICE_LA, kind:FOOD_KIND_PRICE_LA, do:DO_PRICE_LA, stay:STAY_PRICE_LA, stars:{}, only:true},
+  SG:{cur:"SGD", food:FOOD_TYPE_PRICE_SG, kind:FOOD_KIND_PRICE_SG, do:DO_PRICE_SG, stay:STAY_PRICE_SG, stars:{}, only:true}
 };
 
 // {lo, hi, cur, per, est:true, why, note?}  or null when we can't sensibly guess
@@ -171,7 +202,7 @@ function estPrice(it){
   const grp = it.g || (it.c === "gaff" ? "stay" : it.c === "munch" ? "food" : it.c === "cool" ? "do" : null);
   if (grp === "food"){
     const b = brandOf(it);
-    if (b && T.only) return (it._ep = null);          // chains have no sourced Cambodian prices, so no estimate there
+    if (b && T.only) return (it._ep = null);          // chains have no sourced prices in Cambodia, Vietnam, Laos or Singapore, so no estimate there
     if (b){
       const br = FOOD_BRANDS[b];
       if (it.cc === "ID" && BRAND_PRICE_ID[b]){ out = {lo:BRAND_PRICE_ID[b][0], hi:BRAND_PRICE_ID[b][1]}; cur = "IDR"; }

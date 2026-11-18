@@ -14,6 +14,8 @@ Usage (needs pyosmium:  pip install osmium):
 
 Extracts come from https://download.geofabrik.de/ (e.g. asia/indonesia/sumatra-latest.osm.pbf).
 --regions are ISO 3166-2 codes of admin_level 4 areas (provinces); only places inside them are kept.
+  A plain country code (e.g. SG) takes the whole country (admin_level 2), for places with no provinces.
+--english-names: use a place's English name (name:en) when it has one and keep the local one as "nt" (Laos: names are in Lao script).
 Data: © OpenStreetMap contributors, ODbL. Keep the attribution in meta.json.
 """
 import argparse, json, math, os, re, sys, unicodedata, datetime
@@ -199,7 +201,7 @@ def extras(t, ts):
 
 
 def fold(s):
-    s = unicodedata.normalize("NFKD", str(s or ""))
+    s = unicodedata.normalize("NFKD", str(s or "").replace("đ", "d").replace("Đ", "D"))     # Vietnamese đ has no accent to strip
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
     return re.sub(r"[^a-z0-9฀-๿]+", " ", s).strip()
 
@@ -263,6 +265,8 @@ def main():
     ap.add_argument("--clip", default="", help="keep only part of a region: 'ID-NB:115.7,-9.0,116.8,-8.0' (west,south,east,north); several with ';'")
     ap.add_argument("--dests", default="", help="destinations to count places around: 'Name:lat:lng;Name:lat:lng' (shown on the Discover page)")
     ap.add_argument("--dest-km", type=float, default=12, help="how far round each destination to count, km")
+    ap.add_argument("--box-fallback", action="store_true", help="use a region's --clip box when its border is missing or broken")
+    ap.add_argument("--english-names", action="store_true", help="prefer name:en (keeping the local name as nt)")
     a = ap.parse_args()
     codes = [c.strip() for c in a.regions.split(",") if c.strip()]
     clips = {}
@@ -278,8 +282,9 @@ def main():
       found = {}
       fp = osmium.FileProcessor(pbf).with_areas(osmium.filter.TagFilter(("boundary", "administrative"))).with_filter(osmium.filter.EntityFilter(osmium.osm.AREA))
       for o in fp:
-          code = o.tags.get("ISO3166-2")
-          if o.tags.get("admin_level") != "4" or code not in codes or code in regions: continue
+          lvl = o.tags.get("admin_level")
+          code = o.tags.get("ISO3166-2") if lvl == "4" else o.tags.get("ISO3166-1") if lvl == "2" else None
+          if code not in codes or code in regions: continue
           rr = found.setdefault(code, [])
           for outer in o.outer_rings():
               pts = [(n.lon, n.lat) for n in outer]
@@ -287,15 +292,21 @@ def main():
               for inner in o.inner_rings(outer):
                   ip = [(n.lon, n.lat) for n in inner]
                   rr.append(((min(p[0] for p in ip), min(p[1] for p in ip), max(p[0] for p in ip), max(p[1] for p in ip)), ip))
-      if not found:
+      # a region whose border can't be assembled (a broken outline in OpenStreetMap) falls back to its --clip box, when it has one
+      boxed = [c for c in codes if c not in found and c not in regions and c in clips and a.box_fallback]
+      if not found and not boxed:
           print("  none of the regions are in this extract", flush=True); continue
+      for code in boxed:
+          c = clips[code]
+          regions[code] = {"grid": Grid([(c, [(c[0], c[1]), (c[2], c[1]), (c[2], c[3]), (c[0], c[3]), (c[0], c[1])])]), "bb": c}
+          print(f"  {code}: border not found, using its box {c}", flush=True)
       for code, rr in found.items():
           bb = (min(r[0][0] for r in rr), min(r[0][1] for r in rr), max(r[0][2] for r in rr), max(r[0][3] for r in rr))
           if code in clips:
               c = clips[code]; bb = (max(bb[0], c[0]), max(bb[1], c[1]), min(bb[2], c[2]), min(bb[3], c[3]))
           regions[code] = {"grid": Grid(rr), "bb": bb}
           print(f"  {code}: bounding box {tuple(round(v, 3) for v in bb)}", flush=True)
-      here = [regions[c] for c in found]
+      here = [regions[c] for c in list(found) + boxed]
       bbox = (min(r["bb"][0] for r in here), min(r["bb"][1] for r in here), max(r["bb"][2] for r in here), max(r["bb"][3] for r in here))
       in_bbox = lambda x, y: bbox[0] <= x <= bbox[2] and bbox[1] <= y <= bbox[3]
       def inside(x, y, here=here):
@@ -329,16 +340,22 @@ def main():
         if not in_bbox(x, y): continue
         stats["objects_seen"] += 1
         if t.get("place") in ("city", "town", "village", "suburb", "quarter", "neighbourhood", "hamlet", "island") and t.get("name"):
-            towns.append((x, y, t["place"], t["name"]))
+            towns.append((x, y, t["place"], (a.english_names and (t.get("name:en") or t.get("int_name"))) or t["name"]))
         if any(k.startswith(LIFECYCLE) for k in t) and not any(k in t for k in ("amenity", "tourism", "shop")): stats["dropped_closed"] += 1; continue
         if t.get("opening_hours") in ("closed", "off"): stats["dropped_closed"] += 1; continue
         name = (t.get("name") or t.get("name:en") or "").split(";")[0].strip()
+        local = ""
+        if a.english_names and t.get("name:en") and t["name:en"].strip().lower() != name.lower():
+            local, name = name, t["name:en"].split(";")[0].strip()
+            if not re.search(r"[^\x00-\u024f\s]", local): local = ""      # only keep a local name in another script (Lao)
         kinds = classify(t, name)
         if not kinds: continue
         if not name and not any(k in UNNAMED_OK for k in kinds): stats["dropped_unnamed"] += 1; continue
         if not inside(x, y): stats["dropped_outside_border"] += 1; continue
         ts = o.timestamp.strftime("%Y-%m") if getattr(o, "timestamp", None) else None
-        raw.append({"id": oid, "x": round(x, 5), "y": round(y, 5), "kinds": kinds, "n": name, "ex": extras(t, ts), "tags": len(t)})
+        ex = extras(t, ts)
+        if local: ex["nt"] = local
+        raw.append({"id": oid, "x": round(x, 5), "y": round(y, 5), "kinds": kinds, "n": name, "ex": ex, "tags": len(t)})
 
     missing = set(codes) - set(regions)
     if missing: sys.exit(f"Borders not found in the extracts: {', '.join(sorted(missing))}")

@@ -186,7 +186,29 @@ TOOL_PAGES.wifiList = root => {
 
 /* ---------- Thailand guide ---------- */
 const GUIDE_CHECKED = "10 Nov 2026";
-const DEST_NOTE = {"Kep":"Small seaside town known for its crab market.", "Battambang":"Relaxed river city with old colonial streets, the bamboo train and the bat cave.",
+const DEST_NOTE = {"Siem Reap":"Town by the temples of Angkor, with Pub Street and the night markets.",
+  "Phnom Penh":"Cambodia’s capital on the Mekong: the Royal Palace, the riverside, and the sobering Tuol Sleng and Killing Fields memorials.",
+  "Kampot":"Sleepy river town known for pepper farms, Bokor Mountain and sunset boat trips.",
+  // Vietnam
+  Hanoi:"The capital: the Old Quarter’s street food and bia hơi corners, lakes, and the hub for the north.",
+  "Ha Long":"Base for boat trips among the limestone islands of Ha Long Bay.", "Cat Ba":"Island on the edge of Lan Ha Bay: kayaking, climbing and a national park.",
+  "Ninh Binh":"Rice fields and limestone karsts by rowing boat at Tam Coc and Trang An.", Sapa:"Mountain town above terraced rice valleys, the base for treks with local guides.",
+  "Ha Giang":"Far-north mountain loop, usually done over a few days by motorbike with a driver.", "Phong Nha":"National park with some of the world’s biggest caves.",
+  Hue:"The old imperial capital: the Citadel and royal tombs on the Perfume River.", "Da Nang":"Beach city with an airport, the Marble Mountains and the road over the Hai Van Pass.",
+  "Hoi An":"Lantern-lit old trading town, famous for tailors, cao lầu noodles and nearby beaches.", "Quy Nhon":"Quieter beach city on the south-central coast.",
+  "Nha Trang":"Big beach city with island boat trips and diving.", "Da Lat":"Cool highland town of pine forests, waterfalls and canyoning.",
+  "Mui Ne":"Kitesurfing beach with red and white sand dunes.", "Ho Chi Minh City":"Saigon: the busy south, with street food, rooftop bars and the war museum.",
+  "Can Tho":"The Mekong Delta’s biggest city, known for its early-morning floating market.", "Phu Quoc":"Big island in the far south-west with long beaches.",
+  // Laos
+  Vientiane:"The small, relaxed capital on the Mekong, with its riverside night market.", "Vang Vieng":"Karst valley town for tubing, kayaking, caves and lagoons.",
+  "Luang Prabang":"Old royal town of temples and French houses where the Nam Khan meets the Mekong, with waterfalls nearby.",
+  "Nong Khiaw":"River village under limestone cliffs, with viewpoint hikes and boat trips.", "Luang Namtha":"Northern town and base for jungle treks in the Nam Ha protected area.",
+  Phonsavan:"Base for the Plain of Jars.", Thakhek:"Start of the Thakhek motorbike loop through caves and karst country.",
+  Savannakhet:"Quiet Mekong town with old colonial streets.", Pakse:"Southern hub for the Bolaven Plateau’s coffee and waterfalls.",
+  "Don Det":"Laid-back island in the Mekong’s Four Thousand Islands.",
+  // Singapore
+  Singapore:"City-state of hawker centres, Gardens by the Bay and the Marina Bay skyline, with excellent public transport.",
+  Sentosa:"Resort island off Singapore with beaches and theme parks.","Kep":"Small seaside town known for its crab market.", "Battambang":"Relaxed river city with old colonial streets, the bamboo train and the bat cave.",
   "Sihanoukville":"Port city and the jumping-off point for the islands.", "Koh Rong":"Big island with long white beaches; Koh Touch village by the pier is the busy, social end.",
   "Koh Rong Sanloem":"Quieter island, with the long beach of Saracen Bay.", "Kratie":"Mekong river town, known for river dolphins.",
   "Sen Monorom":"Cool hill town in Mondulkiri, with waterfalls nearby.", "Banlung":"Ratanakiri's main town, near the Yeak Laom crater lake.",
@@ -213,7 +235,7 @@ const DEST_NOTE = {"Kep":"Small seaside town known for its crab market.", "Batta
   Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations."};
 // the guide for the country you're in (Indonesia gets its own; everywhere else the Thailand one)
 TOOL_PAGES.guide = root => {
-  (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : guideTH)(root);
+  (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : GUIDES[S.country] ? (r => guideFrom(r, GUIDES[S.country])) : guideTH)(root);
   // every guide ends with "Hangover and the shits" (js/ask-more.js)
   const pg = root.querySelector(".page");
   if (pg && typeof remedyGuideHTML === "function"){ pg.insertAdjacentHTML("beforeend", remedyGuideHTML(REMEDIES[S.country] ? S.country : "TH")); bindRemedyButtons(pg); }
@@ -265,6 +287,93 @@ function guideKH(root){
   </div>`;
   root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
   root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { const c = KH_DESTS.find(x => x[0] === b.dataset.look); setFocus({n:c[0], lat:c[1], lng:c[2]}); flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
+}
+
+/* Vietnam, Laos and Singapore guides: entry rules, laws and safety from gov.uk travel advice, checked 18 Nov 2026.
+   Each one is data; guideFrom() draws it the same way as the Cambodia guide. */
+const GUIDE_NEW_CHECKED = "18 Nov 2026";
+const GUIDES = {
+  VN:{name:"Vietnam", lang:"Vietnamese", slug:"vietnam",
+    entry:["British passports can visit <b>without a visa for up to 45 days</b>. Check the exit date stamped in your passport on arrival: immigration won’t change it later.",
+      "For longer, an <b>e-visa</b> gives up to 90 days with multiple entries, but it is tied to the entry and exit points you pick when you apply.",
+      "Your passport needs <b>at least 6 months</b> left from the day you arrive, at least 2 blank pages, and no damage. Enter and leave on the same passport.",
+      "A digital arrival card is encouraged (not required) at Ho Chi Minh City’s Tan Son Nhat airport."],
+    money:["The money is the Vietnamese dong (₫). Prices have lots of zeros: the converter shows what they are in pounds.",
+      "Only change money at official counters."],
+    laws:["<b>Drug penalties are severe</b>, including for cannabis: long prison terms and even the death penalty. Police raid nightlife venues and may drug-test people, and a positive test can lead to charges even if the drugs were taken before you arrived. Laughing-gas balloons count too.",
+      "<b>Vapes and e-cigarettes are banned</b>: you can’t buy them or bring them in.",
+      "Carry photo ID: a printed copy of your passport photo page and visa is accepted.",
+      "To ride a motorbike you need a 1968 International Driving Permit <b>and</b> your UK licence, plus third-party insurance; helmets are compulsory.",
+      "Don’t photograph military sites. Cover shoulders and knees at temples and pagodas. Avoid protests."],
+    safety:["Bag snatchers on motorbikes target crowds and tourist areas: carry bags on the side away from the traffic.",
+      "Never leave your passport as a deposit for a motorbike or a room: give a copy.",
+      "Methanol in drinks has killed people, even in licensed bars. Don’t buy spirits or cigarettes from street sellers.",
+      "Drink spiking has been reported, often linked to unlicensed taxis: use Grab or Xanh SM.",
+      "Overnight Ha Long Bay boats have had accidents from overcrowding: check the boat is certified.",
+      "Landmines remain in central Vietnam and near the Laos border, often unmarked: stay on paths."],
+    when:"Typhoons hit the east coast from roughly May to November. The north and south are rainiest June to September, the centre (Hue, Hoi An) October to December, when it floods.",
+    embassies:[["British Embassy Hanoi", "https://www.gov.uk/world/organisations/british-embassy-hanoi"], ["British Consulate Ho Chi Minh City", "https://www.gov.uk/world/organisations/british-consulate-general-ho-chi-minh-city"]],
+    sos:[["Ambulance", "115", "Medical emergencies. The lines are answered in Vietnamese"], ["Police", "113", ""], ["Fire", "114", ""], ["Search and rescue", "112", ""]]},
+  LA:{name:"Laos", lang:"Lao", slug:"laos",
+    warn:"<b>The UK advises against all but essential travel to Xaisomboun Province</b>. Travelling against that advice can cancel your travel insurance.",
+    entry:["You need a visa: an <b>e-visa</b> (apply at least 5 days ahead; single entry, accepted at the main crossings) or a <b>visa on arrival</b> at Vientiane, Luang Prabang and Pakse airports and the main land borders.",
+      "Tourist visas last <b>30 days</b> from arrival, and can be extended twice in Laos (60 more days in all).",
+      "Your passport needs <b>at least 6 months</b> left from the day you arrive and 2 blank pages.",
+      "Flying into Vientiane, Luang Prabang or Pakse, or crossing at the first Friendship Bridge? Fill in the free <b>Lao Digital Immigration Form</b> online within the 3 days before you arrive."],
+    money:["The money is the Lao kip (₭).",
+      "Keep bank cards and cash in separate bags."],
+    laws:["<b>Drug penalties are severe</b>, including for cannabis, and even small amounts: long jail terms, and death for trafficking. Police may test for drugs.",
+      "<b>Sex between foreigners and Lao nationals is illegal unless you are married under Lao law</b>: fines up to US$5,000 and possibly prison. Police may check hotel rooms.",
+      "Don’t photograph military sites, bridges or airfields.",
+      "Never leave your passport as a deposit for a motorbike: some rental shops have damaged or ‘stolen’ their own bikes and then demanded big fees."],
+    safety:["<b>Unexploded bombs</b> lie all over Laos and still kill people: stick to main paths in the countryside and never touch metal objects, especially after floods or landslides.",
+      "Tubing, kayaking and swimming (especially on the Mekong) have drowned tourists: wear a lifejacket and check your insurance covers it.",
+      "Methanol in drinks has killed people; <b>Tiger Vodka and Tiger Whisky are banned</b>.",
+      "Riding at night is especially risky; rentals may not come with a helmet, so bring or buy one. Stop at police checkpoints unless waved on."],
+    when:"The rainy season runs roughly May to October, with flash floods and landslides. November to February is dry and cooler; March to May is hot.",
+    embassies:[["British Embassy Vientiane", "https://www.gov.uk/world/organisations/british-embassy-vientiane"]],
+    sos:[["Ambulance", "1195", "Medical emergencies (or 030 525 7239)"], ["Police", "1191", ""], ["Fire", "1190", ""], ["Tourist police, Vientiane", "+85621251128", ""]]},
+  SG:{name:"Singapore", lang:"English", slug:"singapore",
+    entry:["British passports need <b>no visa</b>: you are usually given 30 to 90 days, at the officer’s discretion.",
+      "Your passport needs <b>at least 6 months</b> left from the day you arrive.",
+      "Fill in the free <b>SG Arrival Card</b> (with a health declaration) online within the 3 days before you arrive. Your face, iris and fingerprints are scanned at the border."],
+    money:["The money is the Singapore dollar (S$). You can tap in on the MRT and buses with a contactless card."],
+    laws:["<b>Drug penalties are extremely severe</b>: prison, caning and the death penalty, even when only passing through the airport.",
+      "<b>Vapes are banned</b>, even for your own use: they are confiscated and you can be fined.",
+      "No smoking in parks, on beaches, along Orchard Road or in many other public places; you must be 21 to buy or use tobacco.",
+      "Drinking in public is illegal from 10:30pm to 7am (bars and restaurants are fine). Geylang and Little India ban it all weekend and on public holidays.",
+      "Littering gets an on-the-spot fine. Graffiti or vandalism can mean prison and caning."],
+    safety:["Singapore is very safe, but drunk or disorderly behaviour is punished hard: fines, prison or caning."],
+    when:"Hot and humid all year. It rains most in the north-east monsoon, roughly November to January.",
+    embassies:[["British High Commission Singapore", "https://www.gov.uk/world/organisations/british-high-commission-singapore"]],
+    sos:[["Police", "999", ""], ["Ambulance and fire", "995", "Medical emergencies"]]}
+};
+// the destinations of a country that has a places database
+const destsOf = cc => PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === cc);
+function guideFrom(root, G){
+  const src = (label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`, gov = p => `https://www.gov.uk/foreign-travel-advice/${G.slug}${p ? "/" + p : ""}`;
+  const cc = Object.keys(GUIDES).find(k => GUIDES[k] === G), dests = destsOf(cc), li = a => `<ul class="known">${a.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  root.innerHTML = toolHero(`${G.name} guide`, "The practical basics, with official sources") + `<div class="page">
+  ${G.warn ? `<div class="callout">${icon("alert")}<div>${G.warn} ${src("gov.uk warnings", gov("warnings-and-insurance"))}.</div></div>` : ""}
+  <section class="block"><h2>Getting in (British passport)</h2>${li(G.entry)}
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk entry requirements", gov("entry-requirements"))}. Other passports have different rules.</p></section>
+  <section class="block"><h2>Money</h2>${li(G.money)}
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/currency">Open the converter</a><button class="btn small" type="button" data-ess="atm">ATMs on the map</button></div></section>
+  <section class="block"><h2>Laws that catch travellers out</h2>${li(G.laws)}
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}. This is a summary, not legal advice.</p></section>
+  <section class="block"><h2>Staying safe</h2>${li(G.safety)}
+    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}.</p>
+    <div class="row" style="margin-top:8px"><a class="btn small primary" href="#tools/emergency">${icon("siren","i s")}Emergency numbers</a></div></section>
+  <section class="block"><h2>Language</h2>
+    <div class="row" style="margin-top:4px"><a class="btn small" href="#tools/translate">Open the ${esc(phrasebook().name)} phrasebook</a></div></section>
+  <section class="block"><h2>When to go</h2><p>${G.when}</p>
+    <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/weather">Check the forecast</a></div></section>
+  ${D.rides[cc] ? `<section class="block"><h2>Getting around</h2><p>${esc(D.rides[cc])}</p></section>` : ""}
+  ${dests.length ? `<div class="sect"><h2>Destinations</h2><span class="note">${dests.length}</span></div>` : ""}
+  ${dests.map(c => `<div class="block" style="padding:11px 12px"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><h3>${esc(c[0])}</h3><p class="note" style="margin-top:2px">${esc(DEST_NOTE[c[0]] || "")}</p></div><button class="btn small" type="button" data-look="${esc(c[0])}">Look here</button></div></div>`).join("")}
+  </div>`;
+  root.querySelectorAll("[data-ess]").forEach(b => b.onclick = () => showEssentialOnMap(b.dataset.ess));
+  root.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { const c = dests.find(x => x[0] === b.dataset.look); setFocus({n:c[0], lat:c[1], lng:c[2]}); flyTo({lat:c[1], lng:c[2]}, 12.5); go("#map"); });
 }
 
 /* Indonesia guide: entry rules and laws from gov.uk, checked 12 Nov 2026 */
@@ -369,13 +478,15 @@ const SOS_ID = [["Ambulance", "118", "Medical emergencies"], ["Police", "110", "
 // Cambodia: gov.uk "Getting help", checked 12 Nov 2026
 const SOS_KH = [["Ambulance", "119", "Medical emergencies"], ["Police", "117", ""], ["Fire", "118", ""], ["Tourist police, Phnom Penh", "+85512942484", "Street 598. In Siem Reap the tourist police are next to the Angkor ticket office"]];
 TOOL_PAGES.emergency = root => {
-  const ID = S.country === "ID", KH = S.country === "KH", list = ID ? SOS_ID : KH ? SOS_KH : SOS;
-  const cname = ID ? "Indonesia" : KH ? "Cambodia" : "Thailand";
+  const ID = S.country === "ID", KH = S.country === "KH", G = GUIDES[S.country], list = G ? G.sos : ID ? SOS_ID : KH ? SOS_KH : SOS;
+  const cname = G ? G.name : ID ? "Indonesia" : KH ? "Cambodia" : "Thailand";
   root.innerHTML = toolHero("Emergency", `Numbers that work anywhere in ${cname}`) + `<div class="page">
   <section class="block">${list.map(([n, tel, d], i) => `<div class="tel"><div><b>${n}</b><small>${d}</small></div><a class="btn${i ? "" : " primary"}" href="tel:${tel}">${icon("phone","i s")}${tel}</a></div>`).join("")}
-    <p class="note" style="margin-top:8px">Checked ${ID ? GUIDE_ID_CHECKED : KH ? GUIDE_KH_CHECKED : GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/${cname.toLowerCase()}/getting-help" target="_blank" rel="noopener">gov.uk, getting help in ${cname}</a>.</p></section>
+    <p class="note" style="margin-top:8px">Checked ${G ? GUIDE_NEW_CHECKED : ID ? GUIDE_ID_CHECKED : KH ? GUIDE_KH_CHECKED : GUIDE_CHECKED}. Source: <a href="https://www.gov.uk/foreign-travel-advice/${cname.toLowerCase()}/getting-help" target="_blank" rel="noopener">gov.uk, getting help in ${cname}</a>.</p></section>
   <section class="block"><h2>British nationals</h2>
-    ${KH ? `<p>For consular help, contact the British Embassy in Phnom Penh through the Foreign Office’s contact page. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    ${G ? `<p>For consular help, contact the ${G.embassies.map(e => e[0]).join(" or the ")}. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
+    <div class="row" style="margin-top:8px">${G.embassies.map(([n, u]) => `<a class="btn small" href="${u}" target="_blank" rel="noopener">${n} ${icon("ext","i s")}</a>`).join("")}<a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`
+    : KH ? `<p>For consular help, contact the British Embassy in Phnom Penh through the Foreign Office’s contact page. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
     <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.contact.service.csd.fcdo.gov.uk/posts/cambodia/british-embassy-phnom-penh" target="_blank" rel="noopener">British Embassy Phnom Penh ${icon("ext","i s")}</a><a class="btn small" href="tel:+442070085000">${icon("phone","i s")}+44 20 7008 5000</a></div>`
     : ID ? `<p>For consular help, contact the British Embassy in Jakarta (its phone line is answered 24 hours) or the British Consulate in Bali. If someone at home is worried about you, they can ring the Foreign Office in London, open 24 hours.</p>
     <div class="row" style="margin-top:8px"><a class="btn small" href="https://www.gov.uk/world/organisations/british-embassy-jakarta" target="_blank" rel="noopener">British Embassy Jakarta ${icon("ext","i s")}</a><a class="btn small" href="tel:+622123565200">${icon("phone","i s")}+62 21 2356 5200</a>

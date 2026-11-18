@@ -333,8 +333,11 @@ function commonsCredit(src){
   return creditCache[file];
 }
 function wikiInto(box, it){
-  if (!it.wp && !it.wd && !it.pic){ box.innerHTML = photoFallback(it, "none"); return; }
-  freePhoto(it).then(ph => {
+  freePhoto(it).then(ph => photoInto(box, it, ph));
+}
+// show one picture in the details sheet: the card's size at once, then the bigger one, with its credit
+function photoInto(box, it, ph){
+  {
     if (!box.isConnected || box.dataset.id !== it.id) return;
     if (!ph || !ph.src){ box.innerHTML = photoFallback(it, "none"); return; }
     box.classList.add("has-img");
@@ -346,12 +349,13 @@ function wikiInto(box, it){
       const fb = !im.dataset.fb && thumbFallback(im.src); if (fb){ im.dataset.fb = "1"; im.src = fb; return; }
       box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none");
     };
+    if (ph.google) return;                // a Google picture: its link and credit are already in place
     const big = bigPhoto(ph.src);
     if (big && big !== ph.src){ const pre = new Image(); pre.onload = () => { if (im.isConnected && !im.dataset.fb) im.src = big; }; pre.src = big; }
     // name the photographer and the licence, as Commons licences ask
     if (ph.credit){ box.querySelector(".credit").innerHTML = `<a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.credit)}</a>`; return; }
     commonsCredit(ph.src).then(c => { const cr = box.querySelector(".credit"); if (c && cr && box.dataset.id === it.id) cr.innerHTML = `Photo: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.by)}</a>, ${esc(c.lic)}, Wikimedia Commons`; });
-  });
+  }
 }
 (function applyCachedLocations(){
   try { const now = Date.now(); D.places.forEach(p => { const v = localStorage.getItem("gloc:" + p.id); if (!v) return; const [lat, lng, ts] = JSON.parse(v); if (now - ts < 30 * 864e5){ p.lat = lat; p.lng = lng; p.ap = false; } }); } catch(e){}
@@ -435,7 +439,9 @@ function openDetail(id){
   if (it.wc) facts.push(fact("Wheelchair access", {yes:"Yes", limited:"Limited", no:"No"}[it.wc]));
   if (it.rel) facts.push(fact("Faith", esc(it.rel.replace(/_/g, " "))));
   if (km) facts.push(fact("Distance", km));
-  if (it.nt) facts.push(fact("Name in Thai (show a driver)", `<span lang="th" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button><div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>`, true));
+  // the name in the local script (Thai, or Lao in Laos, where the map shows the English name): show it to a driver
+  const ntLang = /[\u0e80-\u0eff]/.test(it.nt || "") ? ["lo", "Lao"] : ["th", "Thai"];
+  if (it.nt && /[\u0e00-\u0eff]/.test(it.nt)) facts.push(fact(`Name in ${ntLang[1]} (show a driver)`, `<span lang="${ntLang[0]}" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button>${ntLang[0] === "th" ? `<div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>` : ""}`, true));
   body += `<div class="facts">${facts.join("")}<div class="fact wide" id="gFacts" hidden></div></div>`;
   if (roomGaps) body += `<p class="note" style="margin:-2px 0 8px">More details (breakfast, beds, bathrooms, room types) on the booking site: <a href="${esc(L_booking(it.n + " " + it.city))}" target="_blank" rel="noopener">Booking.com</a> · <a href="${esc(L_agoda(it.n + " " + it.city))}" target="_blank" rel="noopener">Agoda</a></p>`;
   if (wantsSurf(it)) body += surfBlock(it);
@@ -466,7 +472,7 @@ function openDetail(id){
       <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}</div></div>
       <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>${body}`, "sheet-title", `--c:${col}`);
   highlightPin(it);
-  const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, "th");
+  const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, ntLang[0]);
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
@@ -478,7 +484,12 @@ function openDetail(id){
     if (pl && pl.photos && pl.photos.length){ gSpend("photo"); box.classList.remove("art"); box.style.backgroundImage = ""; showGooglePhoto(box, it, pl); return; }
     wikiInto(box, it);
   });
-  if (googlePhotoFor(it) && gAllow("photo")) viaGoogle();
-  else if (it.wp || it.wd || it.pic) wikiInto(box0, it);
+  // Google photos already fetched for this place's card cost nothing more to show, even when today's allowance is used up
+  const gHave = gPlaceCache[it.id], gPics = gHave && gHave.has.has("photos") && gHave.place.photos;
+  const cardHit = cph[it.id], cardSrc = cardHit && cardHit.src && Date.now() - cardHit.at < (cardHit.g ? 864e5 : 30 * 864e5) ? cardHit.src : null;
+  if (googlePhotoFor(it) && gPics && gPics.length){ box0.classList.remove("art"); box0.style.backgroundImage = ""; showGooglePhoto(box0, it, gHave.place); }
+  else if (googlePhotoFor(it) && gAllow("photo")) viaGoogle();
+  else if (cardSrc && (cardHit.g ? googlePhotoFor(it) : photoSrcOk(it, cardSrc))) photoInto(box0, it, {src:cardSrc, page:cardHit.g ? L_maps(it) : `https://commons.wikimedia.org/wiki/File:${enc(String(commonsFile(cardSrc) || "").replace(/ /g, "_"))}`, by:cardHit.g ? "Photo: Google Maps" : "Photo: Wikimedia Commons", google:cardHit.g});
+  else wikiInto(box0, it);
   if (googleFor(it)) googleFacts(it);
 }

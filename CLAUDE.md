@@ -65,13 +65,14 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
 - `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
-- `places/th/` (all of Thailand), `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok) and `places/kh/` (all of Cambodia): the places
+- `places/th/` (all of Thailand), `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok), `places/kh/`, `places/vn/`, `places/la/` and `places/sg/` (all of Cambodia, Vietnam, Laos, Singapore): the places
   databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
   Luggage lockers and gluten-free (`gf`) were added to the existing folders by `node tools/osm/add-extras.js` (Overpass); extract.py now keeps both.
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
-- `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`.
+- `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
+  cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet).
 
 ## Rules
 

@@ -15,7 +15,7 @@ const TOOLS = [
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
-  {id:"guide", get l(){ return S.country === "ID" ? "Indonesia guide" : S.country === "KH" ? "Cambodia guide" : "Thailand guide"; }, d:"Entry rules, money, customs", ic:"book"},
+  {id:"guide", get l(){ return ((D.countries[S.country] && ["ID", "KH", "VN", "LA", "SG"].includes(S.country)) ? D.countries[S.country].name : "Thailand") + " guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
   {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1},
@@ -250,8 +250,69 @@ const PHRASES_KH = [
     ["Help!", "ជួយផង!", "", "CHUAY phong"], ["Hospital", "មន្ទីរពេទ្យ", "", "mon-TEE pet"], ["Police", "ប៉ូលិស", "", "po-LEES"],
     ["I need a doctor", "ខ្ញុំត្រូវការគ្រូពេទ្យ", "", "k’nyom trov-KAA kru-PET"]]}
 ];
-const phrasebook = () => S.country === "ID" ? {list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}
-  : S.country === "KH" ? {list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"} : {list:PHRASES, name:"Thai", lang:"th", voice:"th"};
+/* Vietnamese: the written column has its accents (they mark the tones); the "Say" line is a rough English spelling,
+   in northern (Hanoi) pronunciation. Words checked against Wikivoyage's Vietnamese phrasebook, Nov 2026. */
+const PHRASES_VN = [
+  {t:"Basics", p:[
+    ["Hello", "Xin chào", "", "sin CHOW"], ["Thank you", "Cảm ơn", "", "gahm UHN"], ["Yes", "Vâng", "", "vung"], ["No", "Không", "", "khohm"],
+    ["Sorry / excuse me", "Xin lỗi", "", "sin LOY"], ["I don’t understand", "Tôi không hiểu", "", "toy khohm HYEW"], ["Do you speak English?", "Bạn có nói tiếng Anh không?", "", "bahn gaw noy tyeng ANH khohm"],
+    ["Goodbye", "Tạm biệt", "", "tahm BYET"]]},
+  {t:"Money and shopping", p:[
+    ["How much is it?", "Bao nhiêu tiền?", "", "bow nyew TYEN"], ["Too expensive", "Đắt quá", "", "dat KWAH"], ["Can you make it cheaper?", "Bớt được không?", "", "but duhk KHOHM"],
+    ["I’ll take it", "Tôi lấy cái này", "", "toy lay gai NAI"], ["Where is an ATM?", "Cây ATM ở đâu?", "", "kay ay-tee-em uh DOH"]]},
+  {t:"Food", p:[
+    ["Not spicy", "Không cay", "", "khohm KAI"], ["No ice", "Không đá", "", "khohm DAH"], ["Water", "Nước", "", "nuhk"], ["I’m vegetarian", "Tôi ăn chay", "", "toy an CHAI"],
+    ["I’m allergic to peanuts", "Tôi bị dị ứng đậu phộng", "", "toy bee zee ung doh FOHNG"], ["Delicious!", "Ngon quá!", "", "ngon KWAH"], ["The bill, please", "Tính tiền", "", "tinh TYEN"],
+    ["One beer", "Một bia", "", "mote BEE-ah"], ["Cheers!", "Một, hai, ba, dô!", "", "mote, hai, bah, YO"]]},
+  {t:"Getting around", p:[
+    ["Where is …?", "… ở đâu?", "", "… uh DOH"], ["Stop here", "Dừng ở đây", "", "zung uh DAY"], ["Turn left", "Rẽ trái", "", "zeh CHAI"], ["Turn right", "Rẽ phải", "", "zeh FAI"],
+    ["Straight on", "Đi thẳng", "", "dee TAHNG"], ["Bus station", "Bến xe", "", "ben SEH"], ["Train station", "Ga tàu", "", "gah TOW"], ["Airport", "Sân bay", "", "sun BAY"]]},
+  {t:"Staying", p:[
+    ["Do you have a room?", "Còn phòng không?", "", "kon fong KHOHM"], ["Where is the toilet?", "Nhà vệ sinh ở đâu?", "", "nyah veh sing uh DOH"], ["Is there Wi-Fi?", "Có Wi-Fi không?", "", "gaw wai-fai KHOHM"]]},
+  {t:"Help and health", p:[
+    ["Help!", "Cứu tôi!", "", "KOO toy"], ["Call the police", "Gọi công an", "", "goy kohng AN"], ["I need a doctor", "Tôi cần bác sĩ", "", "toy kun bak SEE"],
+    ["Hospital", "Bệnh viện", "", "ben VYEN"], ["Pharmacy", "Nhà thuốc", "", "nyah TWOHK"]]},
+  {t:"Numbers", p:[
+    ["1", "một", "", "mote"], ["2", "hai", "", "hai"], ["3", "ba", "", "bah"], ["4", "bốn", "", "bohn"], ["5", "năm", "", "nahm"], ["10", "mười", "", "MUH-ee"],
+    ["100", "một trăm", "", "mote CHAHM"], ["1,000", "một nghìn", "", "mote NGYIN"], ["10,000", "mười nghìn", "", "muh-ee NGYIN"], ["100,000", "một trăm nghìn", "", "mote chahm NGYIN"]]}
+];
+/* Lao: words from Wikivoyage's Lao phrasebook (checked Nov 2026). Lao is close to Thai (Isaan): many Thai words work too. */
+const PHRASES_LA = [
+  {t:"Basics", p:[
+    ["Hello", "ສະບາຍດີ", "", "sa-bai-DEE"], ["Thank you", "ຂອບໃຈ", "", "khop JAI"], ["Thank you very much", "ຂອບໃຈຫຼາຍໆ", "", "khop jai LAI lai"], ["Yes", "ແມ່ນ", "", "maen"],
+    ["No", "ບໍ່", "", "bor"], ["Sorry / excuse me", "ຂໍໂທດ", "", "kho THOT"], ["I don’t understand", "ບໍ່ເຂົ້າໃຈ", "", "bor khao JAI"], ["Goodbye (good luck)", "ໂຊກດີ", "", "sok DEE"]]},
+  {t:"Money and numbers", p:[
+    ["How much?", "ເທົ່າໃດ?", "", "thao DAI"], ["Too expensive", "ແພງໂພດ", "", "phaeng PHOT"], ["Can you lower the price?", "ຫຼຸດລາຄາໄດ້ບໍ່?", "", "lut la-kha dai BOR"],
+    ["One", "ໜຶ່ງ", "", "nueng"], ["Two", "ສອງ", "", "song"], ["Three", "ສາມ", "", "sam"], ["Four", "ສີ່", "", "see"], ["Five", "ຫ້າ", "", "ha"], ["Ten", "ສິບ", "", "sip"],
+    ["One hundred", "ໜຶ່ງຮ້ອຍ", "", "nueng HOY"], ["One thousand", "ໜຶ່ງພັນ", "", "nueng PHAN"]]},
+  {t:"Food and drink", p:[
+    ["Water", "ນ້ຳ", "", "nam"], ["Sticky rice", "ເຂົ້າໜຽວ", "", "khao NIAO"], ["Delicious", "ແຊບ", "", "saep"], ["Not spicy", "ບໍ່ເຜັດ", "", "bor PHET"],
+    ["No ice", "ບໍ່ໃສ່ນ້ຳກ້ອນ", "", "bor sai nam KON"], ["Beer", "ເບຍ", "", "bia"], ["The bill, please", "ໄລ່ເງິນແດ່", "", "lai ngoen DAE"]]},
+  {t:"Getting around", p:[
+    ["Where is the toilet?", "ຫ້ອງນ້ຳຢູ່ໃສ?", "", "hong nam yu SAI"], ["Stop here", "ຈອດຢູ່ນີ້", "", "jot yu NEE"], ["Left", "ຊ້າຍ", "", "sai"], ["Right", "ຂວາ", "", "khwa"],
+    ["Straight on", "ໄປຊື່ໆ", "", "pai sue SUE"]]},
+  {t:"Help", p:[
+    ["Help!", "ຊ່ວຍແດ່!", "", "suay DAE"], ["Hospital", "ໂຮງໝໍ", "", "hong MOR"], ["Police", "ຕຳຫຼວດ", "", "tam-LUAT"], ["Pharmacy", "ຮ້ານຂາຍຢາ", "", "han khai YA"],
+    ["I need a doctor", "ຂ້ອຍຕ້ອງການໝໍ", "", "khoy tong kan MOR"]]}
+];
+/* Singapore: English is spoken everywhere, so this is the hawker-centre and Singlish words you'll hear, and a little Malay. */
+const PHRASES_SG = [
+  {t:"Ordering a drink", p:[
+    ["Coffee with condensed milk", "Kopi", "", "KOH-pee"], ["Black coffee with sugar", "Kopi-O", "", "KOH-pee OH"], ["Coffee with evaporated milk and sugar", "Kopi-C", "", "KOH-pee SEE"],
+    ["No sugar", "… kosong", "", "KOH-song"], ["Iced", "… peng", "", "peng"], ["Tea with condensed milk", "Teh", "", "teh"], ["Pulled milk tea", "Teh tarik", "", "teh TAH-rick"]]},
+  {t:"At the hawker centre", p:[
+    ["Takeaway", "Tapau / dabao", "", "tah-POW / dah-BOW"], ["Eat here", "Have here", "", "have here"], ["Reserving a seat (a tissue packet on the table)", "Chope", "", "chope"],
+    ["To eat", "Makan", "", "MAH-kahn"], ["Delicious, brilliant", "Shiok", "", "shee-OAK"]]},
+  {t:"Singlish", p:[
+    ["Is that OK? / Can you?", "Can or not?", "", "can or not"], ["Yes, it can be done", "Can", "", "can"], ["Softens a sentence", "… lah", "", "lah"],
+    ["Very tired", "Damn shag", "", "damn shag"]]},
+  {t:"Malay basics", p:[
+    ["Thank you", "Terima kasih", "", "tuh-REE-ma KA-see"], ["Hello", "Selamat pagi", "", "suh-LAH-mat PAH-gee"], ["How much?", "Berapa?", "", "buh-RA-pa"]]}
+];
+const PHRASEBOOKS = {ID:{list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}, KH:{list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"},
+  VN:{list:PHRASES_VN, name:"Vietnamese", lang:"vi", voice:"vi"}, LA:{list:PHRASES_LA, name:"Lao", lang:"lo", voice:"lo"},
+  SG:{list:PHRASES_SG, name:"Singapore", lang:"en", voice:"en"}, TH:{list:PHRASES, name:"Thai", lang:"th", voice:"th"}};
+const phrasebook = () => PHRASEBOOKS[S.country] || PHRASEBOOKS.TH;
 let phraseTab = 0;
 TOOL_PAGES.translate = root => {
   const lang = trLang(), langName = (TR_LANGS.find(l => l[0] === lang) || TR_LANGS[0])[1];
@@ -270,7 +331,10 @@ TOOL_PAGES.translate = root => {
   </section>
   <section class="block" aria-labelledby="h-pb">
     <h2 id="h-pb">${PB.name} phrasebook</h2>
-    <p class="note">Works offline. ${PB.lang === "km" ? "Men say <b>baht</b> for yes and women <b>jaah</b>. Words from Wikivoyage’s Khmer phrasebook; the “Say” line is only a rough guide. " : PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
+    <p class="note">Works offline. ${PB.lang === "vi" ? "Vietnamese has six tones, shown by the accents: the “Say” line can’t show them, so tap the speaker. In the south some words differ (expensive is <b>mắc</b>). "
+      : PB.lang === "lo" ? "Lao is close to Thai, and Lao people understand Thai well. Add <b>dae</b> to the end of a request to make it polite. "
+      : PB.lang === "en" ? "Everyone speaks English in Singapore; these are the words you’ll hear at hawker stalls. "
+      : PB.lang === "km" ? "Men say <b>baht</b> for yes and women <b>jaah</b>. Words from Wikivoyage’s Khmer phrasebook; the “Say” line is only a rough guide. " : PB.lang === "th" ? "To be polite, end a sentence with <b>krap</b> if you’re a man or <b>ka</b> if you’re a woman. " : "Capitals show the part to stress. Adding <b>Pak</b> (to a man) or <b>Bu</b> (to a woman) after a phrase is polite. "}The “Say” line is a rough guide for English speakers; tap the speaker to hear it properly.</p>
     <div class="scroller" style="margin-top:8px">${PB.list.map((x, i) => `<button class="chip" type="button" data-pt="${i}" aria-pressed="${i === phraseTab}">${x.t}</button>`).join("")}</div>
     <div style="margin-top:6px">${g.p.map((p, i) => `<div class="phrase"><span class="en">${esc(p[0])}</span><button class="icon-btn" type="button" data-say="${i}" aria-label="Hear ${esc(p[0])} in ${PB.name}">${icon("speaker")}</button><span class="th" lang="${PB.lang}">${esc(p[1])}</span><span class="say">Say: ${esc(p[3])}</span>${p[2] ? `<span class="ro">With tone marks: ${esc(p[2])}</span>` : ""}</div>`).join("")}</div>
   </section></div>`;
