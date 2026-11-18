@@ -16,9 +16,13 @@ function parseHash(){
 function renderNav(){
   const cur = ui.view === "saved" || ui.view === "discover" ? "" : ui.view === "tools" && /^transport/.test(ui.sub || "") ? "transport" : ui.view;
   $("#tabs").innerHTML = TABS.map(t => `<a href="${t.href || "#" + t.id}" ${cur === t.id ? 'aria-current="page"' : ""}>${icon(t.ic)}${t.label}</a>`).join("");
+  // the Map tab always shows the map itself, even if the list was showing last time
+  const mt = $("#tabs").querySelector('a[href="#map"]');
+  if (mt) mt.onclick = e => { ui.mapMode = "map"; if (ui.view === "map"){ e.preventDefault(); renderMapUI(); } };
 }
 function show(r = parseHash()){
   ui.view = r.view; ui.sub = r.sub;
+  if (typeof statBump === "function") statBump("v-" + (r.view === "tools" && r.sub ? "tools-" + r.sub.split(/[/?]/)[0] : r.view));
   document.documentElement.dataset.theme = S.country;
   renderNav();
   const isMap = r.view === "map";

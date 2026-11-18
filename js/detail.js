@@ -5,7 +5,8 @@
 /* ---------- Google (optional, uses the existing key; kept inside the free allowance) ---------- */
 let gReady = null;
 const realKey = k => { k = String(k || "").trim(); return /PASTE|YOUR-KEY/i.test(k) ? "" : k; };
-const googleKey = () => realKey(S.gkey) || realKey(window.SEA_GOOGLE_KEY) || realKey(GOOGLE_KEY_IN_FILE);
+// a key on this phone, then config.js, then one the developer shared with this phone (Friends, js/friends.js)
+const googleKey = () => realKey(S.gkey) || realKey(window.SEA_GOOGLE_KEY) || realKey(GOOGLE_KEY_IN_FILE) || realKey(lsGet("gkey-shared", ""));
 function loadGoogle(){
   if (gReady) return gReady;
   const key = googleKey(); if (!key) return Promise.resolve(null);
@@ -25,7 +26,7 @@ function loadGoogle(){
 const G_DAILY = {photo:40, details:25, vision:15};        // vision: camera translator photos
 function gUse(){ const u = lsGet("g-usage", null); return u && u.d === todayISO() ? u : {d:todayISO(), photo:0, details:0, vision:0}; }
 const gAllow = kind => (gUse()[kind] || 0) < G_DAILY[kind];
-function gSpend(kind){ const u = gUse(); u[kind] = (u[kind] || 0) + 1; lsSet("g-usage", u); }
+function gSpend(kind){ const u = gUse(); u[kind] = (u[kind] || 0) + 1; lsSet("g-usage", u); if (typeof statBump === "function") statBump(kind); }
 const gPlaceCache = {}, gPlaceWait = {};
 // Google bills each lookup at the price of its dearest field, so photos (cheap) and ratings (dearer) are asked for separately
 const G_FULL = ["photos"];

@@ -255,6 +255,7 @@ async function frPoll(){
       const got = await frDb("GET", `msgs/${me}`) || {};
       frMsgs = got;
       frMsgPopup();
+      frSosCheck().catch(() => {});
     }
   } catch(e){}
   // someone added you to a live split group while Friends is open: show it
@@ -289,7 +290,7 @@ function frLoop(){
   if (!Object.keys(f.list).length && !f.on) return;
   if (f.on) frGpsStart();
   frListenInvites();
-  Promise.allSettled([frSendNow(false), frPoll()]).finally(() => { frTimer = setTimeout(frLoop, FR_POLL_MS); });
+  Promise.allSettled([frSendNow(false), frPoll(), gkSync(), statFlush()]).finally(() => { frTimer = setTimeout(frLoop, FR_POLL_MS); });
 }
 if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", () => { if (!document.hidden) frLoop(); else { clearTimeout(frTimer); frGpsStop(); } });
 
@@ -425,6 +426,7 @@ function renderFriendsPage(root = $("#pageview")){
   const list = Object.entries(f.list).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
   html += `<div id="fr-alerts"></div>
     <div class="block">${frShareHTML()}</div>
+    ${frSosHTML()}
     <div class="block"><h2>Your friends</h2>${list.length ? list.map(([uid, x]) => `<div class="fr-row" data-frgo="${esc(uid)}" role="button" tabindex="0">
       <span data-frav="${esc(uid)}" data-size="40">${frAvatar(uid, 40)}</span>
       <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div>
@@ -440,6 +442,7 @@ function renderFriendsPage(root = $("#pageview")){
   root.innerHTML = html;
   paintFriendsLive();
   $("#fr-open").onclick = openFriendSheet;
+  frSosBind(root);
   root.querySelectorAll("[data-fron]").forEach(b => b.onclick = frToggleOn);
   $("#fr-go-map").onclick = e => { e.preventDefault(); openFriendsMap(); };
   root.querySelectorAll("[data-frmsg]").forEach(b => b.onclick = e => { e.stopPropagation(); openStickerPicker(b.dataset.frmsg); });
@@ -513,7 +516,7 @@ function openFriendEdit(uid){
   };
   $("#fre-pic").onchange = async e => {
     const file = e.target.files && e.target.files[0]; if (!file) return;
-    try { pic = await frResizePhoto(file); showAv(); } catch(err){ toast("Couldn’t read that picture"); }
+    try { const c = await frCropPhoto(file); if (c){ pic = c; showAv(); } } catch(err){ toast("Couldn’t read that picture"); }
   };
   $("#fre-unpic").onclick = () => { pic = ""; showAv(); };
   const save = () => {
@@ -559,7 +562,7 @@ async function paintDev(){
   if (!$("#fr-dev")) return;
   // the shared face (not your own photo of them)
   const sharedAv = uid => { const x = frState().list[uid], keep = x && x.pic; if (keep) delete x.pic; const h = frAvatar(uid, 40); if (keep) x.pic = keep; return h; };
-  el.innerHTML = `<div class="block"><h2>Message stickers</h2>
+  el.innerHTML = `<div id="fr-dev2"><div class="block"><p class="note">Loading Google sharing and usage…</p></div></div><div class="block"><h2>Message stickers</h2>
       <p class="note">Pictures your mates send each other. Tap a name to change it: it’s what people see when they open the message (“Sam sent you: Cooked”). Kept in Firebase, not on the public website.</p>
       <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk" data-stk="${esc(id)}">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<input class="sp-in fr-stkname" type="text" maxlength="30" value="${esc(st.n)}" data-stkname="${esc(id)}" aria-label="Name of this sticker" enterkeyhint="done">
         <div class="fr-stkact"><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
@@ -569,9 +572,10 @@ async function paintDev(){
       ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-mkdev="${esc(uid)}" aria-pressed="${devs[uid]}" aria-label="${esc(x.n)} is a developer"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
     <div class="block"><h2>Everyone’s photos</h2><p class="note">The face everyone sees for a person. Anyone can still choose their own photo of a friend with the pencil on Friends.</p>
       ${[[me, {n:"You"}], ...fl].map(([uid, x]) => `<div class="fr-row"><span>${sharedAv(uid)}</span><div><b>${esc(x.n)}</b></div><label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label></div>`).join("")}</div>`;
+  paintDevExtras();
   el.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
     const file = inp.files && inp.files[0]; if (!file) return;
-    try { await frSetPhoto(inp.dataset.frphoto, await frResizePhoto(file)); toast("Photo saved: everyone sees it"); paintDev(); drawFriends(); } catch(e){ frFail(e); }
+    try { const c = await frCropPhoto(file); if (!c) return; await frSetPhoto(inp.dataset.frphoto, c); toast("Photo saved: everyone sees it"); paintDev(); drawFriends(); } catch(e){ frFail(e); }
   });
   const sa = $("#stk-add");
   sa.onchange = async () => {
@@ -725,6 +729,7 @@ async function frSplitPaint(){
   }
   box.innerHTML = splitSectionHTML(m, groups, true, {embedded:true});
   bindSplit(box, m, frSplitPaint);
+  if (frAdmin === null) frCheckAdmin().then(a => { if (a && $("#fr-split")) frSplitPaint(); }, () => {});
   // follow this group live: a payment a friend adds appears here straight away (not while you're typing)
   if (frSplitGid !== gid){
     if (frSplitStop) frSplitStop();
@@ -770,13 +775,19 @@ async function liveAddMember(id, uid, groupName){
   await frDb("PUT", `mygroups/${uid}/${id}`, n);
   await liveFetch(id).catch(() => {});
 }
-// delete a live group for everyone: its payments, everyone's link to it, then its members (you last, so the rules still let you)
+// the developer takes someone out of a group: they lose it from their list, then their place in it
+async function liveRemoveMember(id, uid){
+  await frDb("DELETE", `mygroups/${uid}/${id}`).catch(() => {});
+  await frDb("DELETE", `groups/${id}/members/${uid}`);
+  await liveFetch(id).catch(() => {});
+}
+// delete a live group for everyone (the developer only): its payments, everyone's link to it, then its members (you last)
 async function liveDeleteGroup(id){
   const me = await frMe(), g = await frDb("GET", `groups/${id}`) || {};
+  await frDb("DELETE", `groups/${id}/n`);           // first, because only the developer may: anyone else stops here with nothing lost
   await Promise.all(Object.keys(g.items || {}).map(iid => frDb("DELETE", `groups/${id}/items/${iid}`)));
   const others = Object.keys(g.members || {}).filter(uid => uid !== me.uid);
   await Promise.all(others.map(uid => frDb("DELETE", `mygroups/${uid}/${id}`).catch(() => {})));
-  await frDb("DELETE", `groups/${id}/n`).catch(() => {});
   await Promise.all(others.map(uid => frDb("DELETE", `groups/${id}/members/${uid}`)));
   await frDb("DELETE", `groups/${id}/members/${me.uid}`);
   await frDb("DELETE", `mygroups/${me.uid}/${id}`).catch(() => {});
@@ -835,4 +846,228 @@ function liveSplitRefresh(root){
     const busy = document.activeElement && root.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
     if (JSON.stringify(liveStore()) !== before && !busy) TOOL_PAGES.split(root, ""); else liveSplitRefresh(root);
   }, 15e3);
+}
+
+/* ---------- crop a photo: drag it and pinch or slide to zoom so the face fills the circle ----------
+   Used for friends' faces (your own pencil, and the developer's shared photos). Resolves a 128 px JPEG, or null if cancelled. */
+function frCropPhoto(file){
+  return new Promise(async res => {
+    const url = URL.createObjectURL(file), img = new Image();
+    try { img.src = url; await img.decode(); } catch(e){ URL.revokeObjectURL(url); toast("Couldn’t read that picture"); res(null); return; }
+    const B = 260, W = img.naturalWidth, H = img.naturalHeight, s0 = B / Math.min(W, H);
+    let z = 1, k = s0, x = (B - W * k) / 2, y = (B - H * k) / 2;
+    const root = document.createElement("div"); root.id = "cropRoot"; document.body.appendChild(root);
+    root.innerHTML = `<div class="cfm-wrap"><div class="cfm crop" role="dialog" aria-modal="true" aria-labelledby="crop-t">
+      <p id="crop-t"><b>Move and zoom</b> so the face fills the circle</p>
+      <div class="crop-box" style="width:${B}px;height:${B}px"><img src="${url}" alt="" draggable="false"><div class="crop-ring" aria-hidden="true"></div></div>
+      <label class="field" style="margin-top:10px">Zoom<input type="range" id="crop-z" min="1" max="5" step="0.01" value="1"></label>
+      <div class="row"><button class="btn" type="button" data-crop="0">Cancel</button><button class="btn primary" type="button" data-crop="1">Use photo</button></div></div></div>`;
+    const box = root.querySelector(".crop-box"), im = box.querySelector("img"), zr = root.querySelector("#crop-z");
+    const clamp2 = () => { x = Math.min(0, Math.max(B - W * k, x)); y = Math.min(0, Math.max(B - H * k, y)); };
+    const draw = () => { clamp2(); im.style.width = W * k + "px"; im.style.height = H * k + "px"; im.style.transform = `translate(${x}px,${y}px)`; };
+    const zoomTo = (nz, cx = B / 2, cy = B / 2) => { nz = Math.min(5, Math.max(1, nz)); const ix = (cx - x) / k, iy = (cy - y) / k; z = nz; k = s0 * z; x = cx - ix * k; y = cy - iy * k; zr.value = z; draw(); };
+    const pts = new Map(); let pinch = null;
+    box.onpointerdown = e => { box.setPointerCapture(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY}); if (pts.size === 2){ const [a, b] = [...pts.values()]; pinch = {d:Math.hypot(a.x - b.x, a.y - b.y), z}; } };
+    box.onpointermove = e => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      if (pts.size === 1){ x += e.clientX - p.x; y += e.clientY - p.y; draw(); }
+      pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+      if (pts.size === 2 && pinch){ const [a, b] = [...pts.values()], r = box.getBoundingClientRect(); zoomTo(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); }
+    };
+    box.onpointerup = box.onpointercancel = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+    box.onwheel = e => { e.preventDefault(); const r = box.getBoundingClientRect(); zoomTo(z * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - r.left, e.clientY - r.top); };
+    zr.oninput = () => zoomTo(+zr.value);
+    draw();
+    const done = v => { root.remove(); URL.revokeObjectURL(url); res(v); };
+    root.querySelector('[data-crop="0"]').onclick = () => done(null);
+    root.querySelector('[data-crop="1"]').onclick = () => {
+      const c = document.createElement("canvas"); c.width = c.height = 128;
+      c.getContext("2d").drawImage(img, -x / k, -y / k, B / k, B / k, 0, 0, 128, 128);
+      done(c.toDataURL("image/jpeg", 0.82));
+    };
+  });
+}
+
+/* ---------- "I'm lost": one tap alerts every friend, with your position, your number and the group call link ----------
+   phones/{uid} your number, readable only by the friends you allow (pallow/{uid}/{friend} true); sos/{to}/{from} {t,n,lat,lng,cl}.
+   A web app can't ring several phones at once, so the alert pops up on every friend's phone (any screen, like messages) with
+   Call (your number), Join the group call (a WhatsApp or FaceTime call link you saved) and Show on the map. */
+const FR_SOS_SEEN = "fr-sos-seen";
+const frCallLinkOk = s => /^https:\/\/(call\.whatsapp\.com|facetime\.apple\.com|meet\.google\.com|chat\.whatsapp\.com)\//.test(s || "");
+const frPhoneClean = s => String(s || "").replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "").slice(0, 16);
+async function frSavePhone(num, link){
+  const f = frState(), me = await frMe();
+  const n = frPhoneClean(num);
+  if (num && !/^\+\d{7,15}$/.test(n)) throw new Error("Type your number with the country code, like +44 7700 900123");
+  if (link && !frCallLinkOk(link)) throw new Error("That isn’t a WhatsApp, FaceTime or Google Meet call link");
+  f.phone = n; f.callLink = link || ""; persist();
+  if (n) await frDb("PUT", `phones/${me.uid}`, n); else await frDb("DELETE", `phones/${me.uid}`).catch(() => {});
+  await frAllowPhone();
+}
+// every friend may read your number (and only them)
+async function frAllowPhone(){
+  const f = frState(), me = await frMe();
+  await Promise.all(Object.keys(f.list).map(uid => frDb("PUT", `pallow/${me.uid}/${uid}`, true).catch(() => {})));
+}
+async function frPhoneOf(uid){ try { return await frDb("GET", `phones/${uid}`); } catch(e){ return null; } }
+// sends the alert to every friend; resolves how many it reached
+async function frSosSend(){
+  const f = frState(), me = await frMe(), ids = Object.keys(f.list);
+  if (!ids.length) throw new Error("Add your mates in Friends first");
+  await frAllowPhone().catch(() => {});
+  let here = frMeHere();
+  if (!here && typeof navigator !== "undefined" && navigator.geolocation) here = await new Promise(r => navigator.geolocation.getCurrentPosition(p => r({lat:p.coords.latitude, lng:p.coords.longitude}), () => r(null), {enableHighAccuracy:true, timeout:8000, maximumAge:60e3}));
+  const body = {t:{".sv":"timestamp"}, n:f.name || "A friend", ...(here ? {lat:+here.lat.toFixed(5), lng:+here.lng.toFixed(5)} : {}), ...(f.callLink ? {cl:f.callLink} : {})};
+  const r = await Promise.allSettled(ids.map(uid => frDb("PUT", `sos/${uid}/${me.uid}`, body)));
+  return r.filter(x => x.status === "fulfilled").length;
+}
+const frSosShown = new Set();
+async function frSosCheck(){
+  const me = frMyId(); if (!me || typeof document === "undefined") return;
+  const got = await frDb("GET", `sos/${me}`).catch(() => null) || {}, seen = lsGet(FR_SOS_SEEN, {}) || {};
+  const fresh = Object.entries(got).filter(([uid, x]) => x && x.t && x.t > (seen[uid] || 0) && frNow() - x.t < 6 * 3600e3 && !frSosShown.has(uid + x.t));
+  for (const [uid, x] of fresh){ frSosShown.add(uid + x.t); frSosPopup(uid, x); }
+}
+async function frSosPopup(uid, x){
+  const num = await frPhoneOf(uid), root = document.createElement("div"); root.className = "sosRoot"; document.body.appendChild(root);
+  const who = frState().list[uid] ? frNameOf(uid) : x.n;
+  const close = () => { root.remove(); const seen = lsGet(FR_SOS_SEEN, {}) || {}; seen[uid] = x.t; lsSet(FR_SOS_SEEN, seen); frDb("DELETE", `sos/${frMyId()}/${uid}`).catch(() => {}); };
+  root.innerHTML = `<div class="cfm-wrap msg-wrap"><div class="cfm msg-pop sos-pop" role="alertdialog" aria-modal="true" aria-labelledby="sos-t">
+    <div class="msg-av">${frAvatar(uid, 56)}</div><p id="sos-t"><b>${esc(who)} is lost</b> and wants a call</p>
+    <div class="note">${esc(frWhen(x.t))}</div>
+    <div class="sos-acts">
+      ${x.cl ? `<a class="btn primary" href="${esc(x.cl)}" target="_blank" rel="noopener">${icon("users","i s")}Join the group call</a>` : ""}
+      ${num ? `<a class="btn ${x.cl ? "" : "primary"}" href="tel:${esc(num)}">${icon("phone","i s")}Call ${esc(who)}</a>` : `<p class="note">They haven’t saved their number in Friends.</p>`}
+      ${isFinite(x.lat) ? `<button class="btn" type="button" data-sos="map">${icon("map","i s")}Show on the map</button>` : ""}
+      <button class="btn" type="button" data-sos="ok">Close</button></div></div></div>`;
+  root.querySelector('[data-sos="ok"]').onclick = close;
+  const m = root.querySelector('[data-sos="map"]');
+  if (m) m.onclick = () => { close(); frLocs[uid] = {lat:x.lat, lng:x.lng, t:x.t}; openFriendsMap(uid); };
+}
+// the "I'm lost" block on Friends: your number, the group call link, and the big button
+function frSosHTML(){
+  const f = frState();
+  return `<div class="block sos-block"><h2>${icon("alert","i s")}I’m lost</h2>
+    <p class="note">One tap pops up an alert on all your mates’ phones with where you are, a button to call you, and your group call link.</p>
+    <button class="btn danger wide" type="button" id="fr-sos">${icon("alert","i s")}I’m lost: alert everyone</button>
+    <details class="more" style="margin-top:10px"><summary>${f.phone ? "Your number and group call" : "Set up: your number and a group call link"}</summary>
+      <label class="field" style="margin-top:8px">Your phone number (with country code)<input id="fr-phone" type="tel" autocomplete="tel" placeholder="+44 7700 900123" value="${esc(f.phone || "")}"></label>
+      <label class="field">Group call link (optional)<input id="fr-clink" type="url" placeholder="https://call.whatsapp.com/…" value="${esc(f.callLink || "")}"></label>
+      <p class="note">To call everyone at once: in WhatsApp, open Calls › Create call link, copy it and paste it here (one of you does it, then everyone pastes the same link). Everyone taps <b>Join the group call</b> on the alert. Only your friends can see your number.</p>
+      <button class="btn small" type="button" id="fr-phonesave">Save</button></details>
+    <div id="fr-calls"></div></div>`;
+}
+function frSosBind(root){
+  const s = root.querySelector("#fr-sos"); if (!s) return;
+  root.querySelector("#fr-phonesave").onclick = () => frSavePhone(root.querySelector("#fr-phone").value, root.querySelector("#fr-clink").value.trim())
+    .then(() => toast("Saved: your friends can call you from an alert"), e => toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"));
+  s.onclick = async () => {
+    if (!(await askConfirm("Send an “I’m lost” alert to all your friends, with where you are?", "Send alert", true))) return;
+    s.disabled = true;
+    try {
+      const n = await frSosSend(); toast(`Alert sent to ${n} ${n === 1 ? "friend" : "friends"}`);
+      // and your own quick-dial list, in case they don't see it
+      const f = frState(), rows = await Promise.all(Object.keys(f.list).map(async uid => [uid, await frPhoneOf(uid)]));
+      const box = root.querySelector("#fr-calls");
+      if (box) box.innerHTML = `<h3 style="margin-top:12px">Call them</h3>${f.callLink ? `<a class="btn primary wide" href="${esc(f.callLink)}" target="_blank" rel="noopener">${icon("users","i s")}Start the group call</a>` : ""}
+        ${rows.map(([uid, num]) => `<div class="fr-row"><span>${frAvatar(uid, 32)}</span><div><b>${esc(frNameOf(uid))}</b></div>${num ? `<a class="btn small" href="tel:${esc(num)}">${icon("phone","i s")}Call</a>` : `<span class="note">no number saved</span>`}</div>`).join("")}`;
+    } catch(e){ toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"); }
+    s.disabled = false;
+  };
+}
+
+/* ---------- the Google key, shared by the developer with the friends they pick ----------
+   gkey: the key (only approved phones and developers can read it)   gkeyok/{uid} true (set by a developer)
+   gkeyask/{uid} {n,t}: "can I have Google photos?"   The key is kept on the phone (gkey-shared) and used by googleKey()
+   when the phone has none of its own. A phone that's taken off the list drops it at the next check. */
+const GK_SHARED = "gkey-shared";
+let gkShareAt = 0;
+async function gkSync(force){
+  if (!frCfg() || (!force && frNow() - gkShareAt < 10 * 60e3)) return;
+  gkShareAt = frNow();
+  try {
+    const k = await frDb("GET", "gkey");
+    const had = lsGet(GK_SHARED, "");
+    if (typeof k === "string" && k) { if (k !== had){ lsSet(GK_SHARED, k); if (typeof gReady !== "undefined") gReady = null; } }
+    else if (had) lsSet(GK_SHARED, "");
+  } catch(e){ if (e.status === 401 || e.status === 403){ if (lsGet(GK_SHARED, "")) lsSet(GK_SHARED, ""); } }
+}
+async function gkAsk(){
+  const me = await frMe();
+  await frDb("PUT", `gkeyask/${me.uid}`, {n:frState().name || "A friend", t:{".sv":"timestamp"}});
+}
+async function gkShareKey(key){ await frDb("PUT", "gkey", String(key).trim()); }
+async function gkApprove(uid, on){
+  if (on){ await frDb("PUT", `gkeyok/${uid}`, true); await frDb("DELETE", `gkeyask/${uid}`).catch(() => {}); }
+  else await frDb("DELETE", `gkeyok/${uid}`);
+}
+
+/* ---------- what's used, and by whom (for the developer: will Google need paying for?) ----------
+   stats/{uid} {n, d:{YYYY-MM-DD:{photo,details,vision,"v-map":3,…}}}: each phone writes its own; only developers read them.
+   Counted on the phone and sent with the friends check, at most every 2 minutes. Nothing personal: counts only. */
+const ST_KEY = "usage-stats";
+function statBump(k){
+  if (typeof lsGet !== "function") return;
+  k = String(k).replace(/[.#$/\[\]]/g, "-").slice(0, 40);
+  const st = lsGet(ST_KEY, {}) || {}, d = todayISO();
+  st[d] = st[d] || {}; st[d][k] = (st[d][k] || 0) + 1; st._dirty = 1;
+  Object.keys(st).filter(x => /^\d{4}-/.test(x)).sort().slice(0, -14).forEach(x => delete st[x]);      // two weeks kept on the phone
+  lsSet(ST_KEY, st);
+}
+let statAt = 0;
+async function statFlush(){
+  const st = lsGet(ST_KEY, {}) || {};
+  if (!st._dirty || !frCfg() || frNow() - statAt < 120e3) return;
+  statAt = frNow();
+  const me = await frMe(), days = Object.keys(st).filter(x => /^\d{4}-/.test(x)).sort().slice(-3);
+  await frDb("PUT", `stats/${me.uid}/n`, frState().name || "Someone");
+  for (const d of days) await frDb("PUT", `stats/${me.uid}/d/${d}`, st[d]);
+  delete st._dirty; lsSet(ST_KEY, st);
+}
+// totals per person over the last n days: {uid:{n, photo, details, vision, views:{feature:count}}}
+function statSum(all, n = 7){
+  const from = new Date(Date.now() - (n - 1) * 864e5).toISOString().slice(0, 10), out = {};
+  for (const [uid, x] of Object.entries(all || {})){
+    const o = out[uid] = {n:x.n || "Someone", photo:0, details:0, vision:0, views:{}};
+    for (const [d, c] of Object.entries(x.d || {})) if (d >= from) for (const [k, v] of Object.entries(c || {})){
+      if (k in o && k !== "n" && k !== "views") o[k] += v; else if (/^v-/.test(k)) o.views[k.slice(2)] = (o.views[k.slice(2)] || 0) + v;
+    }
+  }
+  return out;
+}
+const STAT_NAMES = {map:"Map", gaffs:"Gaffs", munch:"Munch", activities:"Activities", tools:"Tools", saved:"Saved", discover:"Discover"};
+const statName = k => STAT_NAMES[k] || k.replace(/^tools-/, "").replace(/-/g, " ").replace(/^./, c => c.toUpperCase());
+async function paintDevExtras(){
+  const el = $("#fr-dev2"); if (!el) return;
+  let all = null, asks = {}, oks = {}, keyOn = false;
+  try {
+    [all, asks, oks] = await Promise.all([frDb("GET", "stats"), frDb("GET", "gkeyask"), frDb("GET", "gkeyok")]);
+    keyOn = !!(await frDb("GET", "gkey"));
+  } catch(e){ el.innerHTML = `<div class="block"><p class="note">${e.message === "permission" ? "Firebase refused: re-publish the rules (FIREBASE-SETUP.md)." : "Couldn’t load (no signal?)."}</p></div>`; return; }
+  if (!$("#fr-dev2")) return;
+  asks = asks || {}; oks = oks || {};
+  const fl = Object.entries(frState().list), mine = googleKey() && realKey(S.gkey || window.SEA_GOOGLE_KEY || "");
+  const sum = statSum(all, 7), month = statSum(all, 30), rows = Object.entries(sum).sort((a, b) => (b[1].photo + b[1].details + b[1].vision) - (a[1].photo + a[1].details + a[1].vision));
+  const tot = k => Object.values(month).reduce((s, x) => s + x[k], 0);
+  el.innerHTML = `<div class="block"><h2>Google photos for friends</h2>
+      <p class="note">Share this phone’s Google key with the friends you switch on, so they get Google photos without adding a key themselves. The key stays in Firebase (never on the website), and each phone still has its own daily limit (${G_DAILY.photo} photos, ${G_DAILY.details} lookups, ${G_DAILY.vision} camera photos).</p>
+      <p class="note" style="color:var(--ink)">${keyOn ? "A key is shared." : "No key shared yet."}</p>
+      ${mine ? `<button class="btn small primary" type="button" id="gk-share">${keyOn ? "Share this phone’s key again" : "Share this phone’s key"}</button>` : `<p class="note">Add your key in Settings › Photos from Google on this phone first.</p>`}
+      ${keyOn ? `<button class="btn small" type="button" id="gk-unshare">Stop sharing</button>` : ""}
+      ${Object.keys(asks).length ? `<h3 style="margin-top:12px">Asking for it</h3>${Object.entries(asks).map(([uid, a]) => `<div class="fr-row"><span>${frAvatar(uid, 32)}</span><div><b>${esc(frState().list[uid] ? frNameOf(uid) : (a && a.n) || "Someone")}</b><div class="note">${esc(frWhen(a && a.t))}</div></div><button class="btn small primary" type="button" data-gkok="${esc(uid)}">Let them</button></div>`).join("")}` : ""}
+      <h3 style="margin-top:12px">Who can use it</h3>
+      ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 32)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-gkon="${esc(uid)}" aria-pressed="${oks[uid] === true}" aria-label="${esc(x.n)} can use the Google key"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
+    <div class="block"><h2>What’s being used</h2>
+      <p class="note">Last 7 days, from each phone that has Friends on. Google charges for photos, place lookups and camera photos; the rest is free.</p>
+      <p class="note" style="color:var(--ink)">Last 30 days, everyone: <b>${tot("photo")}</b> Google photos, <b>${tot("details")}</b> place lookups, <b>${tot("vision")}</b> camera photos.</p>
+      ${rows.length ? `<div class="stat-tab">${rows.map(([uid, x]) => {
+        const top = Object.entries(x.views).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        return `<div class="stat-row"><div class="who">${frAvatar(uid, 30)}<b>${esc(uid === frMyId() ? "You" : frState().list[uid] ? frNameOf(uid) : x.n)}</b></div>
+          <div class="stat-g"><span>${x.photo} photos</span><span>${x.details} lookups</span><span>${x.vision} camera</span></div>
+          ${top.length ? `<div class="note">Most used: ${top.map(([k, v]) => `${esc(statName(k))} (${v})`).join(", ")}</div>` : ""}</div>`;
+      }).join("")}</div>` : `<p class="note">Nothing yet: counts arrive from each phone within a few minutes of using the app.</p>`}</div>`;
+  const sh = $("#gk-share"); if (sh) sh.onclick = async () => { if (!(await askConfirm("Share this phone’s Google key with the friends you switch on?", "Share key"))) return; gkShareKey(googleKey()).then(() => { toast("Key shared"); paintDevExtras(); }, frFail); };
+  const un = $("#gk-unshare"); if (un) un.onclick = () => frDb("DELETE", "gkey").then(() => { toast("Key no longer shared"); paintDevExtras(); }, frFail);
+  el.querySelectorAll("[data-gkok]").forEach(b => b.onclick = () => gkApprove(b.dataset.gkok, true).then(() => { toast("They can use it now"); paintDevExtras(); }, frFail));
+  el.querySelectorAll("[data-gkon]").forEach(b => b.onclick = () => { const on = b.getAttribute("aria-pressed") !== "true"; gkApprove(b.dataset.gkon, on).then(() => b.setAttribute("aria-pressed", on), frFail); });
 }

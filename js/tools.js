@@ -369,7 +369,8 @@ function setupPage(){
   </details>
   <section class="block"><h2>Photos from Google</h2>
     <p class="note">With a Google key, the researched places show Google photos, their Google rating and exact location. Other places only load Google photos when you ask, to keep Google’s costs at zero.</p>
-    <p class="note" style="color:var(--ink)">${gk ? (S.gkey ? "Key saved on this phone." : "Key set in config.js, so everyone gets photos.") : "No key yet."}</p>
+    <p class="note" style="color:var(--ink)">${gk ? (S.gkey ? "Key saved on this phone." : realKey(window.SEA_GOOGLE_KEY) || realKey(GOOGLE_KEY_IN_FILE) ? "Key set in config.js, so everyone gets photos." : "Using the key the developer shared with you.") : "No key yet."}</p>
+    ${!gk && typeof frCfg === "function" && frCfg() && frState().name ? `<button class="btn small" type="button" id="gkask" style="margin-bottom:8px">${icon("users","i s")}Ask the developer to share theirs</button>` : ""}
     <label class="field">Google Maps API key<input type="text" id="gkey" autocomplete="off" spellcheck="false" placeholder="Paste your key here" value="${esc(S.gkey)}"></label>
     <div class="row" style="margin-top:10px"><button class="btn small primary" id="gkeySave" type="button">Save key</button><button class="btn small" id="gkeyTest" type="button">Test it</button></div>
     <p class="note" style="margin-top:10px">Photos only load with signal; Google doesn’t allow saving them for offline use.</p>
@@ -411,6 +412,7 @@ function bindSetup(){
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);
   $("#funnyOn").onclick = () => { if (typeof funnySet === "function") funnySet(S.funny !== true); else { S.funny = S.funny !== true; persist(); } toast(S.funny ? "Funny mode on. Close and reopen the app for Tommy." : "Funny mode off"); renderPage(); };
+  const ga = $("#gkask"); if (ga) ga.onclick = () => gkAsk().then(() => toast("Asked: you’ll get Google photos once they say yes"), e => toast(e.message === "permission" ? "Firebase refused it: the developer needs to re-publish the rules" : "No signal? Try again"));
   $("#gkeySave").onclick = () => { S.gkey = $("#gkey").value.trim(); persist(); gReady = null; toast(S.gkey ? "Key saved on this phone" : "Key removed"); renderPage(); };
   $("#gkeyTest").onclick = async () => {
     const k = $("#gkey").value.trim(); if (k && k !== S.gkey){ S.gkey = k; persist(); gReady = null; }

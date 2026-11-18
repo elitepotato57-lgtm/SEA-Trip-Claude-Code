@@ -3,10 +3,13 @@
    - the app opens with Tommy's intro (media/tommy.mp4) full screen, then fades into the app;
    - tapping China on the main map plays media/chinese.mp3 (GEO already has China's outline, so no download);
    - opening Tools › Friends makes Ben pop up and wave (img/ben-wave.png, cut out of media/ben-wave.mp4 by
-     tools/ben-sprite.py; css/app.css animates the strip of frames with steps()).
+     tools/ben-sprite.py; css/app.css animates the strip of frames with steps());
+   - opening Munch pops up Tom (img/tom-fried.jpg) with the munchies, for two seconds;
+   - picking Nightlife in Activities (the list or the map) pops up the two of them (img/tom-aid-ping.png) with a warning.
    Nothing here does anything while it's off.
    ============================================================ */
 const FUNNY_INTRO = "media/tommy.mp4", FUNNY_CHINA = "media/chinese.mp3", FUNNY_BEN = "img/ben-wave.png";
+const FUNNY_MUNCH = "img/tom-fried.jpg", FUNNY_NIGHT = "img/tom-aid-ping.png";
 const funnyOn = () => typeof S !== "undefined" && S.funny === true;
 
 // a whole file as a blob: URL, so iPhones play it from memory (no half-loaded video, and it works offline once saved)
@@ -58,7 +61,7 @@ function funnyPrep(){
   if (!funnyOn() || funnyAudioUrl || typeof Audio === "undefined") return;
   funnyAudioUrl = "loading";
   funnyBlobUrl(FUNNY_CHINA).then(u => { funnyAudioUrl = u; funnyAudio = new Audio(u); funnyAudio.preload = "auto"; }).catch(() => { funnyAudioUrl = ""; });
-  try { const im = new Image(); im.src = FUNNY_BEN; } catch(e){}
+  try { [FUNNY_BEN, FUNNY_MUNCH, FUNNY_NIGHT].forEach(src => { const im = new Image(); im.src = src; }); } catch(e){}
 }
 // called by the main map's tap handler (js/map.js). hit: the tap was on a place pin. Returns true when it played.
 function funnyMapTap(ll, hit){
@@ -83,8 +86,22 @@ function funnyBen(){
   host.appendChild(el);
   setTimeout(() => el.remove(), 3100);
 }
+/* ---------- a picture and a line that pop up for a moment (tap to close sooner) ---------- */
+function funnyPop(src, text, ms = 2200){
+  if (!funnyOn() || typeof document === "undefined" || !document.body) return;
+  const old = $("#funnyPop"); if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "funnyPop"; el.className = "funny-pop"; el.setAttribute("role", "status");
+  el.innerHTML = `<img src="${src}" alt=""><p>${esc(text)}</p>`;
+  document.body.appendChild(el);
+  const bye = () => { el.classList.add("out"); setTimeout(() => el.remove(), 400); };
+  el.onclick = bye; setTimeout(bye, ms);
+}
+const funnyMunchies = () => funnyPop(FUNNY_MUNCH, "Uh-oh, Tommy’s got the munchies again, hasn’t he?", 2200);
+const funnyNightlife = () => funnyPop(FUNNY_NIGHT, "Watch out for drug dealers. Cretins such as these two have been known for spiking your drinks and tag teaming arseholes.", 4200);
 function funnyOnRoute(){
   const r = parseHash(), key = r.view + "/" + r.sub;
+  if (r.view === "munch" && !/^munch/.test(funnyRoute)) funnyMunchies();
   if (key === "tools/friends" && funnyRoute !== key) funnyBen();
   else if (key !== "tools/friends"){ const b = $("#funnyBen"); if (b) b.remove(); }       // he only waves on Friends
   funnyRoute = key;
@@ -103,5 +120,5 @@ function funnyStart(){
 function funnySet(on){
   S.funny = !!on; persist();
   if (on) funnyPrep();
-  else { const i = $("#funnyIntro"); if (i) i.remove(); const b = $("#funnyBen"); if (b) b.remove(); }
+  else { ["#funnyIntro", "#funnyBen", "#funnyPop"].forEach(s => { const x = $(s); if (x) x.remove(); }); }
 }

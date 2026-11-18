@@ -25,6 +25,11 @@ function makeFake(){
     if (top === "stickerIndex") return true;
     if (top === "stickers") return p.length >= 2;
     if (top === "msgs") return a === uid;
+    if (top === "phones") return p.length === 2 && (a === uid || get(["pallow", a, uid]) === true);
+    if (top === "pallow" || top === "sos") return a === uid;
+    if (top === "gkey") return get(["gkeyok", uid]) === true || get(["admins", uid]) === true;
+    if (top === "gkeyok") return get(["admins", uid]) === true || (p.length === 2 && a === uid);
+    if (top === "gkeyask" || top === "stats") return get(["admins", uid]) === true;
     if (top === "photos") return true;
     if (top === "invites") return a === uid;
     if (top === "parties") return p.length >= 2 && get(["parties", a, "m", uid]) !== undefined;
@@ -39,14 +44,23 @@ function makeFake(){
     if (top === "requests") return p.length === 3 && (uid === b || uid === a);
     if (top === "groups"){
       const isMember = !!get(["groups", a, "members", uid]);
-      if (p[2] === "members" && p.length === 4) return isMember || (get(["groups", a]) === undefined && p[3] === uid);
-      if ((p[2] === "n" && p.length === 3) || (p[2] === "items" && p.length === 4)) return isMember;
+      // members add people; only the developer (admins/) takes people out or deletes the group's name
+      const isAdmin = get(["admins", uid]) === true;
+      if (p[2] === "members" && p.length === 4) return (isMember && isAdmin) || (isMember && get(p) === undefined && val != null) || (get(["groups", a]) === undefined && p[3] === uid);
+      if (p[2] === "n" && p.length === 3) return isMember && (val != null || isAdmin);
+      if (p[2] === "items" && p.length === 4) return isMember;
       return false;
     }
     if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));
     if (top === "admins") return p.length === 2 && (get(["admins", uid]) === true || (a === uid && get(["admins"]) === undefined));
     if (top === "stickerIndex" || top === "stickers") return p.length === 2 && get(["admins", uid]) === true && (val == null || top === "stickerIndex" || (val.d && val.d.length < 300000 && val.d.startsWith("data:image/")));
     if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
+    if (top === "phones") return p.length === 2 && a === uid && (val == null || (typeof val === "string" && /^\+[0-9]{7,15}$/.test(val)));
+    if (top === "pallow") return a === uid;
+    if (top === "gkey" || top === "gkeyok") return get(["admins", uid]) === true && (top === "gkey" ? p.length === 1 : p.length === 2);
+    if (top === "gkeyask") return p.length === 2 && (a === uid || get(["admins", uid]) === true);
+    if (top === "stats") return p.length >= 2 && a === uid;
+    if (top === "sos") return p.length === 3 && (uid === b || uid === a) && (val == null || (val.t <= now && !!val.n && (!val.cl || String(val.cl).startsWith("https://"))));
     if (top === "photos") return p.length === 2 && get(["admins", uid]) === true && (val == null || (typeof val === "string" && val.length < 40000 && val.startsWith("data:image/jpeg;base64,")));
     if (top === "invites") return p.length === 3 && (uid === b || uid === a);
     if (top === "parties"){

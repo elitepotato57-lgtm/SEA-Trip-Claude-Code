@@ -36,7 +36,7 @@ KINDS = {"hostel":["stay","Hostel"],"hotel":["stay","Hotel"],"guesthouse":["stay
   "attraction":["do","Attraction"],"viewpoint":["do","Viewpoint"],"museum":["do","Museum or gallery"],"zoo":["do","Zoo or aquarium"],
   "themepark":["do","Theme or water park"],"waterfall":["do","Waterfall"],"peak":["do","Peak"],"cave":["do","Cave"],"hotspring":["do","Hot spring"],
   "park":["do","Park"],"nationalpark":["do","National park or reserve"],"dive":["do","Dive centre"],"climbing":["do","Climbing"],"muaythai":["do","Muay Thai"],
-  "massage":["do","Massage or spa"],"cooking":["do","Cooking class"],"tour":["do","Tour or travel agency"],"bar":["do","Bar or pub"],"club":["do","Nightclub"],
+  "massage":["do","Massage or spa"],"cooking":["do","Cooking class"],"tour":["do","Tour or travel agency"],"bar":["do","Bar or pub"],"club":["do","Nightclub"],"liquor":["do","Bottle shop"],
   "culture":["do","Theatre or arts centre"],"laundry":["ess","Laundry"],"atm":["ess","ATM"],"bank":["ess","Bank"],"exchange":["ess","Money exchange"],
   "pharmacy":["ess","Pharmacy"],"hospital":["ess","Hospital"],"clinic":["ess","Clinic"],"dentist":["ess","Dentist"],"police":["ess","Police"],
   "embassy":["ess","Embassy or consulate"],"immigration":["ess","Immigration office"],"supermarket":["ess","Supermarket"],"convenience":["ess","Convenience store"],
@@ -45,7 +45,7 @@ KINDS = {"hostel":["stay","Hostel"],"hotel":["stay","Hotel"],"guesthouse":["stay
   "airport":["move","Airport"],"train":["move","Train station"],"metro":["move","Metro or Skytrain station"],"bus":["move","Bus station"],
   "ferry":["move","Ferry pier"],"carrental":["move","Car rental"],"scooter":["move","Scooter rental"],"bike":["move","Bicycle rental"],"taxi":["move","Taxi stand"]}
 GROUPS = ["stay", "food", "do", "ess", "move"]
-UNNAMED_OK = {"toilet", "water", "atm", "viewpoint", "fuel", "taxi", "luggage"}
+UNNAMED_OK = {"toilet", "water", "atm", "viewpoint", "fuel", "taxi", "luggage", "liquor"}
 POI_KEYS = ("amenity", "tourism", "shop", "leisure", "natural", "waterway", "historic", "railway", "aeroway", "office", "public_transport", "boundary", "sport", "place")
 TEMPLE_RELIGIONS = {"buddhist", "hindu", "taoist", "confucian", "chinese_folk", "shinto"}
 HISTORIC_KEEP = {"monument", "memorial", "ruins", "archaeological_site", "castle", "fort", "building", "tomb", "city_gate", "palace", "manor", "heritage",
@@ -105,6 +105,7 @@ def classify(t, name):
     if sh == "travel_agency" or t.get("office") == "travel_agent": out.append("tour")
     if am in ("bar", "pub", "biergarten"): out.append("bar")
     if am == "nightclub": out.append("club")
+    if sh in ("alcohol", "beverages", "wine"): out.append("liquor")
     if am in ("theatre", "arts_centre"): out.append("culture")
     # essentials
     if sh in ("laundry", "dry_cleaning"): out.append("laundry")
