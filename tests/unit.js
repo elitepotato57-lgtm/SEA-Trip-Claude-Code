@@ -783,6 +783,18 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
 
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
+  {
+    const ans = async q => String(await A.assistantAnswer(q)).replace(/<[^>]+>/g, " ");
+    const r = {};
+    r.baht = await ans("How much is 1000 baht?"); r.lao = await ans("What's the exchange rate in Laos?");
+    A.S.country = "VN"; r.thanks = await ans("How do I say thank you?"); r.visa = await ans("Do I need a visa for Vietnam?"); r.sosVN = await ans("emergency numbers");
+    A.S.country = "TH"; r.sosTH = await ans("emergency"); r.kampot = await ans("Tell me about Kampot");
+    r.trip = await ans("How do I get from Bangkok to Luang Prabang?"); r.tz = await ans("what's the time difference in Singapore");
+    test("the trip assistant answers money, phrases, visas, emergencies and destinations in every country", () => {
+      ok(/£/.test(r.baht), r.baht); ok(/kip/i.test(r.lao), r.lao); ok(/Cảm ơn|cam on/i.test(r.thanks), r.thanks); ok(/45 days/.test(r.visa), r.visa);
+      ok(/113|115/.test(r.sosVN), r.sosVN); ok(/1155/.test(r.sosTH), r.sosTH); ok(/Kampot/.test(r.kampot), r.kampot); ok(/way/.test(r.trip), r.trip); ok(/ahead of the UK/.test(r.tz), r.tz);
+    });
+  }
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
   await A.restoreBackup({app:"sea-trip", state:{saved:{y:{n:"Theirs"}, x:{n:"Old copy"}}, budget:{items:[{amt:100, what:"pad thai"}, {amt:40, what:"bus"}]}}}, "merge");
   test("restoring a backup adds new saved places and spending once, and keeps this phone's copy", () => {

@@ -91,7 +91,7 @@ const EDGES = [
 ];
 // flights: these routes are flown, but the time is worked out from the distance and the price is left to check live
 const FLIGHTS = [["bkk", "han"], ["bkk", "sgn"], ["bkk", "rep"], ["bkk", "pnh"], ["bkk", "vte"], ["bkk", "lpq"], ["bkk", "sin"], ["sin", "dps"], ["sin", "jakarta"],
-  ["sin", "sgn"], ["sin", "han"], ["sin", "pnh"], ["han", "sgn"], ["han", "dad"], ["sgn", "dad"], ["sgn", "pqc"], ["han", "pqc"], ["han", "lpq"], ["han", "rep"], ["sgn", "nhatrang"], ["han", "nhatrang"], ["cnx", "lpq"]];
+  ["sin", "sgn"], ["sin", "han"], ["sin", "pnh"], ["han", "sgn"], ["han", "dad"], ["sgn", "dad"], ["sgn", "pqc"], ["han", "pqc"], ["han", "lpq"], ["han", "rep"], ["sgn", "nhatrang"], ["han", "nhatrang"], ["cnx", "lpq"], ["bkk", "dad"], ["bkk", "pqc"]];
 const km = (a, b) => { const r = Math.PI / 180, x = (b[3] - a[3]) * r * Math.cos((a[2] + b[2]) / 2 * r), y = (b[2] - a[2]) * r; return Math.sqrt(x * x + y * y) * 6371; };
 
 // remove anything added before, then add

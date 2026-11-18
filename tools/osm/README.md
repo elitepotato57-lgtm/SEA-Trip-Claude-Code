@@ -79,13 +79,15 @@ It takes a couple of minutes.
 6. Then the hand-researched layer, as for Thailand and Indonesia (all edited with a script, never by hand):
    - researched gaffs, munch spots and activities in `D.places`, with sources, `city` set to the destination's name in `D.cities`,
      and pins taken from the new `places/<cc>/` files where the name matches (`osmid`); otherwise an approximate pin with `ap: true`;
-   - hubs, stations and legs in `D.net` (plus `go12` names), each leg with a source or marked `verified: false` (shown as an estimate);
+   - hubs, stations and legs in `D.net` (plus `go12` names), each leg with a source or marked `verified: false` (shown as an estimate),
+     including the links across its borders, so the planner goes from anywhere to anywhere on the map. Add them to
+     `tools/transport-asia.js` (or a file like it) and run it; check `npm test`'s "reaches every country" test still passes;
    - one Wikimedia Commons photo per destination: `img/dest-*.jpg` (440×270), `DEST_IMG` and `PHOTO_CREDITS` in `js/core.js`,
      and the credit in `img/CREDITS.md` and `img/credits.json`;
    - a `wd` (Wikidata item) or `wp` (English Wikipedia page) on researched places, only when that item **is** the place
      (never a town's item on a hostel). Temples get no photo unless the exact picture was looked at and listed in
      `PHOTO_CHECKED` (`js/detail.js`): no Buddha imagery.
-7. Run `npm test`.
+7. Run `node tools/photo-index.js` then `node tools/photo-geo.js` for the photos, then `npm test`.
 
 ## What it keeps
 

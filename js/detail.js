@@ -243,19 +243,32 @@ const loadPhotoIndex = () => photoIndex || (photoIndex = (typeof fetch === "unde
   : getJSON(PLACES_BASE + "photos.json", {timeout:15000}).then(j => j && j.f ? j.f : null).catch(() => { photoIndex = null; return null; })));
 const indexedPhoto = file => ({src:commonsThumb(file, PH_CARD) || `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=${PH_CARD}`,
   page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"});
+/* A typical photo for the kind of place (a toilet, an ATM, a 7-Eleven, a beach…) when the place itself has none: stored with the
+   app (img/kind/, picked from Wikimedia Commons and checked by eye; never a temple or anything with a Buddha), and always labelled
+   "Typical …", never passed off as the place. kind: [photographer, licence, Commons file] */
+const KIND_PHOTO = {"laundry":["PattayaPatrol","CC BY-SA 4.0","DFC 2511 A small street-side laundry shop with a pink awning and vending machines a person in a yellow shirt stands near a bright pink sign advertising 24-hour service.jpg"],"atm":["CEphoto, Uwe Aranas","CC BY-SA 4.0","Phuket-Thailand Internationaler-Airport-ATM-01.jpg"],"pharmacy":["User:Mattes","Public domain","Thai Pharmacy.JPG"],"hospital":["BDMS","Public domain","Bangkok heart hospital building.jpg"],"police":["Dickelbers","CC BY-SA 4.0","Tourist police car Thailand 02.jpg"],"supermarket":["User:Mattes","CC BY-SA 3.0","Thai Dairy products in plastic bottles at a shop.JPG"],"convenience":["Alharomain354","CC BY-SA 4.0","7-Eleven in Pattaya City.jpg"],"mall":["DMS WIKI","CC BY-SA 4.0","Cartier Emporium 20220513.jpg"],"sim":["Tvcccp","CC BY-SA 4.0","Big C BangBon - BangBon Bangkok 28.10.2017 (19).jpg"],"water":["Vmenkov","CC BY-SA 4.0","E8661-Pattaya-water-vending-machines.jpg"],"toilet":["Hippietrail","CC0","สุขา toilets 洗手间.jpg"],"fuel":["Sharon Hahn Darlin","CC BY 2.0","Trang, Thailand, April 2025 - Petrol station.jpg"],"post":["This Photo was taken by Supanut Arunoprayote. Feel free to use any of my images,","CC BY 4.0","Bangkok General Post Office, BKK.jpg"],"wifi":["Xnatedawgx","CC BY-SA 4.0","FREE WIFI, Start exploring .SouthwestPlazaGuest sign on elevator shaft, SW Plaza 2022-01-06.jpg"],"luggage":["Tennen-Gas","CC BY-SA 3.0","Keyless locker 001.JPG"],"airport":["Grendelkhan","CC BY-SA 3.0","Suvarnabhumi Airport Terminal E interior at dusk.jpg"],"train":["Dominic Nelson","CC BY-SA 4.0","Trang - railway station platform - Sep 2024.jpg"],"metro":["Vyacheslav Argenberg","CC BY 4.0","BTS Skytrain station, Bangkok, Thailand.jpg"],"bus":["Ilya Plekhanov","CC BY-SA 3.0","New Southern Bus Terminal (Sai Tai Mai) - bus platforms.jpg"],"ferry":["Per Meistrup","CC BY-SA 4.0","Raja Ferry Pier IMG 1928.jpg"],"carrental":["AutoRentals","CC BY-SA 4.0","The Hertz Corporation Airport Car Rental Counter Charleston AutoRentals.jpg"],"bike":["alex.ch","CC BY 2.0","Bicycle rental shop, Pulau Ubin, Singapore - 20071102-01.jpg"],"taxi":["Karl Golhen","CC BY 2.5","Green taxi (Bangkok, 2006).jpg"],"restaurant":["Stefan Fussan","CC BY-SA 4.0","LungPooh Restaurant, Krabi, Thailand SF0002.jpg"],"cafe":["Takeaway","CC BY-SA 4.0","2014 1130 Chiang Mai Doqaholic Cafe.jpg"],"fastfood":["Vee Satayamas from Bangkok, Thailand","CC BY 2.0","Bangkok street food stall (20076134614).jpg"],"foodcourt":["Kbseah","CC BY-SA 4.0","Toa Payoh West Market and Food Court, wall mosaic.jpg"],"bakery":["Hduaiui Refgooj Lim","CC BY-SA 4.0","HK SPK 新蒲崗 San Po Kong 康強街 Hong Keung Street shop 潼心烘焙 Tung's Bakery January 2021 SS2.jpg"],"dessert":["Michael Cory","CC BY 2.0","Thai sweets shop - 2011-03-18 - 001.jpg"],"hostel":["Sgroey","CC BY 4.0","Hostel 6-bed dorm room, Kuching, Malaysia.jpg"],"hotel":["Mx. Granger","CC0","Room at Siamaze Hostel.jpg"],"resort":["Koh Lipe Thailand: Koh Lipe Beach Resort","CC0","Koh Lipe Thailand. Koh Lipe Beach Resort, Koh Lipe Island 05.jpg"],"motel":["Serj Kras","CC BY-SA 3.0","BanPhu Motel - panoramio (1).jpg"],"campsite":["BerryJ","CC BY-SA 4.0","Sunset Duo tree Doi Samer Dao Sri Nan National Park.jpg"],"beach":["Vyacheslav Argenberg","CC BY 4.0","Koh Mak (island), Thailand, Palms on the beach.jpg"],"viewpoint":["Danai khoche","CC BY-SA 4.0","Mountain and valley landscape from Doi Nang Mo, Chiang Mai, Thailand.jpg"],"zoo":["Yellow man","CC BY 3.0","Rhino in khao kheow open zoo - panoramio.jpg"],"themepark":["Ramayana Water Park","CC BY-SA 3.0","RWP-Overview.jpg"],"waterfall":["(WT-en) Draeco at English Wikivoyage","Public domain","Sai Yok Noi Falls wv.JPG"],"cave":["BerryJ","CC BY-SA 4.0","01-พระที่นั่งคูหาคฤหาสน์.jpg"],"hotspring":["Sgroey","CC BY-SA 4.0","Sai ngam hot spring pai.jpg"],"park":["Terence Ong","CC BY 2.5","Aerial view of Lumphini Park.jpg"],"nationalpark":["Vyacheslav Argenberg","CC BY 4.0","Khao Yai, Thailand, Tropical grasslands.jpg"],"dive":["Ryland.cairns","CC0","Scuba Diving Samaesan Island.jpg"],"climbing":["Thitigul Kaewchingdoung","CC BY 3.0","Extreme At Railay (63650921).jpeg"],"muaythai":["Eric Langley","CC BY 2.0","Womens Muay Thai teep.jpg"],"massage":["Tara Angkor Hotel","CC BY 2.0","Classical Thai Massage at Tara Angkor Hotel (5918685202).jpg"],"cooking":["Thai Secret Cooking School","CC BY-SA 4.0","Thai-Cooking-Class-Chiang-Mai-Thailand.jpg"],"tour":["Maksym Kozlenko","CC BY-SA 4.0","Travel agency at Ao Nang.jpg"],"bar":["Ninara from Helsinki, Finland","CC BY 2.0","Sky Bar, Bangkok (33407660291).jpg"],"club":["InvadingInvader","CC BY-SA 4.0","San Francisco Club X big room 2023.jpg"],"culture":["Chainwit.","CC BY-SA 4.0","โรงละครแห่งชาติ April2021 Thailand National Theatre Bangkok 01.jpg"],"liquor":["User:O'Dea","CC BY-SA 4.0","Rum display in liquor store.jpg"],"historic":["This Photo was taken by Supanut Arunoprayote. Feel free to use any of my images,","CC BY 4.0","East Asiatic Building 07.23.jpg"]};
+const KIND_OF_CAT = {gaff:"hostel", munch:"restaurant"};
+function kindPhoto(it){
+  if (!it || templeLike(it)) return null;
+  const k = KIND_PHOTO[it.k] ? it.k : KIND_PHOTO[it.ok] ? it.ok : !it.osm && KIND_OF_CAT[it.c] && !it.k ? KIND_OF_CAT[it.c] : null;
+  if (!k) return null;
+  const [by, lic, file] = KIND_PHOTO[k], label = (KIND[k] || {l:k}).l.toLowerCase();
+  return {src:`img/kind/${k}.jpg`, page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Typical photo",
+    credit:`Typical ${label}, not this exact place. Photo: ${by}, ${lic}, Wikimedia Commons`, typical:label};
+}
 const freePhoto = async it => {
   if (it.pic) return {src:it.pic[0], page:it.pic[1], by:"Photo: Wikimedia Commons", credit:it.pic[2]};      // stored with the app: instant, works offline
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it);
   if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
-  const ix = (it.wp || it.wd) ? await loadPhotoIndex() : null;
+  const ix = (it.wp || it.wd || it.osm) ? await loadPhotoIndex() : null;
   if (ix){
     if (ix[it.id] && photoFileOk(it, ix[it.id])) return indexedPhoto(ix[it.id]);
-    if (it.osm) return null;              // the index covers every map place with a photo link: none listed means none to find
+    if (it.osm) return kindPhoto(it);     // the index covers every map place with a photo: none listed means a typical one
   }
   const a = it.wp ? await loadPhoto(it) : null; if (realPhoto(a) && photoSrcOk(it, a.src)) return a;
   const b = it.wd ? await loadWdPhoto(it) : null; if (realPhoto(b) && photoSrcOk(it, b.src)) return b;
-  return (a && a.err) || (b && b.err) ? {err:true} : null;
+  return (a && a.err) || (b && b.err) ? {err:true} : kindPhoto(it);
 };
 // a landmark photo saved with a city (Tools > Offline & backup), if there is one
 async function savedPhoto(it){
@@ -267,7 +280,7 @@ async function savedPhoto(it){
 /* Card photos load only when the card scrolls into view. Order: Google (only with a key, within today's allowance),
    then a free Wikipedia / Wikimedia Commons photo, otherwise the card keeps its illustration.
    Answers are remembered on the phone (cardPhotoCache) so scrolling back never asks again. */
-const CPH_KEY = "card-photos-v1", CPH_MAX = 500;
+const CPH_KEY = "card-photos-v2", CPH_MAX = 800;
 let cph = lsGet(CPH_KEY, {}) || {};
 const cphSave = debounce(() => {
   const ks = Object.keys(cph);
@@ -292,6 +305,7 @@ async function cardPhoto(it){
   }
   let failed = false;
   if (!src){ const ph = await freePhoto(it); if (ph && ph.src) src = ph.src; else if (ph && ph.err) failed = true; }
+  if (!src && !failed){ const kp = kindPhoto(it); if (kp) src = kp.src; }
   if (src || !failed){ cph[it.id] = {src, at:now, g, gTried}; cphSave(); }      // "no photo" is remembered; "couldn't check" isn't
   return src;
 }
@@ -309,7 +323,7 @@ function watchCardPhotos(root){
       const fb = !img.dataset.fb && thumbFallback(img.src); if (fb){ img.dataset.fb = "1"; img.src = fb; return; }
       img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
     };
-    img.onload = () => slot.insertBefore(img, slot.firstChild);
+    img.onload = () => { slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(src) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
     img.src = src;
   };
   if (!("IntersectionObserver" in window)){ slots.forEach(fill); return; }
@@ -344,7 +358,7 @@ function photoInto(box, it, ph){
     box.classList.add("has-img");
     box.classList.remove("art"); box.style.backgroundImage = "";
     // the card's picture shows at once (the browser already has it), then the bigger one replaces it when it arrives
-    box.innerHTML = `<img alt="${esc(it.n)}" src="${esc(ph.src)}"><div class="credit"><a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.by)}</a></div>`;
+    box.innerHTML = `<img alt="${esc(ph.typical ? "A typical " + ph.typical : it.n)}" src="${esc(ph.src)}">${ph.typical ? `<span class="typ">Typical ${esc(ph.typical)}</span>` : ""}<div class="credit"><a href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(ph.by)}</a></div>`;
     const im = box.querySelector("img");
     im.onerror = () => {
       const fb = !im.dataset.fb && thumbFallback(im.src); if (fb){ im.dataset.fb = "1"; im.src = fb; return; }

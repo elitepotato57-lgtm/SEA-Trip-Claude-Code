@@ -253,11 +253,20 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   // Journey planner: every leg's 12Go button matches that leg (mode and direction), with the date and group
   await page.goto(BASE + "#tools/transport"); await page.waitForTimeout(1200);
-  await page.evaluate(() => { ui.tp.from = hubNode("bkk"); ui.tp.to = hubNode("gilit"); ui.tp.date = addDays(todayISO(), 20); ui.tp.people = 2; renderPage(); }); await page.waitForTimeout(1500);
-  const book = await page.evaluate(() => { const card = [...document.querySelectorAll(".trip")].find(c => c.querySelectorAll(".leg").length === 3); return card ? [...card.querySelectorAll(".leg")].map(l => { const a = l.querySelector("a[data-book]"); return a ? a.getAttribute("href") : ""; }) : null; });
+  await page.evaluate(() => { ui.tp.from = hubNode("bkk"); ui.tp.to = hubNode("gilit"); ui.tp.date = addDays(todayISO(), 20); ui.tp.people = 2; ui.tp.go = false; renderPage(); }); await page.waitForTimeout(800);
+  const tripsBefore = await page.evaluate(() => document.querySelectorAll(".trip").length);
+  await page.click("#tp-go"); await page.waitForTimeout(1500);
+  const tripsAfter = await page.evaluate(() => document.querySelectorAll(".trip.compact").length);
+  ok(tripsBefore === 0 && tripsAfter > 0, `journeys show only after Search is pressed (${tripsBefore} before, ${tripsAfter} after)`);
+  // tapping a 3-leg journey opens every leg, with its own map
+  await page.evaluate(() => { const i = ui._trips.findIndex(t => t.legs.length === 3); document.querySelector(`[data-trip="${i}"]`).click(); }); await page.waitForTimeout(1500);
+  const book = await page.evaluate(() => { const legs = [...document.querySelectorAll("#sheetRoot .leg")]; return legs.length === 3 ? legs.map(l => { const a = l.querySelector("a[data-book]"); return a ? a.getAttribute("href") : ""; }) : null; });
+  ok(await page.evaluate(() => !!document.querySelector("#sheetRoot #legMap")), "the journey sheet has its own map");
   const d20 = await page.evaluate(() => addDays(todayISO(), 20));
   ok(book && /\/flights\/bangkok\/denpasar-airport\?date=/.test(book[0]) && /\/padang-bai\?/.test(book[1]) && /\/ferry\/padang-bai\/gili-trawangan\?/.test(book[2]) && book.every(h => h.includes("date=" + d20) && h.includes("people=2")), "Bangkok to Gili T: flight, transfer and ferry each link to their own 12Go page " + JSON.stringify(book));
-  ok(await page.evaluate(() => /12Go shows the real departures/.test(document.querySelector("#pageview").textContent)), "the planner says 12Go confirms the service, price and seats");
+  ok(await page.evaluate(() => /12Go shows the real departures/.test(document.querySelector("#sheetRoot").textContent)), "the planner says 12Go confirms the service, price and seats");
+  ok(await page.evaluate(() => /google\.com\/travel\/flights/.test(document.querySelector("#sheetRoot").innerHTML)), "a flight leg links to Google Flights for the date");
+  await page.evaluate(() => closeDetail());
   await page.evaluate(() => { ui.tp.from = null; ui.tp.to = null; ui.tp.date = ""; ui.tp.people = 1; });
   await page.goto(BASE + "#map"); await page.waitForTimeout(1500);
 
@@ -342,6 +351,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   // Split costs: a group of three, one taxi, the tally and a settle-up; the shared link adds the payments on another phone
   await page.goto(BASE + "#tools/split"); await page.waitForTimeout(800);
   for (const n of ["Dylan", "Sam", "Jo"]){ await page.fill("#sp-name", n); await page.click("#sp-addp"); await page.waitForTimeout(200); }
+  ok(await page.evaluate(() => !document.querySelector("#sp-what") && !!document.querySelector("#sp-open")), "the payment form waits behind Add a payment, so the tally is near the top");
+  await page.click("#sp-open"); await page.waitForTimeout(300);
   await page.fill("#sp-what", "Taxi"); await page.fill("#sp-amt", "300"); await page.selectOption("#sp-cur", "THB"); await page.selectOption("#sp-by", "Dylan");
   await page.click("#sp-add"); await page.waitForTimeout(500);
   const sp = await page.evaluate(() => ({rows:[...document.querySelectorAll(".sp-bal .sp-row")].map(r => r.textContent.replace(/\s+/g, " ").trim()), plan:document.querySelectorAll("[data-paid]").length, w:document.documentElement.scrollWidth}));
@@ -415,7 +426,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(fresh.on === false && fresh.chip === "false" && fresh.pins === 0, "opening the map again: friends are hidden until the Friends chip is switched on " + JSON.stringify(fresh));
     // renaming: Dylan's friend "Sam" becomes "PC", only on Dylan's phone
     await A.pg.click(`#pageview [data-fredit="${uidB}"]`); await A.pg.waitForTimeout(500);
-    await A.pg.setInputFiles("#sheetRoot #fre-pic", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(1500);
+    await A.pg.setInputFiles("#sheetRoot #fre-pic", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(1200);
+    // the cropper: zoom in a little, then use it
+    ok(await A.pg.evaluate(() => !!document.querySelector("#cropRoot .crop-box img")), "choosing a photo opens the cropper");
+    await A.pg.evaluate(() => { const z = document.querySelector("#crop-z"); z.value = "2"; z.dispatchEvent(new Event("input")); });
+    await A.pg.click('#cropRoot [data-crop="1"]'); await A.pg.waitForTimeout(600);
     await A.pg.fill("#sheetRoot #fre-name", "PC"); await A.pg.click("#sheetRoot #fre-save"); await A.pg.waitForTimeout(1200);
     ok(await A.pg.evaluate(uid => S.friends.list[uid].n === "PC" && /^data:image\/jpeg/.test(S.friends.list[uid].pic) && /PC/.test(document.querySelector("#pageview").textContent) && !!document.querySelector(`[data-frav="${uid}"] img`), uidB), "the pencil: Dylan renames Sam to PC and gives him a photo, on his phone only");
     // developer mode: type ELITE POTATO in the map search (only Dylan's phone), and only a developer phone can set faces
@@ -424,7 +439,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(await A.pg.evaluate(() => S.dev === true && document.querySelector("#m-q").value === ""), "typing ELITE POTATO in the map search switches developer mode on");
     await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(1500);
     await A.pg.click("#fr-dev #fr-claim"); await A.pg.waitForTimeout(2500);
-    await A.pg.setInputFiles(`#fr-dev [data-frphoto="${uidB}"]`, path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(2500);
+    await A.pg.setInputFiles(`#fr-dev [data-frphoto="${uidB}"]`, path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(1200);
+    await A.pg.click('#cropRoot [data-crop="1"]'); await A.pg.waitForTimeout(2000);
     ok(typeof (fb.root.photos || {})[uidB] === "string" && fb.root.photos[uidB].startsWith("data:image/jpeg") && fb.root.photos[uidB].length < 40000, "the developer phone sets Sam's photo (a small square JPEG)");
     await A.pg.setInputFiles("#fr-dev #stk-add", path.join(__dirname, "..", "img", "surf", "kata.jpg")); await A.pg.waitForTimeout(3000);
     const stk = await A.pg.evaluate(() => Object.values(frStickers).map(x => x.n));
@@ -458,6 +474,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await B.pg.goto(BASE + "#tools/friends-split"); await B.pg.waitForTimeout(1500);
     await A.pg.click("#fr-split #sp-newg"); await A.pg.waitForTimeout(500);
     await A.pg.fill("#fr-split #sp-gname", "Bali crew"); await A.pg.click("#fr-split #sp-gcreate"); await A.pg.waitForTimeout(2500);
+    await A.pg.click("#fr-split #sp-open"); await A.pg.waitForTimeout(400);
     const meChip = await A.pg.evaluate(() => { const b = document.querySelector("#fr-split .chip.locked"); return b ? {text:b.textContent.trim(), pressed:b.getAttribute("aria-pressed"), disabled:b.disabled} : null; });
     ok(meChip && meChip.text === "You" && meChip.pressed === "true" && meChip.disabled, "Split between: You is always ticked and can't be taken off " + JSON.stringify(meChip));
     await A.pg.click(`#fr-split [data-to="${uidB}"]`); await A.pg.waitForTimeout(200);
@@ -476,6 +493,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const hist = await B.pg.evaluate(() => [...document.querySelectorAll("#fr-split .sp-hist")].map(r => ({who:r.querySelector(".who b").textContent, face:!!r.querySelector(".who .fr-av"), amt:r.querySelector(".amt b").textContent, detail:r.innerText.replace(/\s+/g, " ")})));
     ok(hist.length === 1 && hist[0].who === "Dylan" && hist[0].face && hist[0].amt === "฿300" && /Total ฿300 · ฿150 each for everyone/.test(hist[0].detail), "History: who paid (face and name) on the left, the amount on the right, and how it was split " + JSON.stringify(hist));
     ok(/\d{2}:\d{2}/.test(hist[0].detail), "History shows the time as well as the date " + hist[0].detail);
+    await A.pg.click("#fr-split #sp-open"); await A.pg.waitForTimeout(400);
     await A.pg.click('#fr-split [data-spmode="custom"]'); await A.pg.waitForTimeout(400);
     const modeW = await A.pg.evaluate(() => { const s = document.querySelector("#fr-split .sp-mode"), box = document.querySelector("#fr-split .sp-add"); return Math.round(100 * s.offsetWidth / box.offsetWidth); });
     ok(modeW >= 80 && modeW <= 90, "Equal split / Custom split sit side by side across about 85% of the width " + modeW + "%");

@@ -852,3 +852,6 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .leg-stop.first b{background:var(--food)}.leg-stop.last b{background:var(--accent);color:var(--on-accent)}
 .leg-stop span{font-size:11px;font-weight:600;color:var(--ink);text-shadow:0 0 3px var(--halo),0 0 3px var(--halo);white-space:nowrap}
 .tp-busy{display:flex;align-items:center;gap:10px;justify-content:center}
+/* a typical photo of the kind of place (not the place itself) says so */
+.typ{position:absolute;left:8px;top:8px;z-index:2;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;pointer-events:none}
+.photo.has-img{position:relative}

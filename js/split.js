@@ -311,7 +311,9 @@ function bindSplit(root, m, again){
     if (!await askConfirm(`Delete “${x.w}” (${money(x.a, x.c)})? It’s removed from the tally${m.live ? " on everyone’s phone" : ". Phones you send the tally to will drop it too"}.`, "Delete", true)) return;
     m.del(x.id).then(again, fail);
   });
-  if (m.people.length < 2 || !q("#sp-add")) return;
+  if (m.people.length < 2) return;
+  // the payment form only while it's open (Add a payment); the tally's own buttons below work either way
+  if (q("#sp-add")){
   const keep = () => { splitUi.what = q("#sp-what").value; splitUi.amt = q("#sp-amt").value; splitUi.cur = q("#sp-cur").value; splitUi.by = q("#sp-by").value; };
   ["#sp-what", "#sp-amt", "#sp-cur", "#sp-by"].forEach(s => q(s).onchange = keep);
   root.querySelectorAll("[data-to]").forEach(b => b.onclick = () => { keep(); const p = b.dataset.to; splitUi.to.has(p) ? splitUi.to.delete(p) : splitUi.to.add(p); b.setAttribute("aria-pressed", splitUi.to.has(p)); if (splitUi.mode === "custom") again(); });
@@ -343,6 +345,7 @@ function bindSplit(root, m, again){
     if (msg){ toast(msg); return; }
     splitUi.what = ""; splitUi.amt = ""; splitUi.cust = {}; splitUi.to = new Set(m.people); splitUi.adding = false; toast("Added"); again();
   };
+  }
   root.querySelectorAll("[data-pair]").forEach(b => b.onclick = async () => {
     const p = b.dataset.pair, v = splitPairs(m)[p] || 0; if (Math.abs(v) < 0.005) return;
     const from = v > 0 ? p : m.me, to = v > 0 ? m.me : p;
