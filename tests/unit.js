@@ -278,11 +278,19 @@ test("researched Indonesian places carry sources, sensible money and pins inside
   ok(id.length >= 250, `only ${id.length}`);
   for (const p of id){
     if (p.verified) ok(p.src.length > 0 && p.src.every(s => /^https:\/\//.test(s[1])), `${p.id}: a researched place needs https sources`);
-    if (p.p){ ok(["IDR", "GBP", "USD"].includes(p.cur), `${p.id}: currency ${p.cur}`); ok(p.p.every(x => x > 0) && (p.p.length < 2 || p.p[1] >= p.p[0]), `${p.id}: price range`); }
+    if (p.p){ ok(["IDR", "GBP", "USD", "EUR"].includes(p.cur), `${p.id}: currency ${p.cur}`); ok(p.p.every(x => x > 0) && (p.p.length < 2 || p.p[1] >= p.p[0]), `${p.id}: price range`); }
     ok(A.inPlaceDb(p.lat, p.lng), `${p.id}: pin ${p.lat},${p.lng} is outside Sumatra, Bali and Lombok`);
     ok(p.chk && p.t && p.t.length, `${p.id}: shape`);
   }
   eq(new Set(A.D.places.map(p => p.id)).size, A.D.places.length, "ids are unique");
+});
+test("every researched price has a currency the app can convert, and a source", () => {
+  for (const p of A.D.places) if (p.verified && p.p && p.p.length){
+    ok(p.cur && A.D.rates[p.cur], `${p.id}: currency ${p.cur} has no rate`);
+    ok(p.src && p.src.some(s => /^https:\/\//.test(s[1])), `${p.id}: a price needs a source`);
+  }
+  const hw = A.D.places.find(p => p.cur === "EUR" && p.cc === "TH");      // a Hostelworld price, listed in euros, shows in baht
+  if (hw) ok(/^฿/.test(A.itemLocal(hw)), A.itemLocal(hw));
 });
 test("Indonesian researched prices show in rupiah first, pounds alongside", () => {
   const ibuOka = A.D.places.find(p => p.id === "m-ubd-ibuoka");
