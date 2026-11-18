@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.15.0";
+const VERSION = "2.16.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -274,8 +274,13 @@ function inRing(lat, lng, ring){
   }
   return inside;
 }
+// the country whose (simplified) outline holds a point, or null; GEO also holds neighbours with no cc (China, Myanmar…)
+function outlineAt(lat, lng){
+  for (const c of GEO){ if (c.p.some(r => inRing(lat, lng, r))) return c.cc || ""; }
+  return null;
+}
 function countryAt(lat, lng){
-  for (const c of GEO){ if (c.cc && c.p.some(r => inRing(lat, lng, r))) return c.cc; }
+  const o = outlineAt(lat, lng); if (o) return o;
   // small islands may be missing from the outline: the places databases' coverage boxes (js/places.js) know them, e.g. the Gilis
   if (typeof PLACE_DBS !== "undefined"){ const d = PLACE_DBS.find(x => x.bbs && x.bbs.some(b => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3])); if (d) return d.cc; }
   // otherwise fall back to a nearby trip city

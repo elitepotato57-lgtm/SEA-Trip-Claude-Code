@@ -35,7 +35,9 @@ function hero({title, sub = "", img = "", back = null, where = true, action = ""
   const n = Object.keys(S.saved).length;
   const left = back ? `<a class="crumb" href="${back[0]}">${icon("back","i s")}${esc(back[1])}</a>`
     : where ? `<button class="where" type="button" data-where aria-label="Change where you are looking">${icon("pin","i s")}<span>${esc(focusLabel())}</span>${icon("chevd","i xs")}</button>` : "";
-  return `<header class="hero ${back ? "slim" : ""}" ${img ? `style="--hero:url('${img}')"` : ""}>
+  // a full address: a url() inside a CSS variable is read from the stylesheet's folder (css/), not the page's
+  const imgUrl = img ? new URL(img, document.baseURI).href : "";
+  return `<header class="hero ${back ? "slim" : ""}" ${img ? `style="--hero:url('${imgUrl}')"` : ""}>
     <div class="hero-top">${left}<span class="sp"></span>${action}
       <a class="hbtn" href="#saved" aria-label="Saved places${n ? `, ${n}` : ""}">${icon("bookmark")}${n ? `<span class="n" id="savedCount">${n}</span>` : ""}</a>
       <a class="hbtn" href="#tools/settings" aria-label="Settings">${icon("cog")}</a></div>

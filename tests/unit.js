@@ -484,6 +484,53 @@ test("Cambodia's phrasebook, guide name and emergency numbers", () => {
   A.S.country = was;
 });
 
+/* ---------- Vietnam, Laos and Singapore ---------- */
+test("Vietnam, Laos and Singapore are covered nationwide, islands and Mekong towns included", () => {
+  for (const [n, lat, lng, cc] of [["Hanoi", 21.0285, 105.8542, "VN"], ["Ho Chi Minh City", 10.7769, 106.7009, "VN"], ["Phu Quoc", 10.2167, 103.9667, "VN"],
+    ["Nha Trang", 12.2388, 109.1967, "VN"], ["Cat Ba", 20.7259, 107.0484, "VN"], ["Vientiane", 17.9757, 102.6331, "LA"], ["Savannakhet", 16.5563, 104.7528, "LA"],
+    ["Huay Xai", 20.2766, 100.4142, "LA"], ["Don Det", 14.0128, 105.9178, "LA"], ["Singapore", 1.29, 103.85, "SG"], ["Sentosa", 1.2494, 103.8303, "SG"],
+    ["Nong Khai, across the Mekong in Thailand", 17.878, 102.742, "TH"], ["Chiang Khong, Thailand", 20.264, 100.405, "TH"], ["Ha Tien", 10.383, 104.488, "VN"]]){
+    eq(A.placeDbCc(lat, lng), cc, n);
+  }
+  eq(A.D.cities.filter(c => !A.inPlaceDb(c[1], c[2])).map(c => c[0]), ["Kuala Lumpur"], "every destination but Kuala Lumpur has places");
+  for (const d of ["Hanoi", "Sapa", "Hoi An", "Ho Chi Minh City", "Phu Quoc"]) ok(A.VN_DESTS.some(c => c[0] === d), d);
+  for (const d of ["Vientiane", "Vang Vieng", "Luang Prabang", "Don Det"]) ok(A.LA_DESTS.some(c => c[0] === d), d);
+  ok(A.SG_DESTS.some(c => c[0] === "Singapore"));
+  ok(A.D.cities.every(c => !A.PLACE_DESTS.includes(c) || A.DEST_NOTE[c[0]]), "every destination with places has a one-line note: " + A.PLACE_DESTS.filter(c => !A.DEST_NOTE[c[0]]).map(c => c[0]));
+});
+test("Vietnam, Laos and Singapore estimates: local money, sourced kinds only, no chains", () => {
+  const P = (cc, o) => Object.assign({cc, lat:0, lng:0, n:"X"}, o);
+  eq(A.foodType(P("VN", {g:"food", k:"restaurant", n:"Phở Thìn"})), "Vietnamese", "a phở shop in Vietnam is Vietnamese food");
+  const pho = A.estPrice(P("VN", {g:"food", k:"restaurant", n:"Phở Thìn"})); eq([pho.cur, pho.lo, pho.hi], ["VND", 30000, 70000], "priced in dong");
+  const fs = A.estPrice(P("VN", {g:"food", k:"fastfood", n:"Bánh mì Phượng"})); eq(fs.cur, "VND");
+  eq(A.foodType(P("VN", {g:"food", k:"restaurant", n:"Bún Chả Hương Liên"})), "Vietnamese");
+  eq(A.foodType(P("VN", {g:"food", k:"restaurant", n:"Quán Ăn Ngon", cu:["vietnamese"]})), "Vietnamese");
+  ok(A.foodType({g:"food", k:"restaurant", cc:"TH", n:"Saigon Vietnamese", cu:["vietnamese"]}) === "Vietnamese", "Vietnamese restaurants in Thailand keep their type");
+  eq(A.foodType({g:"food", k:"bakery", cc:"TH", n:"Bun House"}), "Bakery & cakes", "an English 'bun' in Thailand is not Vietnamese noodles");
+  const h = A.estPrice(P("VN", {g:"stay", k:"hostel"})); eq([h.cur, h.lo, h.hi], ["VND", 150000, 250000]);
+  eq(A.estPrice(P("VN", {g:"stay", k:"hotel"})), null, "no sourced figure for hotels in Vietnam");
+  eq(A.estPrice(P("VN", {g:"food", k:"fastfood", n:"KFC", br:"KFC"})), null, "no chain prices for Vietnam");
+  const lb = A.estPrice(P("LA", {g:"do", k:"bar"})); eq([lb.cur, lb.lo, lb.hi], ["LAK", 25000, 40000]);
+  eq(A.foodType(P("LA", {g:"food", k:"restaurant", n:"Khao Piak Sen Mrs Noy"})), "Lao");
+  ok(A.foodType({g:"food", k:"restaurant", cc:"TH", n:"Lao Lao", cu:["lao"]}) !== "Lao", "Lao food is only Lao in Laos");
+  const sh = A.estPrice(P("SG", {g:"stay", k:"hostel"})); eq([sh.cur, sh.lo, sh.hi], ["SGD", 30, 40]);
+  const hk = A.estPrice(P("SG", {g:"food", k:"foodcourt", n:"Maxwell Food Centre"})); eq([hk.cur, hk.lo, hk.hi], ["SGD", 5, 10]);
+  eq(A.estPrice(P("SG", {g:"food", k:"restaurant", n:"Some restaurant"})), null, "no sourced restaurant figure for Singapore");
+});
+test("Vietnam, Laos and Singapore: phrasebooks, guides and emergency numbers", () => {
+  const was = A.S.country;
+  const want = {VN:["Vietnamese", "Cảm ơn", "Vietnam guide", ["112", "113", "114", "115"]], LA:["Lao", "ຂອບໃຈ", "Laos guide", ["1190", "1191", "1195"]], SG:["Singapore", "Kopi", "Singapore guide", ["995", "999"]]};
+  for (const cc in want){
+    A.S.country = cc; const [pb, word, guide, sos] = want[cc];
+    eq(A.phrasebook().name, pb, cc); ok(A.phrasebook().list.flatMap(g => g.p).some(p => p[1] === word), cc + " phrase " + word);
+    eq(A.TOOLS.find(t => t.id === "guide").l, guide);
+    eq(A.GUIDES[cc].sos.map(x => x[1]).filter(n => n.length <= 4).sort(), sos, cc + " emergency numbers");
+    ok(A.REMEDIES[cc] && A.REMEDIES[cc][0].best, cc + " has its own hangover and the shits list");
+  }
+  A.S.country = was;
+  eq(A.foldText("Đà Nẵng"), "da nang", "Vietnamese đ searches as d");
+});
+
 /* ---------- photos: no Buddha imagery ---------- */
 test("temples get no photo unless that exact picture was checked; Buddha file names are skipped", () => {
   const P = id => A.D.places.find(p => p.id === id);
@@ -631,7 +678,7 @@ test("feeling rough: hangover and the shits get the right list for the country, 
   eq(A.moreIntent("I've got diarrhoea, what should I buy?").topic, "stomach");
   eq(A.moreIntent("got the shits").topic, "stomach");
   eq(A.moreIntent("I'm not feeling great, what's the best thing?").topic, "general");
-  for (const cc of ["TH", "ID", "KH"]){
+  for (const cc of ["TH", "ID", "KH", "VN", "LA", "SG"]){
     const all = A.REMEDIES[cc];
     ok(all.every(r => r.src.length && r.src.every(k => A.RX_SRC[k]) && r.rx && r.at && r.price), cc + " remedies need sources, where, price (or 'not checked') and prescription");
     ok(A.remedyList(cc, "stomach")[0].best && /ORS|Oralit/.test(A.remedyList(cc, "stomach")[0].n), cc + ": ORS first for the shits");

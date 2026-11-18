@@ -17,6 +17,14 @@ function visionLines(resp){
     .slice(0, 40);
 }
 const hasThai = s => /[฀-๿]/.test(s);
+/* the language of the writing in each country. Thai, Khmer and Lao have their own scripts, so only lines in that script are
+   translated; Indonesian, Vietnamese and Malay use Latin letters, so every line is sent and counts as foreign when Google's
+   English differs from it. In Singapore the signs are mostly English: only lines in another script (Chinese, Tamil) are sent. */
+const camLang = () => ({ID:"id", VN:"vi", MY:"ms", KH:"km", LA:"lo", SG:""})[S.country] ?? "th";
+const camLatin = () => ["id", "vi", "ms"].includes(camLang());
+const CAM_SCRIPT = {th:/[\u0e00-\u0e7f]/, km:/[\u1780-\u17ff]/, lo:/[\u0e80-\u0eff]/, "":/[^\u0000-\u024f\u1e00-\u1eff]/};
+const camForeign = s => CAM_SCRIPT[camLang()].test(s);
+const camNames = {th:"Thai", km:"Khmer", lo:"Lao", "":"another script"};
 
 // make the photo smaller before sending (quicker, and Google charges the same either way)
 async function photoBase64(blob, max = 1600){
@@ -29,7 +37,7 @@ async function photoBase64(blob, max = 1600){
 }
 async function visionRead(blob){
   const r = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${enc(googleKey())}`, {method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({requests:[{image:{content:await photoBase64(blob)}, features:[{type:"TEXT_DETECTION"}], imageContext:{languageHints:[S.country === "ID" ? "id" : "th", "en"]}}]})});
+    body:JSON.stringify({requests:[{image:{content:await photoBase64(blob)}, features:[{type:"TEXT_DETECTION"}], imageContext:{languageHints:[camLang() || "zh", "en"]}}]})});
   const j = await r.json().catch(() => ({}));
   const err = (j.error && j.error.message) || (j.responses && j.responses[0] && j.responses[0].error && j.responses[0].error.message);
   if (!r.ok || err){
@@ -41,13 +49,11 @@ async function visionRead(blob){
 }
 // all the Thai lines in one request
 async function translateLines(lines){
-  // in Thailand only the Thai lines need translating; in Indonesia the writing is in Latin letters, so send every line
-  const ID = S.country === "ID";
-  const thai = ID ? lines.slice() : lines.filter(hasThai);
+  const thai = camLatin() ? lines.slice() : lines.filter(camForeign);
   const out = {};
   if (!thai.length) return out;
   const r = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${enc(googleKey())}`, {method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(Object.assign({q:thai, target:"en", format:"text"}, ID ? {source:"id"} : {source:"th"}))});
+    body:JSON.stringify(Object.assign({q:thai, target:"en", format:"text"}, camLang() ? {source:camLang()} : {}))});
   const j = await r.json().catch(() => ({}));
   if (r.ok && j.data) j.data.translations.forEach((t, i) => out[thai[i]] = t.translatedText);
   return out;
@@ -81,10 +87,10 @@ TOOL_PAGES.cameraGoogle = root => {
     try {
       gSpend("vision");
       const lines = await visionRead(f);
-      camState.status = lines.length && (S.country === "ID" || lines.some(hasThai)) ? "Translating…" : ""; paintCam();
+      camState.status = lines.length && (camLatin() || lines.some(camForeign)) ? "Translating…" : ""; paintCam();
       const tr = await translateLines(lines).catch(() => ({}));
-      // a line counts as foreign if it's Thai, or (in Indonesia) if Google's English differs from it
-      camState.lines = lines.map(s => { const en = tr[s] || null, foreign = hasThai(s) || (S.country === "ID" && !!en && en.trim().toLowerCase() !== s.trim().toLowerCase());
+      // a line counts as foreign if it's in the local script, or (Latin-letter languages) if Google's English differs from it
+      camState.lines = lines.map(s => { const en = tr[s] || null, foreign = camLatin() ? !!en && en.trim().toLowerCase() !== s.trim().toLowerCase() : camForeign(s);
         return {src:s, th:foreign, en, say:hasThai(s) ? thaiRom.text(s, "easy") : ""}; });
       camState.status = "";
     } catch(err){
@@ -102,11 +108,11 @@ function paintCam(){
   if (camState.lines){
     h += !camState.lines.length ? `<p class="note" style="margin-top:8px">No writing found. Try closer, with more light.</p>`
       : `<div class="cam-lines">${camState.lines.map((l, i) => `<div class="cam-line">
-          <div class="cam-src" ${l.th ? `lang="${S.country === "ID" ? "id" : "th"}"` : ""}>${esc(l.src)}</div>
-          ${l.th ? `${l.say ? `<div class="cam-say">say: ${esc(l.say)}</div>` : ""}<div class="cam-en">${l.en ? esc(l.en) : '<span class="note">No translation came back</span>'}</div>` : `<div class="note">${S.country === "ID" ? "Already English, or a name" : "Not Thai: shown as it is"}</div>`}
+          <div class="cam-src" ${l.th ? `lang="${camLang() || "zh"}"` : ""}>${esc(l.src)}</div>
+          ${l.th ? `${l.say ? `<div class="cam-say">say: ${esc(l.say)}</div>` : ""}<div class="cam-en">${l.en ? esc(l.en) : '<span class="note">No translation came back</span>'}</div>` : `<div class="note">${camLatin() ? "Already English, or a name" : `Not ${camNames[camLang()]}: shown as it is`}</div>`}
           ${l.th ? `<button class="btn small" type="button" data-camsay="${i}">${icon("speaker", "i s")}Say it</button>` : ""}</div>`).join("")}</div>
         <p class="note" style="margin-top:8px">Pronunciation is an approximate English spelling worked out on your phone. Translations by Google.</p>`;
   }
   el.innerHTML = h;
-  el.querySelectorAll("[data-camsay]").forEach(b => b.onclick = () => speak(camState.lines[+b.dataset.camsay].src, S.country === "ID" ? "id" : "th"));
+  el.querySelectorAll("[data-camsay]").forEach(b => b.onclick = () => speak(camState.lines[+b.dataset.camsay].src, camLang() || "zh"));
 }

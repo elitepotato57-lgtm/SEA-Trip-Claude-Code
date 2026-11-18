@@ -10,6 +10,9 @@ The app's places (every gaff, munch spot, activity, essential and station) come 
 | `places/th` | All of Thailand (built by an earlier version of this tool) | ~128,600 |
 | `places/id` | Indonesia: Lampung, South Sumatra and Bengkulu (Sumatra), Bali, and Lombok (+ the Gilis) | ~31,700 |
 | `places/kh` | All of Cambodia (all 25 provinces, islands included), OpenStreetMap of 11 Nov 2026 | ~16,500 |
+| `places/vn` | All of Vietnam (the 34 provinces and cities of the July 2025 reform), OpenStreetMap of 17 Nov 2026 | ~74,500 |
+| `places/la` | All of Laos (17 provinces and Vientiane Capital), names in English where mapped | ~13,300 |
+| `places/sg` | All of Singapore (the whole country: it has no provinces) | ~19,100 |
 
 OpenStreetMap is much less detailed in Sumatra than in Thailand or Bali, so Sumatran towns have far fewer places.
 Cambodia is well mapped in Phnom Penh, Siem Reap and the coast, thinner in the north-east (Mondulkiri, Ratanakiri).
@@ -25,6 +28,24 @@ curl -LO https://download.geofabrik.de/asia/cambodia-latest.osm.pbf        # ~60
 ```
 
 The province boxes in `PLACE_DBS` (`js/places.js`) were copied from the new `meta.json`; if a rebuild changes them, copy them again.
+
+## Rebuilding Vietnam, Laos and Singapore
+
+```bash
+curl -Lo vietnam.osm.pbf https://download.geofabrik.de/asia/vietnam-latest.osm.pbf                # ~330 MB
+curl -Lo laos.osm.pbf https://download.geofabrik.de/asia/laos-latest.osm.pbf                      # ~55 MB
+curl -Lo msb.osm.pbf https://download.geofabrik.de/asia/malaysia-singapore-brunei-latest.osm.pbf  # ~220 MB (Singapore is in here)
+.venv/Scripts/python tools/osm/extract.py --pbf vietnam.osm.pbf --cc VN --out places/vn --clip "VN-34:108.55,11.25,109.47,12.88" --box-fallback   --regions VN-HN,VN-HP,VN-13,VN-02,VN-01,VN-04,VN-05,VN-07,VN-09,VN-18,VN-21,VN-22,VN-23,VN-25,VN-26,VN-DN,VN-29,VN-30,VN-33,VN-34,VN-35,VN-37,VN-39,VN-SG,VN-44,VN-45,VN-49,VN-CT,VN-59,VN-56,VN-66,VN-68,VN-69,VN-71   --region-names "Hanoi,Hai Phong,Quang Ninh,Lao Cai,Lai Chau,Cao Bang,Son La,Tuyen Quang,Lang Son,Ninh Binh,Thanh Hoa,Nghe An,Ha Tinh,Quang Tri,Hue,Da Nang,Quang Ngai,Gia Lai,Dak Lak,Khanh Hoa,Lam Dong,Tay Ninh,Dong Nai,Ho Chi Minh City,An Giang,Dong Thap,Vinh Long,Can Tho,Ca Mau,Bac Ninh,Hung Yen,Phu Tho,Thai Nguyen,Dien Bien"   --dests "Hanoi:21.0285:105.8542;Ha Long:20.951:107.08;Cat Ba:20.7259:107.0484;Ninh Binh:20.2153:105.9357;Sapa:22.3364:103.8438;Ha Giang:22.8233:104.9836;Phong Nha:17.6115:106.3077;Hue:16.4637:107.5909;Da Nang:16.0544:108.2022;Hoi An:15.88:108.33;Quy Nhon:13.7765:109.2237;Nha Trang:12.2388:109.1967;Da Lat:11.94:108.44;Mui Ne:10.9333:108.2833;Ho Chi Minh City:10.7769:106.7009;Can Tho:10.0452:105.7469;Phu Quoc:10.2167:103.9667"
+.venv/Scripts/python tools/osm/extract.py --pbf laos.osm.pbf --cc LA --out places/la --english-names   --regions LA-VT,LA-VI,LA-LP,LA-AT,LA-BK,LA-BL,LA-CH,LA-HO,LA-KH,LA-LM,LA-OU,LA-PH,LA-SL,LA-SV,LA-XA,LA-XE,LA-XI,LA-XS   --region-names "Vientiane Capital,Vientiane Province,Luang Prabang,Attapeu,Bokeo,Bolikhamsai,Champasak,Houaphanh,Khammouane,Luang Namtha,Oudomxay,Phongsaly,Salavan,Savannakhet,Sainyabuli,Sekong,Xiangkhouang,Xaisomboun"   --dests "Vientiane:17.9757:102.6331;Vang Vieng:18.9235:102.4478;Luang Prabang:19.8856:102.1347;Nong Khiaw:20.5693:102.6131;Luang Namtha:20.9486:101.4022;Phonsavan:19.4497:103.1912;Thakhek:17.4103:104.8306;Savannakhet:16.5563:104.7528;Pakse:15.1202:105.799;Don Det:14.0128:105.9178"
+.venv/Scripts/python tools/osm/extract.py --pbf msb.osm.pbf --cc SG --out places/sg --regions SG --region-names "Singapore"   --dests "Singapore:1.29:103.85;Sentosa:1.2494:103.8303"
+```
+
+- Vietnam's provinces are the 34 of the July 2025 reform. Khánh Hòa's (VN-34, Nha Trang) border is broken in OpenStreetMap
+  (it takes in the Spratly Islands), so `--box-fallback` uses its `--clip` box instead.
+- Laos: `--english-names` uses `name:en` where mapped (most places) and keeps the Lao name as `nt` (shown as "Name in Lao").
+- Singapore: a plain country code in `--regions` takes the whole country (admin_level 2).
+- The app's Laos outline (`GEO` in `js/data.js`) is the real border simplified to ~400 m and checked before Thailand's,
+  because the rough outlines put Savannakhet and Huay Xai on the Thai side of the Mekong.
 
 ## Rebuilding Indonesia
 

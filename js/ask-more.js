@@ -71,6 +71,20 @@ const REMEDIES = {
       at:"Pharmacies", price:"Price not checked", src:["nhsH", "nhsP"], rx:"No prescription"}
   ]
 };
+/* Vietnam, Laos and Singapore: the same NHS advice on what helps. What each pharmacy sells over the counter wasn't checked,
+   so these say to ask the pharmacist rather than guess. */
+const REMEDY_BASIC = (where, mini) => [
+  {n:"ORS rehydration salts", for:"sd h", best:true, what:"The most useful thing for diarrhoea, being sick or a bad hangover: replaces the water and salts you’ve lost. Mix as the packet says, with safe water.",
+    at:where, price:"Price not checked", src:["nhsD"], rx:"Ask the pharmacist"},
+  {n:"Electrolyte drinks", for:"hd", what:"Bottled electrolyte drinks help with a hangover, with water and food. For proper diarrhoea, ORS is better.",
+    at:mini, price:"Price not checked", src:["nhsH"], rx:"No prescription"},
+  {n:"Loperamide (Imodium)", for:"s", what:"Stops diarrhoea for a few hours. Not with a fever or blood in your poo, and not for under-12s.",
+    at:where, price:"Price not checked", src:["nhsD"], rx:"Ask the pharmacist"},
+  {n:"Paracetamol", for:"h", what:"For the headache. The NHS prefers paracetamol to aspirin for a hangover. Never more than the packet says.",
+    at:where, price:"Price not checked", src:["nhsH", "nhsP"], rx:"Ask the pharmacist"}];
+REMEDIES.VN = REMEDY_BASIC("Pharmacies (nhà thuốc)", "Convenience stores and minimarts");
+REMEDIES.LA = REMEDY_BASIC("Pharmacies (ຮ້ານຂາຍຢາ, han khai ya)", "Minimarts");
+REMEDIES.SG = REMEDY_BASIC("Pharmacies (Guardian, Watsons and others)", "7-Eleven, Cheers and supermarkets");
 const RX_NOTE = {
   KH:"In Cambodia, check the expiry date on the packet: some pharmacies sell old stock.",
   ID:"Bali belly that lasts more than a couple of days, or comes with a fever, needs a clinic, not more tablets.",
@@ -166,8 +180,11 @@ function fareEstimates(km, at){
     out.push({k:"tuktuk", label:"Tuk-tuk on PassApp or Grab", lo:Math.max(1, Math.round(km * .45 * 2) / 2), hi:Math.max(1.5, Math.round(km * .6 * 2) / 2), cur:"USD", note:"Street tuk-tuks ask 2–3 times this: agree first, or use the app", src:FARE_SRC.khTuk});
     out.push({k:"app", label:"Car on PassApp or Grab", lo:null, hi:null, cur:"USD", note:"The app shows the price before you book"});
   } else {
-    out.push({k:"app", label:cc === "ID" ? "Grab or Gojek" : "Grab or Bolt", lo:null, hi:null, cur:ccCur(cc), note:"The app shows the price before you book: the fairest guide to what a ride should cost here"});
-    out.push({k:"tuktuk", label:cc === "ID" ? "Local taxi or bemo" : "Tuk-tuk or songthaew", lo:null, hi:null, cur:ccCur(cc), note:"Not metered: check the app price first, then agree a price before you get in"});
+    // no researched fares outside Bangkok and Cambodia: which ride apps work comes from each country's ride tips (D.rides)
+    const APPS = {ID:"Grab or Gojek", VN:"Grab or Xanh SM", SG:"Grab, Gojek or TADA", LA:"LOCA (Vientiane) or a tuk-tuk", MY:"Grab"};
+    out.push({k:"app", label:APPS[cc] || "Grab or Bolt", lo:null, hi:null, cur:ccCur(cc), note:"The app shows the price before you book: the fairest guide to what a ride should cost here"});
+    if (cc === "SG") out.push({k:"taxi", label:"Metered taxi", lo:null, hi:null, cur:"SGD", note:"Metered and honest; the MRT is cheaper still"});
+    else out.push({k:"tuktuk", label:cc === "ID" ? "Local taxi or bemo" : cc === "VN" ? "Metered taxi (Mai Linh or Vinasun) or xe ôm" : "Tuk-tuk or songthaew", lo:null, hi:null, cur:ccCur(cc), note:"Not metered: check the app price first, then agree a price before you get in"});
   }
   return out;
 }
