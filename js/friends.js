@@ -126,7 +126,8 @@ async function frAdd(code, share = true){
   f.list[uid] = {n:String(u.n || "Friend").slice(0, 30), share:!!share, at:frNow()};
   persist();
   if (share) await frDb("PUT", `share/${me.uid}/${uid}`, true);
-  await frDb("PUT", `requests/${uid}/${me.uid}`, {n:f.name || "A friend", c:f.code});      // so they can add you back in one tap
+  await frDb("PUT", `requests/${uid}/${me.uid}`, {n:f.name || "A friend", c:f.code, t:frNow()});      // so they can add you back in one tap
+  if (f.removed) delete f.removed[uid];
   await frDb("DELETE", `requests/${me.uid}/${uid}`).catch(() => {});
   if (share && f.on) frSendNow(true).catch(() => {});
   return f.list[uid].n;
@@ -137,11 +138,19 @@ async function frSetShare(uid, on){
   if (on) await frDb("PUT", `share/${me.uid}/${uid}`, true); else await frDb("DELETE", `share/${me.uid}/${uid}`);
   if (on && f.on) frSendNow(true).catch(() => {});
 }
+// removing someone: they stop seeing you, their old "added you" doesn't come back, and they leave the map and lists on this phone.
+// It only changes your phone (and what you share); if they add you again later, you're asked as usual.
 async function frRemove(uid){
-  const f = frState(), me = await frMe();
-  delete f.list[uid]; delete frLocs[uid]; persist();
-  await frDb("DELETE", `share/${me.uid}/${uid}`).catch(() => {});
+  const f = frState();
+  const at = (f.list[uid] || {}).at || 0;
+  delete f.list[uid]; delete frLocs[uid];
+  f.removed = f.removed || {}; f.removed[uid] = frNow();
+  persist();
+  if (frMarkers[uid]){ frMarkers[uid].remove(); delete frMarkers[uid]; }
+  const me = await frMe();
+  await Promise.all([frDb("DELETE", `share/${me.uid}/${uid}`), frDb("DELETE", `requests/${me.uid}/${uid}`), frDb("DELETE", `pallow/${me.uid}/${uid}`)].map(p => p.catch(() => {})));
   drawFriends();
+  return at;
 }
 async function frSetOn(on){
   const f = frState(); f.on = !!on; persist();
@@ -150,7 +159,8 @@ async function frSetOn(on){
 }
 async function frRequests(){
   const me = await frMe(), r = await frDb("GET", `requests/${me.uid}`) || {}, f = frState();
-  return Object.entries(r).filter(([uid]) => !f.list[uid]).map(([uid, v]) => ({uid, n:(v && v.n) || "A friend", c:v && v.c}));
+  const gone = f.removed || {};
+  return Object.entries(r).filter(([uid, v]) => !f.list[uid] && !(gone[uid] && !(v && v.t > gone[uid]))).map(([uid, v]) => ({uid, n:(v && v.n) || "A friend", c:v && v.c}));
 }
 async function frIgnore(uid){ const me = await frMe(); await frDb("DELETE", `requests/${me.uid}/${uid}`); }
 
@@ -432,6 +442,7 @@ function renderFriendsPage(root = $("#pageview")){
       <div><b>${esc(x.n)}</b><div class="note" data-frloc="${esc(uid)}">${esc(frLocText(uid))}</div>
         <button class="linkish fr-msgbtn" type="button" data-frmsg="${esc(uid)}">${icon("spark","i xs")}Send a message</button></div>
       <button class="icon-btn fr-edit" type="button" data-fredit="${esc(uid)}" aria-label="Edit ${esc(x.n)}’s name and photo">${icon("edit","i s")}</button>
+      <button class="icon-btn fr-edit" type="button" data-frrmrow="${esc(uid)}" aria-label="Remove ${esc(x.n)}">${icon("trash","i s")}</button>
       <button class="pill" type="button" data-frshare="${esc(uid)}" aria-pressed="${x.share}" aria-label="${x.share ? `${esc(x.n)} can see you. Tap to hide` : `${esc(x.n)} can’t see you. Tap to share`}">${x.share ? "Sees you" : "Hidden"}</button></div>`).join("")
       : `<p class="note">No friends yet. Tap <b>Add friend</b> at the top, send your code to your mates, or type theirs.</p>`}</div>
     <div class="tgrid fr-tiles">
@@ -447,6 +458,11 @@ function renderFriendsPage(root = $("#pageview")){
   $("#fr-go-map").onclick = e => { e.preventDefault(); openFriendsMap(); };
   root.querySelectorAll("[data-frmsg]").forEach(b => b.onclick = e => { e.stopPropagation(); openStickerPicker(b.dataset.frmsg); });
   root.querySelectorAll("[data-fredit]").forEach(b => b.onclick = e => { e.stopPropagation(); openFriendEdit(b.dataset.fredit); });
+  root.querySelectorAll("[data-frrmrow]").forEach(b => b.onclick = async e => {
+    e.stopPropagation(); const uid = b.dataset.frrmrow, x = frState().list[uid]; if (!x) return;
+    if (!(await askConfirm(`Remove ${x.n}? They stop seeing you and leave your list. They can only come back if one of you adds the other again.`, "Remove", true))) return;
+    frRemove(uid).then(() => { toast(`Removed ${x.n}`); renderFriendsPage(); }, frFail);
+  });
   root.querySelectorAll("[data-frgo]").forEach(r => { const go = () => openFriendsMap(r.dataset.frgo); r.onclick = e => { if (!e.target.closest("[data-frshare], [data-frmsg], [data-fredit]")) go(); }; r.onkeydown = e => { if (e.key === "Enter") go(); }; });
   root.querySelectorAll("[data-frshare]").forEach(b => b.onclick = e => { e.stopPropagation(); const uid = b.dataset.frshare; frSetShare(uid, !f.list[uid].share).then(() => renderFriendsPage(root), frFail); });
   frMe().then(() => frRequests()).then(rs => { frReqs = rs; paintFriendsLive(); }).catch(() => {});
