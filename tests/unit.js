@@ -1021,6 +1021,18 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
     test("live split: deleting a group removes it, and its payments, for everyone in it", () => {
       eq(after2.map(g => g.id).includes(gid), false); ok(!raw || (!Object.keys(raw.items || {}).length && !Object.keys(raw.members || {}).length && !raw.n), JSON.stringify(raw)); ok(!P3.liveStore()[gid]);
     });
+    // anyone can remove a friend (an old phone, a laptop): they stop seeing you, and their old request doesn't pop back up
+    await P1.frSetShare(me2.uid, true);
+    await P2.frDb("PUT", `requests/${me1.uid}/${me2.uid}`, {n:"Sam", c:"OLDREQ"});
+    await P1.frRemove(me2.uid);
+    const reqsAfter = await P1.frRequests(), shareAfter = fb.root.share && fb.root.share[me1.uid] && fb.root.share[me1.uid][me2.uid];
+    let goneLoc = "ok"; try { await P2.frDb("GET", `loc/${me1.uid}`); } catch(e){ goneLoc = e.status; }
+    fb.tick(5000); await P2.frDb("PUT", `requests/${me1.uid}/${me2.uid}`, {n:"Sam", c:"NEWREQ", t:fb.now});
+    const reqsNew = await P1.frRequests();
+    test("removing a friend: they're off your list, can't see you, and their old request stays gone (a new one still shows)", () => {
+      ok(!P1.frState().list[me2.uid]); ok(!shareAfter, "sharing with them is switched off"); eq(goneLoc, 401);
+      ok(!reqsAfter.some(r => r.uid === me2.uid), "old request hidden"); ok(reqsNew.some(r => r.uid === me2.uid), "a new request shows");
+    });
   }
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
