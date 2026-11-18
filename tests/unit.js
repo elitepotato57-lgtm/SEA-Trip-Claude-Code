@@ -90,6 +90,18 @@ test("Bangkok to Chiang Mai has options, and none is beaten on both time and pri
   }
 });
 test("no trip from a place to itself", () => eq(A.planTrips(A.HUB.bkk, A.HUB.bkk), []));
+test("the planner reaches every country on the map, quickly, and long trips list every leg", () => {
+  const pairs = [["pai", "hoian"], ["bkk", "lpq"], ["rep", "sgn"], ["sin", "ubud"], ["vte", "han"], ["kohrong", "dondet"], ["huayxai", "sapa"], ["phuket", "pqc"], ["kampot", "catba"], ["gilit", "dalat"]];
+  const out = [];
+  for (const [a, b] of pairs){
+    const t0 = Date.now(), trips = A.planTrips(A.hubNode(a), A.hubNode(b)), ms = Date.now() - t0;
+    ok(trips.length > 0, `${a} to ${b}: no journey`); ok(ms < 1500, `${a} to ${b} took ${ms} ms`);
+    if (trips[0]){ const t = trips[0]; eq(t.legs[0].from, a); eq(t.legs[t.legs.length - 1].to, b); out.push(`${a}>${b} ${t.legs.length} legs ${ms}ms`); }
+  }
+  // the Thailand–Cambodia land border is closed (2026): no bus or train across it
+  ok(!A.planTrips(A.hubNode("bkk"), A.hubNode("rep")).some(t => t.legs.some(L => L.o.mode !== "Flight" && ["bkk","rep"].includes(L.from) && ["bkk","rep"].includes(L.to))), "no land link Bangkok–Siem Reap");
+  console.log("     " + out.join(", "));
+});
 
 /* ---------- list filters ---------- */
 test("rating filter: 4+ keeps 4.5 stars, drops 3.5 and unrated", () => {
@@ -771,6 +783,18 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
 
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
+  {
+    const ans = async q => String(await A.assistantAnswer(q)).replace(/<[^>]+>/g, " ");
+    const r = {};
+    r.baht = await ans("How much is 1000 baht?"); r.lao = await ans("What's the exchange rate in Laos?");
+    A.S.country = "VN"; r.thanks = await ans("How do I say thank you?"); r.visa = await ans("Do I need a visa for Vietnam?"); r.sosVN = await ans("emergency numbers");
+    A.S.country = "TH"; r.sosTH = await ans("emergency"); r.kampot = await ans("Tell me about Kampot");
+    r.trip = await ans("How do I get from Bangkok to Luang Prabang?"); r.tz = await ans("what's the time difference in Singapore");
+    test("the trip assistant answers money, phrases, visas, emergencies and destinations in every country", () => {
+      ok(/£/.test(r.baht), r.baht); ok(/kip/i.test(r.lao), r.lao); ok(/Cảm ơn|cam on/i.test(r.thanks), r.thanks); ok(/45 days/.test(r.visa), r.visa);
+      ok(/113|115/.test(r.sosVN), r.sosVN); ok(/1155/.test(r.sosTH), r.sosTH); ok(/Kampot/.test(r.kampot), r.kampot); ok(/way/.test(r.trip), r.trip); ok(/ahead of the UK/.test(r.tz), r.tz);
+    });
+  }
   A.S.saved = {x:{n:"Mine"}}; A.S.budget = {total:"", cur:"GBP", days:"", items:[{amt:100, what:"pad thai"}]};
   await A.restoreBackup({app:"sea-trip", state:{saved:{y:{n:"Theirs"}, x:{n:"Old copy"}}, budget:{items:[{amt:100, what:"pad thai"}, {amt:40, what:"bus"}]}}}, "merge");
   test("restoring a backup adds new saved places and spending once, and keeps this phone's copy", () => {
@@ -950,11 +974,52 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
     let renameNo = 0; try { await P2.frDb("PUT", `stickerIndex/${stk}`, "Hacked"); } catch(e){ renameNo = e.status; }
     const stickers2b = await P2.frLoadStickers(true);
     test("messages: a developer can rename a sticker, nobody else can", () => { eq(stickers2b[stk].n, "Sent it"); eq(renameNo, 401); });
+    // only the developer phone (P3 here) can take people out or delete the group; members can still add people
+    const itemsBefore = Object.keys(fb.root.groups[gid].items || {}).length;
+    const notDevDelete = await P1.liveDeleteGroup(gid).then(() => "ok", e => e.status || e.message);
+    const stillThere = !!(fb.root.groups[gid] && fb.root.groups[gid].members[me2.uid]);
+    await P1.frDb("PUT", `groups/${gid}/members/${me3.uid}`, "Dev");
+    const notDevRemove = await P1.liveRemoveMember(gid, me2.uid).then(() => "ok", e => e.status || e.message);
+    await P3.liveRemoveMember(gid, me2.uid);
+    const sansSam = Object.keys(fb.root.groups[gid].members).sort();
+    await P2.liveListGroups();
+    const samGroups = P2.liveGroupsCached().map(g => g.id);
+    test("live split: only the developer can take someone out of a group or delete it", () => {
+      eq(notDevDelete, 401); ok(stillThere, "a member's delete didn't touch the group"); eq(Object.keys(fb.root.groups[gid].items || {}).length, itemsBefore, "or its payments"); eq(notDevRemove, 401);
+      eq(sansSam, [me1.uid, me3.uid].sort()); ok(!samGroups.includes(gid), "Sam no longer sees the group");
+    });
+    // "I'm lost": your number goes only to friends; the alert reaches each friend, with the call link
+    P1.frState().callLink = "";
+    await P1.frSavePhone("+44 7700 900123", "https://call.whatsapp.com/voice/abc123");
+    const badNum = await P1.frSavePhone("07700", "").then(() => "ok", e => e.message);
+    const sosSent = await P1.frSosSend();
+    const sosAtSam = fb.root.sos && fb.root.sos[me2.uid] && fb.root.sos[me2.uid][me1.uid];
+    const samSees = await P2.frPhoneOf(me1.uid), strangerSees = await P3.frPhoneOf(me1.uid);
+    let forgeSos = 0; try { await P3.frDb("PUT", `sos/${me2.uid}/${me1.uid}`, {t:1, n:"Fake"}); } catch(e){ forgeSos = e.status; }
+    test("I'm lost: friends get the alert and can see your number; nobody else can", () => {
+      ok(sosSent >= 1, "sent to " + sosSent); eq(sosAtSam.cl, "https://call.whatsapp.com/voice/abc123"); eq(sosAtSam.n, P1.frState().name);
+      eq(samSees, "+447700900123"); eq(strangerSees, null); eq(forgeSos, 401); ok(/country code/.test(badNum), badNum);
+    });
+    // the developer (P3) shares a Google key with the friends they pick; usage counts reach only developers
+    await P2.gkAsk();
+    const asks = JSON.parse(JSON.stringify(await P3.frDb("GET", "gkeyask")));        // a copy: Let them clears it later
+    await P3.gkShareKey("test-google-key");
+    await P2.gkSync(true); const before = P2.googleKey();
+    let peekKey = 0; try { await P2.frDb("GET", "gkey"); } catch(e){ peekKey = e.status; }
+    await P3.gkApprove(me2.uid, true); await P2.gkSync(true); const after = P2.googleKey();
+    await P3.gkApprove(me2.uid, false); await P2.gkSync(true); const dropped = P2.googleKey();
+    P2.statBump("photo"); P2.statBump("photo"); P2.statBump("v-map"); await P2.statFlush();
+    const allStats = await P3.frDb("GET", "stats"), sumd = P3.statSum(allStats, 7);
+    let peekStats = 0; try { await P1.frDb("GET", "stats"); } catch(e){ peekStats = e.status; }
+    test("Google key: the developer shares it with friends they switch on; usage counts reach only developers", () => {
+      ok(!!(asks && asks[me2.uid]), "Sam's ask reached the developer"); eq(before, ""); eq(peekKey, 401); eq(after, "test-google-key"); eq(dropped, "");
+      eq(sumd[me2.uid].photo, 2); eq(sumd[me2.uid].views.map, 1); eq(peekStats, 401);
+    });
     // deleting a live split group: gone for every member
-    await P1.liveDeleteGroup(gid);
+    await P3.liveDeleteGroup(gid);
     const after2 = await P2.liveListGroups(), raw = fb.root.groups && fb.root.groups[gid];
     test("live split: deleting a group removes it, and its payments, for everyone in it", () => {
-      eq(after2.map(g => g.id).includes(gid), false); ok(!raw || (!Object.keys(raw.items || {}).length && !Object.keys(raw.members || {}).length && !raw.n), JSON.stringify(raw)); ok(!P1.liveStore()[gid]);
+      eq(after2.map(g => g.id).includes(gid), false); ok(!raw || (!Object.keys(raw.items || {}).length && !Object.keys(raw.members || {}).length && !raw.n), JSON.stringify(raw)); ok(!P3.liveStore()[gid]);
     });
   }
   console.log(`\n${passed} passed, ${failed} failed`);

@@ -66,6 +66,7 @@ function ensureMap(){
       <div class="map-sugs" id="mapSugs" hidden></div>
       <div class="map-chips" id="mapChips" role="group" aria-label="What to show"></div>
       <div class="map-chips" id="mapEss" role="group" aria-label="Essentials" hidden></div>
+      <div class="map-chips" id="mapDo" role="group" aria-label="Activities" hidden></div>
       <div id="mapModeRow" style="display:flex;gap:8px;align-items:center"></div>
       <div class="map-chips mfilt" id="mapFilt" role="group" aria-label="Filter what's on the map" hidden></div>
     </div>
@@ -293,6 +294,11 @@ function activeGroups(){
   return g;
 }
 const essKindSet = () => new Set([...ui.essKinds].flatMap(id => ESS_BY_ID[id].kinds));
+/* Activities on the map, picked by section (Beaches, Boozer…) like Essentials: none picked shows them all */
+const DO_SECTIONS = () => CHIPS.cool.filter(c => c.id !== "all");
+const doChip = id => CHIPS.cool.find(c => c.id === id);
+const passDo = it => !ui.doKinds.size || [...ui.doKinds].some(id => { const c = doChip(id); return c && c.f && c.f(it); });
+const doKindSet = () => new Set([...ui.doKinds].flatMap(id => (doChip(id) || {}).kinds || []));
 function curatedForMap(){
   if (ui.mapSurf) return SURF.slice();
   return D.places.filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
@@ -312,6 +318,7 @@ function mapFilterOn(){ return shownFilterCats().length > 0; }
 function passMapFilter(it){
   if (ui.mapSaved) return true;
   if (it.c === "move") return ui.mf.move.t === "all" || MOVE_KIND_TYPE[it.k] === ui.mf.move.t;
+  if (it.c === "cool" && !passDo(it)) return false;
   if (PF_GRP[it.c]) return passPF(it, it.c);
   return true;
 }
@@ -342,6 +349,7 @@ function mapItems(){ return mapRun.items; }
 // how many places of a summary cell count: only the essentials picked, only the transport type picked
 function cellWeight(g, c, ek){
   if (g === "ess") return Object.entries(c.counts).reduce((a, [k, n]) => a + (ek.has(k) ? n : 0), 0);
+  if (g === "do" && ui.doKinds.size){ const dk = doKindSet(); return Object.entries(c.counts).reduce((a, [k, n]) => a + (dk.has(k) ? n : 0), 0); }
   if (g === "move" && ui.mf.move.t !== "all") return Object.entries(c.counts).reduce((a, [k, n]) => a + (moveKindOk(k) ? n : 0), 0);
   return c.total;
 }
@@ -461,6 +469,11 @@ function renderMapUI(){
   const essRow = $("#mapEss");
   essRow.hidden = !(ui.essOpen || ui.essKinds.size);
   essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends === true}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
+  const doRow = $("#mapDo");
+  if (doRow){
+    doRow.hidden = !(ui.mapCats.has("cool") && !all && !ui.mapSaved && !ui.mapSurf && !ui.essKinds.size);
+    doRow.innerHTML = doRow.hidden ? "" : DO_SECTIONS().map(c => `<button class="chip" type="button" data-dok="${c.id}" aria-pressed="${ui.doKinds.has(c.id)}">${c.ic ? icon(c.ic) : ""}${c.l}</button>`).join("");
+  }
   $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   const top = $("#mapTop");
@@ -468,7 +481,7 @@ function renderMapUI(){
   top.querySelectorAll("[data-all], [data-cat], [data-ess], [data-saved]").forEach(b => b.addEventListener("click", () => { if (ui.mapSurf){ ui.mapSurf = false; if (b.dataset.cat) ui.mapCats = new Set(); } }, {capture:true}));
   top.querySelector("[data-surf]").onclick = () => ui.mapSurf ? (ui.mapSurf = false, ui.mapCats = new Set(["gaff","munch","cool"]), renderMapUI()) : openSurfMap();
   // All: shows Gaffs, Munch and Activities; tapped again while they all show, it clears them (just the map)
-  top.querySelector("[data-all]").onclick = () => { ui.mapCats = all ? new Set() : new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
+  top.querySelector("[data-all]").onclick = () => { ui.mapCats = all ? new Set() : new Set(["gaff","munch","cool"]); ui.essKinds.clear(); ui.doKinds.clear(); ui.essOpen = false; ui.mapSaved = false; mapRun.stash = null; renderMapUI(); };
   top.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
     const k = b.dataset.cat; ui.mapSaved = false;
     if (all) ui.mapCats = new Set([k]);                       // everything showing: tapping a section shows just that one
@@ -479,6 +492,14 @@ function renderMapUI(){
   top.querySelector("[data-ess]").onclick = () => { ui.essOpen = !(ui.essOpen || ui.essKinds.size); if (!ui.essOpen && ui.essKinds.size){ ui.essKinds.clear(); if (mapRun.stash){ ui.mapCats = mapRun.stash; mapRun.stash = null; } } renderMapUI(); };
   top.querySelector("[data-saved]").onclick = () => { ui.mapSaved = !ui.mapSaved; if (ui.mapSaved && !Object.keys(S.saved).length) toast("Nothing saved yet. Tap the bookmark on a place."); renderMapUI(); };
   top.querySelectorAll("[data-essk]").forEach(b => b.onclick = () => toggleEssential(b.dataset.essk));
+  top.querySelectorAll("[data-dok]").forEach(b => b.onclick = () => {
+    const id = b.dataset.dok;
+    if (id === "surf"){ openSurfMap(); return; }
+    ui.doKinds.has(id) ? ui.doKinds.delete(id) : ui.doKinds.add(id);
+    if (id === "nightlife" && ui.doKinds.has(id) && typeof funnyNightlife === "function") funnyNightlife();
+    const c = doChip(id); if (ui.doKinds.has(id) && c && c.note) toast(c.note);
+    renderMapUI();
+  });
   const fr = top.querySelector("[data-essfr]");
   if (fr) fr.onclick = () => { ui.mapFriends = ui.mapFriends !== true; ui.essOpen = true; renderMapUI(); drawFriends(); if (ui.mapFriends){ frPoll().then(() => frFitAll()).catch(() => {}); } };
   top.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mapMode = b.dataset.mode; renderMapUI(); });

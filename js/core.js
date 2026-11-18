@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.16.1";
+const VERSION = "2.17.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -88,6 +88,7 @@ const IC = {
   coffee:'<path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/>',
   leaf:'<path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15"/><path d="M5 21c2-6 5-9.5 10-12"/>',
   glass:'<path d="M4 4h16l-8 9-8-9Z"/><path d="M12 13v7M8 20h8"/>',
+  beer:'<path d="M6 7h10v11a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V7Z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M6 7c0-2 1.5-3 3-3 .8-1 3.2-1 4 0 1.5 0 3 1 3 3"/><path d="M9.5 11v6M12.5 11v6"/>',
   ticket:'<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8Z"/><path d="M14 6v12" stroke-dasharray="2 2"/>',
   pot:'<path d="M4 11h16v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-4Z"/><path d="M2 11h20M9 7c0-1.5 1-1.5 1-3M14 7c0-1.5 1-1.5 1-3"/>',
   camera:'<path d="M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -210,7 +211,7 @@ const newList = cat => ({radius:0, types:new Set(), sort:DEFAULT_SORT[cat] || "n
 const ui = {
   view:"map", sub:"",
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
-  mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
+  mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), doKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
   mapSort:"near", mapFilters:false, mapSurf:false, mapFriends:false,
   mf:{move:{t:"all"}},      // the map's transport-type filter (maximum prices are in ui.pf, shared with the lists: js/estimate.js)
   mapSel:null, mapQ:"", mapSaved:false,

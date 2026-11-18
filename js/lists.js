@@ -288,7 +288,7 @@ function bindList(cat){
   const qIn = $("#l-q"), typed = debounce(() => loadListOsm(cat), 350);
   qIn.oninput = () => { st.q = qIn.value; $("#l-clear").hidden = !st.q; st.shown = 30; paintListBody(cat); typed(); };
   $("#l-clear").onclick = () => { st.q = ""; qIn.value = ""; $("#l-clear").hidden = true; refresh(); qIn.focus(); };
-  root.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => { if (b.dataset.chip === "surf"){ openSurfMap(); return; } st.chip = b.dataset.chip; root.querySelectorAll("[data-chip]").forEach(x => x.setAttribute("aria-pressed", x === b)); refresh(); });
+  root.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => { if (b.dataset.chip === "surf"){ openSurfMap(); return; } if (cat === "cool" && b.dataset.chip === "nightlife" && st.chip !== "nightlife" && typeof funnyNightlife === "function") funnyNightlife(); st.chip = b.dataset.chip; root.querySelectorAll("[data-chip]").forEach(x => x.setAttribute("aria-pressed", x === b)); refresh(); });
   $("#l-filters").onclick = () => { st.filters = !st.filters; renderPage(); };
   const op = $("#l-open"); if (op) op.onclick = () => { st.open = !st.open; op.setAttribute("aria-pressed", st.open); refresh(); };
   $("#l-map").onclick = () => { ui.mapCats = new Set([cat]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); };

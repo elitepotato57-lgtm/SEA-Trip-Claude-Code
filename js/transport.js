@@ -1,5 +1,6 @@
 /* ============================================================
-   50-transport: the journey planner (lives in Tools). Thailand, plus Bali, Lombok and southern Sumatra in Indonesia.
+   50-transport: the journey planner (lives in Tools). Thailand, Cambodia, Vietnam, Laos and Singapore, plus Bali, Lombok and
+   southern Sumatra in Indonesia. The links between them are researched (tools/transport-asia.js adds the newer countries).
    ============================================================ */
 /* ---------- transport planner ---------- */
 const NET = D.net;
@@ -11,7 +12,10 @@ const roadKm = (a, b) => dist(a, b) * 1.35;
 // The network covers Thailand and, in Indonesia, Bali, Lombok and southern Sumatra: rides, apps and money follow the country
 const nodeCc = n => (n && n.lat != null ? ccAt(n.lat, n.lng) : null) || "TH";
 const ccCur = cc => (D.countries[cc] && D.countries[cc].cur) || "THB";
-const RIDE_APPS = {TH:"Grab or Bolt", ID:"Grab or Gojek"};
+const RIDE_APPS = {TH:"Grab or Bolt", ID:"Grab or Gojek", VN:"Grab or Xanh SM", SG:"Grab, Gojek or TADA", LA:"LOCA (Vientiane) or a tuk-tuk", KH:"PassApp or Grab", MY:"Grab"};
+// countries the planner covers (Indonesia only where the places database is: Bali, Lombok, southern Sumatra)
+const PLAN_CC = new Set(["TH", "KH", "VN", "LA", "SG"]);
+const planCovers = n => { const cc = nodeCc(n); return PLAN_CC.has(cc) || (cc === "ID" && inPlaceDb(n.lat, n.lng)); };
 const rideApps = cc => RIDE_APPS[cc] || "Grab";
 function meterFare(km){
   const m = NET.taxi.meter; let f = m.flag, d = Math.max(0, km - 1);
@@ -67,34 +71,49 @@ const hubNode = id => ({id, n:HUB[id].n, lat:HUB[id].lat, lng:HUB[id].lng});
 // Link a searched place (not one of the saved hubs) to the network with a local ride to the nearest hubs
 function connectors(node, key){
   const legs = [];
-  const cc = nodeCc(node), id = cc === "ID";
+  const cc = nodeCc(node), id = cc === "ID", apps = rideApps(cc);
   const add = (h, label) => {
     const km = roadKm(node, HUB[h]);
     const inBkk = dist(node, HUB.bkk) < 40 && dist(HUB[h], HUB.bkk) < 40;
     const m = inBkk ? meterFare(km) : null;
-    legs.push({a:key, b:h, mode: inBkk ? "Taxi" : "Local ride", op: inBkk ? "Taxi, Grab or Bolt" : (label || (id ? "Taxi, Grab, Gojek or a local boat, depending on the place" : "Taxi, Grab, songthaew or longtail boat, depending on the place")), dur:[Math.max(.15, km / 45), Math.max(.25, km / 28)],
+    legs.push({a:key, b:h, mode: inBkk ? "Taxi" : "Local ride", op: inBkk ? "Taxi, Grab or Bolt" : (label || (id ? "Taxi, Grab, Gojek or a local boat, depending on the place" : cc === "TH" ? "Taxi, Grab, songthaew or longtail boat, depending on the place" : `Taxi, ${apps} or a local bus, depending on the place`)), dur:[Math.max(.15, km / 45), Math.max(.25, km / 28)],
       p: m ? [Math.round(m * 1.05), Math.round(m * 1.4)] : null, cur:ccCur(cc), da:null, db:null,
-      notes:[`About ${Math.round(km)} km by road`, inBkk ? "Estimated from Bangkok’s taxi meter rates" : id ? "Check Grab or Gojek for the price, or ask locally for a bus or bemo" : "Check Grab or Bolt for the price, or ask locally for a bus or songthaew"], src:[], verified:false});
+      notes:[`About ${Math.round(km)} km by road`, inBkk ? "Estimated from Bangkok’s taxi meter rates" : id ? "Check Grab or Gojek for the price, or ask locally for a bus or bemo" : cc === "TH" ? "Check Grab or Bolt for the price, or ask locally for a bus or songthaew" : `Check ${apps} for the price, or ask locally`], src:[], verified:false});
   };
   for (const [h, r] of Object.entries(ISLAND_R)) if (dist(node, HUB[h]) <= r){ add(h, id ? "Local transport or on foot, depending on the island" : "Taxi, songthaew or scooter taxi"); return legs; }
   const ranked = Object.values(HUB).filter(h => !h.island && !isAir(h.id)).map(h => ({h:h.id, km:roadKm(node, h)})).sort((x, y) => x.km - y.km);
   const close = ranked.filter(x => x.km <= 170).slice(0, 3);
   if (close.length){ close.forEach(x => add(x.h)); return legs; }
   // further from the saved hubs but still in a covered country: link the two nearest by bus or taxi, flagged as an estimate
-  if (cc === "TH" || (id && inPlaceDb(node.lat, node.lng))) ranked.slice(0, 2).forEach(x => legs.push({a:key, b:x.h, mode:"Bus", op:"Bus, minivan or taxi (check live)", dur:[x.km / 65, x.km / 45], p:null, cur:ccCur(cc), da:null, db:null,
+  if (planCovers(node)) ranked.slice(0, 2).forEach(x => legs.push({a:key, b:x.h, mode:"Bus", op:"Bus, minivan or taxi (check live)", dur:[x.km / 65, x.km / 45], p:null, cur:ccCur(cc), da:null, db:null,
     notes:[`About ${Math.round(x.km)} km by road`, "This stretch isn’t in the saved network yet, so the time is a rough estimate"], src:[], verified:false}));
   return legs;
 }
+const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0];
+// the quickest possible time from every stop to the destination (Dijkstra, backwards)
+function timeTo(adj, to){
+  const best = {[to]:0}, todo = [[0, to]];
+  while (todo.length){
+    todo.sort((a, b) => a[0] - b[0]); const [d, at] = todo.shift();
+    if (d > best[at]) continue;
+    for (const {o, to:nx} of (adj[at] || [])){ const nd = d + legMin(o); if (best[nx] == null || nd < best[nx]){ best[nx] = nd; todo.push([nd, nx]); } }
+  }
+  return best;
+}
 function hubPaths(adj, from, to, maxLegs){
-  const out = [];
-  (function walk(at, seen, path){
+  const out = [], lb = timeTo(adj, to);
+  if (lb[from] == null) return out;
+  const bound = lb[from] * 2.2 + 3;
+  (function walk(at, seen, path, t){
+    if (out.length > 600) return;
     if (at === to && path.length){ out.push(path.slice()); return; }
     if (path.length === maxLegs) return;
     for (const {o, to:nx} of (adj[at] || [])){
-      if (seen.has(nx) || (isAir(nx) && nx !== to)) continue;
-      seen.add(nx); path.push({o, from:at, to:nx}); walk(nx, seen, path); path.pop(); seen.delete(nx);
+      if (seen.has(nx) || (isAir(nx) && nx !== to) || lb[nx] == null) continue;
+      const nt = t + legMin(o); if (nt + lb[nx] > bound) continue;
+      seen.add(nx); path.push({o, from:at, to:nx}); walk(nx, seen, path, nt); path.pop(); seen.delete(nx);
     }
-  })(from, new Set([from]), []);
+  })(from, new Set([from]), [], 0);
   // a flight "from Bangkok" already leaves from an airport, so don't pair it with a leg to or from that airport
   return out.filter(legs => !legs.some((L, k) => {
     const nx = legs[k + 1];
@@ -111,7 +130,7 @@ function planTrips(fromN, toN){
   let extra = 0;
   [[fromN, "@from"], [toN, "@to"]].forEach(([n, key]) => { if (n.id) return; NODE[key] = {id:key, n:n.n, lat:n.lat, lng:n.lng}; connectors(n, key).forEach(link); extra++; });
   if (!fromN.id && !toN.id && roadKm(fromN, toN) <= 60){ const km = roadKm(fromN, toN); const cc = nodeCc(fromN); link({a:"@from", b:"@to", mode:"Taxi", op:`Taxi, ${rideApps(cc)}`, dur:[km / 45, km / 28], p:null, cur:ccCur(cc), da:null, db:null, notes:[`About ${Math.round(km)} km by road`], src:[], verified:false}); }
-  let trips = hubPaths(adj, fk, tk, 3 + extra).map(legs => {
+  let trips = hubPaths(adj, fk, tk, 6 + extra).map(legs => {
     let dmin = 0, dmax = 0, pmin = 0, pmax = 0, unpriced = 0, unverified = 0;
     legs.forEach((L, k) => {
       const o = L.o, fl = o.mode === "Flight";
@@ -176,28 +195,54 @@ function legBookBtn(L){
   const l = legBook(L); if (!l) return "";
   return `<a class="btn small" style="margin-top:6px" href="${esc(l.url)}" target="_blank" rel="noopener" data-book="${esc(l.kind)}">${esc(l.label)} ${icon("ext","i s")}</a>`;
 }
+// each leg gets its own colour on the journey map (and the same colour on its number in the list)
+const LEG_COLS = ["#4FC3F7", "#FFB74D", "#BA68C8", "#81C784", "#F06292", "#FFF176", "#4DB6AC"];
+// flights on the chosen date: Google Flights reads a plain-English search
+function flightLink(L){
+  const a = NODE[L.from].n, b = NODE[L.to].n, d = ui.tp.date && ui.tp.date >= todayISO() ? " on " + ui.tp.date : "";
+  return `https://www.google.com/travel/flights?q=${enc(`Flights from ${a} to ${b}${d} one way`)}`;
+}
+function tripPrice(t){
+  const tc = tripCur(t);
+  return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
+}
 function tripCard(t, idx){
+  const stops = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k].n);
+  const chain = t.legs.map((L, k) => `<span class="lchip" style="--lc:${LEG_COLS[k % LEG_COLS.length]}">${icon(MODE_IC[L.o.mode] || "bus", "i xs")}${esc(L.o.mode)}</span>`).join('<span class="larr" aria-hidden="true">›</span>');
+  return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
+    <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
+    <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
+      <div class="price">${tripPrice(t)}</div></div>
+    <div class="lchain">${chain}</div>
+    <div class="note" style="margin-top:4px">${esc(stops.join(" → "))}</div>
+    <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
+  </div>`;
+}
+// the whole journey, leg by leg, in a sheet with its own map
+function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
   const tc = tripCur(t);
   const price = allUnpriced ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
-  const legs = t.legs.map(L => {
+  const legs = t.legs.map((L, k) => {
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
     const lp = o.p ? withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
-    return `<div class="leg"><span class="li" style="color:${cssv(MODE_COL[o.mode] || "--move")}">${icon(MODE_IC[o.mode] || "bus")}</span><div>
+    return `<div class="leg"><span class="li legn" style="--lc:${LEG_COLS[k % LEG_COLS.length]}"><i>${k + 1}</i>${icon(MODE_IC[o.mode] || "bus", "i s")}</span><div>
       <b>${esc(NODE[L.from].n)} → ${esc(NODE[L.to].n)}</b>
       <div class="m">${esc(o.mode)}${o.op ? ", " + esc(o.op) : ""}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${legBookBtn(L)}
+      ${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
   const a = NODE[t.legs[0].from].n, b = NODE[t.legs[t.legs.length - 1].to].n;
   const notes = t.legs.flatMap(L => L.o.notes.map(n => `${NODE[L.from].n} → ${NODE[L.to].n}: ${n}`));
   const srcs = t.legs.flatMap(L => L.o.src || []);
-  return `<div class="trip" data-trip="${idx}" aria-pressed="${ui.tp.sel === idx}" role="button" tabindex="0">
+  return `<div class="sheet-head"><h2 id="trip-title" style="margin:0">${esc(a)} → ${esc(b)}</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="trip open">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
       <div class="price">${price}</div></div>
+    <div class="legmap" id="legMap" role="img" aria-label="Map of the journey, each leg in its own colour"></div>
     <div style="margin-top:8px">${legs}</div>
     ${getThere(firstStn)}
     <div class="row" style="margin-top:12px">${t.legs.length > 1 && go12(t.legs[0].from, t.legs[t.legs.length - 1].to) ? ext(go12(t.legs[0].from, t.legs[t.legs.length - 1].to), "Search the whole route on 12Go " + icon("ext","i s")) : ""}${ext(`https://www.rome2rio.com/s/${enc(a)}/${enc(b)}`, "Rome2Rio " + icon("ext","i s"))}</div>
@@ -206,7 +251,42 @@ function tripCard(t, idx){
       ${notes.length ? `<ul class="known">${notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
       <p class="note">${srcs.length ? "Checked " + esc(D.checked) + ": " + srcs.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ") : "Estimate, not checked."}${t.legs.some(L => L.o.mode === "Flight") ? " Flight times include about 2–3 hours for getting to, through and out of the airports." : ""}</p>
     </details>
+    ${ui.tp.date ? "" : `<p class="note" style="margin-top:8px">Pick a travel date on the planner to see flight times and 12Go departures for that day.</p>`}
   </div>`;
+}
+const fmtDay = iso => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {weekday:"short", day:"numeric", month:"short"});
+// the journey map: each leg a line in its own colour (flights dashed), a numbered dot at every stop and the mode's icon halfway
+let legMap = null;
+function openTripSheet(t){
+  if (legMap){ try { legMap.remove(); } catch(e){} legMap = null; }
+  openSheet(tripSheetHTML(t), "trip-title");
+  const el = $("#legMap"); if (!el || typeof maplibregl === "undefined") { if (el) el.remove(); return; }
+  const pts = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k]);
+  try {
+    legMap = new maplibregl.Map({container:el, style:{version:8, glyphs:MAP_STYLE.glyphs, sources:{}, layers:[{id:"bg", type:"background", paint:{"background-color":cssv("--sea")}}]},
+      bounds:[[Math.min(...pts.map(p => p.lng)), Math.min(...pts.map(p => p.lat))], [Math.max(...pts.map(p => p.lng)), Math.max(...pts.map(p => p.lat))]],
+      fitBoundsOptions:{padding:40, maxZoom:10}, attributionControl:false, dragRotate:false, pitchWithRotate:false, touchPitch:false});
+  } catch(e){ el.remove(); return; }
+  legMap.on("load", () => {
+    legMap.addSource("land", {type:"geojson", data:geoFC()});
+    legMap.addLayer({id:"land", type:"fill", source:"land", paint:{"fill-color":["case", ["==", ["get", "cc"], ""], cssv("--land"), cssv("--land-trip")], "fill-outline-color":cssv("--border-land")}});
+    const lines = t.legs.map((L, k) => ({type:"Feature", geometry:{type:"LineString", coordinates:[[NODE[L.from].lng, NODE[L.from].lat], [NODE[L.to].lng, NODE[L.to].lat]]}, properties:{col:LEG_COLS[k % LEG_COLS.length], fly:L.o.mode === "Flight"}}));
+    legMap.addSource("legs", {type:"geojson", data:fc(lines)});
+    legMap.addLayer({id:"leg-casing", type:"line", source:"legs", layout:{"line-cap":"round"}, paint:{"line-color":cssv("--bg"), "line-width":8}});
+    legMap.addLayer({id:"leg-line", type:"line", source:"legs", filter:["!=", ["get", "fly"], true], layout:{"line-cap":"round"}, paint:{"line-color":["get", "col"], "line-width":5}});
+    legMap.addLayer({id:"leg-fly", type:"line", source:"legs", filter:["==", ["get", "fly"], true], paint:{"line-color":["get", "col"], "line-width":4, "line-dasharray":[1.2, 1.6]}});
+    // the mode's icon halfway along each leg, and a numbered dot at each stop
+    t.legs.forEach((L, k) => {
+      const a = NODE[L.from], b = NODE[L.to], m = document.createElement("div");
+      m.className = "leg-ic"; m.style.setProperty("--lc", LEG_COLS[k % LEG_COLS.length]); m.innerHTML = icon(MODE_IC[L.o.mode] || "bus", "i s");
+      new maplibregl.Marker({element:m}).setLngLat([(a.lng + b.lng) / 2, (a.lat + b.lat) / 2]).addTo(legMap);
+    });
+    pts.forEach((p, k) => {
+      const m = document.createElement("div"); m.className = "leg-stop" + (k === 0 ? " first" : k === pts.length - 1 ? " last" : "");
+      m.innerHTML = `<b>${k === 0 ? "A" : k === pts.length - 1 ? "B" : k}</b><span>${esc(p.n)}</span>`;
+      new maplibregl.Marker({element:m, anchor:"left", offset:[-11, 0]}).setLngLat([p.lng, p.lat]).addTo(legMap);
+    });
+  });
 }
 function routeCard(r){
   const pr = routeLocal(r);
@@ -228,7 +308,7 @@ const fromNode = () => ui.tp.from || hereNode();
 const nodeLabel = n => n ? (n.here ? (n.id ? `${n.n} (you’re here)` : "Your location") : n.n) : "";
 function transportPage(){
   const fN = fromNode(), tN = ui.tp.to;
-  const trips = planTrips(fN, tN);
+  const trips = tN && ui.tp.go ? planTrips(fN, tN) : [];
   if (ui.tp.sel >= trips.length) ui.tp.sel = 0;
   ui._trips = trips;
   let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">
@@ -241,14 +321,17 @@ function transportPage(){
       <div class="seg" role="group" aria-label="Sort journeys"><button data-tsort="fast" aria-pressed="${ui.tp.sort === "fast"}">Fastest</button><button data-tsort="cheap" aria-pressed="${ui.tp.sort === "cheap"}">Cheapest</button></div>
       <div class="pair tp-when"><label class="field">Travel date<input type="date" id="tp-date" min="${todayISO()}" value="${esc(ui.tp.date || "")}"></label>
         <label class="field">People<select id="tp-people">${[1,2,3,4,5,6,7,8,9].map(n => `<option value="${n}" ${+ui.tp.people === n ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
-      <p class="note" style="margin:0">Optional: used to open 12Go on the right day for your group.</p>
+      <p class="note" style="margin:0">Optional: the date is used for flight times and 12Go’s departures on that day.</p>
+      <button class="btn primary wide" type="button" id="tp-go" style="margin-top:10px" ${tN ? "" : "disabled"}>${icon("search","i s")}Search</button>
     </div>
     <div id="tpMap" class="tmap" role="application" aria-label="Transport map"></div>
     <p class="note" style="margin:0 0 14px">Tap a dot on the map to head there, or search any town, beach, hostel or sight.</p>`;
-  if (!tN) html += emptyBlock("Where are you heading?", `<div>Search for any place, or tap a dot on the map. You’ll see every way to get there: trains, buses, minivans, ferries, flights and taxis, with times, prices and where each one leaves from.</div>`);
+  if (ui.tp.busy) html += `<div class="empty tp-busy" role="status"><span class="spin" aria-hidden="true"></span><b>Finding every way to get there…</b></div>`;
+  else if (tN && !ui.tp.go) html += `<p class="note" style="margin:0 0 14px">Press <b>Search</b> to see the ways to get to ${esc(tN.n)}.</p>`;
+  else if (!tN) html += emptyBlock("Where are you heading?", `<div>Search for any place, or tap a dot on the map. You’ll see every way to get there: trains, buses, minivans, ferries, flights and taxis, with times, prices and where each one leaves from.</div>`);
   else if (!trips.length){
     const far = !tN.id && !connectors(tN, "@x").length;
-    html += emptyBlock(far ? "That’s outside the saved network" : "No saved connections yet", `<div>${far ? "The planner covers Thailand, Bali, Lombok and southern Sumatra so far. Check Rome2Rio for this one, or the saved routes for other countries below." : "This trip isn’t in the saved network yet."}</div>`,
+    html += emptyBlock(far ? "That’s outside the saved network" : "No saved connections yet", `<div>${far ? "The planner covers Thailand, Cambodia, Vietnam, Laos, Singapore, Bali, Lombok and southern Sumatra. Check Rome2Rio for this one." : "This trip isn’t in the saved network yet."}</div>`,
       ext(`https://www.rome2rio.com/s/${enc(fN.n)}/${enc(tN.n)}`, "Search Rome2Rio " + icon("ext","i s")));
   }
   else html += `<p class="note" style="margin:0 0 8px">${trips.length} way${trips.length === 1 ? "" : "s"} to get there. Times and prices are a saved baseline, so confirm live before you pay.</p>` + trips.map(tripCard).join("");
@@ -341,7 +424,7 @@ async function googleSuggest(q){
 function bindSearch(which){
   const inp = $(`#tp-${which}`), box = $(`#sug-${which}`);
   let timer = null, online = [], lastQ = "", searching = false;
-  const choose = node => { ui.tp[which] = node; ui.tp.sel = 0; renderPage(); };
+  const choose = node => { ui.tp[which] = node; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };
   const paint = () => {
     const q = inp.value.trim(); const local = localMatches(q, true);
     let h = "";
@@ -371,13 +454,20 @@ function bindSearch(which){
 function bindTransport(){
   const root = $("#pageview");
   bindSearch("from"); bindSearch("to");
-  $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; renderPage(); };
+  $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };
+  const gob = $("#tp-go");
+  if (gob) gob.onclick = () => {
+    if (!ui.tp.to){ toast("Pick where you’re going first"); return; }
+    ui.tp.busy = true; ui.tp.go = true; renderPage();
+    // a moment for the "finding" message to show, then the answers
+    setTimeout(() => { ui.tp.busy = false; renderPage(); const r = $(".trip"); if (r) r.scrollIntoView({behavior: reduceMotion ? "auto" : "smooth", block:"start"}); }, 450);
+  };
   root.querySelectorAll("[data-tsort]").forEach(b => b.onclick = () => { ui.tp.sort = b.dataset.tsort; ui.tp.sel = 0; renderPage(); });
   const td = $("#tp-date"), tpp = $("#tp-people");
-  if (td) td.onchange = () => { ui.tp.date = td.value && td.value >= todayISO() ? td.value : ""; if (td.value && !ui.tp.date) toast("Pick today or a later date"); renderPage(); };
-  if (tpp) tpp.onchange = () => { ui.tp.people = clamp(+tpp.value || 1, 1, 9); renderPage(); };
+  if (td) td.onchange = () => { ui.tp.date = td.value && td.value >= todayISO() ? td.value : ""; if (td.value && !ui.tp.date) toast("Pick today or a later date"); ui.tp.go = false; renderPage(); };
+  if (tpp) tpp.onchange = () => { ui.tp.people = clamp(+tpp.value || 1, 1, 9); ui.tp.go = false; renderPage(); };
   root.querySelectorAll("[data-trip]").forEach(c => {
-    const pick = e => { if (e.target.closest("a, summary, details")) return; ui.tp.sel = +c.dataset.trip; root.querySelectorAll("[data-trip]").forEach(x => x.setAttribute("aria-pressed", x === c)); drawTripOnMap(); $("#tpMap").scrollIntoView({behavior: reduceMotion ? "auto" : "smooth", block:"center"}); };
+    const pick = e => { if (e.target.closest("a, summary, details")) return; ui.tp.sel = +c.dataset.trip; drawTripOnMap(); const t = ui._trips && ui._trips[ui.tp.sel]; if (t) openTripSheet(t); };
     c.onclick = pick; c.onkeydown = e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); pick(e); } };
   });
   initTransportMap();

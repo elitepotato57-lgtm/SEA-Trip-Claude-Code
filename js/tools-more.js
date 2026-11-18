@@ -511,6 +511,8 @@ TOOL_PAGES.emergency = root => {
 const DEST_ALIAS = {bkk:"Bangkok", bangkok:"Bangkok", "chiang mai":"Chiang Mai", "chiang rai":"Chiang Rai", pai:"Pai", "phi phi":"Koh Phi Phi", phiphi:"Koh Phi Phi", samui:"Koh Samui",
   phangan:"Koh Phangan", "pha ngan":"Koh Phangan", "koh tao":"Koh Tao", "ko tao":"Koh Tao", lanta:"Koh Lanta", lipe:"Koh Lipe", "koh chang":"Koh Chang", "ko chang":"Koh Chang", krabi:"Krabi Town",
   "ao nang":"Ao Nang", railay:"Railay", phuket:"Phuket", ayutthaya:"Ayutthaya", kanchanaburi:"Kanchanaburi", "khao sok":"Khao Sok", "hua hin":"Hua Hin", pattaya:"Pattaya", sukhothai:"Sukhothai"};
+// every destination on the map answers to its own name too (Hoi An, Vang Vieng, Siem Reap…)
+if (typeof D !== "undefined") D.cities.forEach(c => { const k = foldText(c[0]); if (!DEST_ALIAS[k]) DEST_ALIAS[k] = c[0]; });
 function destsIn(text){
   const t = " " + foldText(text) + " ", hits = [];
   for (const [alias, name] of Object.entries(DEST_ALIAS)){ const i = t.indexOf(" " + alias + " "); if (i >= 0 && !hits.some(h => h.name === name)) hits.push({i, name}); }
@@ -520,6 +522,108 @@ const destNode = name => { const hub = Object.values(HUB).find(h => h.n === name
 const median = xs => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const miniBtn = p => `<button type="button" data-open="${esc(p.id)}"><span>${esc(p.n)}</span><small>${esc([itemLocal(p), p.r != null ? (p.r / 2).toFixed(1) + "★" : "", p.cur_ ? "" : kindLabel(p)].filter(Boolean).join(" · "))}</small></button>`;
 const asst = {log:[]};
+/* ---------- the assistant's wider knowledge: every country, money, phrases, safety, the app's own tools ----------
+   All from the app's own data (guides from gov.uk, researched places, the phrasebooks, today's saved exchange rates). */
+const ASST_CUR = [[/\b(baht|thb|฿)\b/, "THB"], [/\b(dong|vnd|₫)\b/, "VND"], [/\b(kip|lak)\b/, "LAK"], [/\b(riel|khr)\b/, "KHR"], [/\b(rupiah|idr|rp)\b/, "IDR"],
+  [/\b(sgd|singapore dollars?)\b/, "SGD"], [/\b(ringgit|myr|rm)\b/, "MYR"], [/\b(usd|us dollars?|dollars?|bucks|\$)\b/, "USD"], [/\b(euros?|eur|€)\b/, "EUR"], [/\b(pounds?|quid|gbp|£)\b/, "GBP"], [/\b(aud|aussie dollars?)\b/, "AUD"]];
+const ASST_TZ = {TH:"7 hours ahead of the UK (6 in the British summer)", KH:"7 hours ahead of the UK (6 in the British summer)", VN:"7 hours ahead of the UK (6 in the British summer)",
+  LA:"7 hours ahead of the UK (6 in the British summer)", SG:"8 hours ahead of the UK (7 in the British summer)", MY:"8 hours ahead of the UK (7 in the British summer)",
+  ID:"7 hours ahead in Sumatra and Java, 8 in Bali and Lombok (1 less in the British summer)"};
+const asstPlain = h => String(h || "").replace(/<[^>]+>/g, "");
+// "tell me about …": a country named in the question, otherwise the one you're in
+function asstCountry(t){
+  for (const [cc, c] of Object.entries(D.countries)) if (new RegExp(" " + foldText(c.name) + " ").test(t)) return cc;
+  return S.country;
+}
+function asstGuide(cc){ return typeof GUIDES !== "undefined" && GUIDES[cc] ? GUIDES[cc] : null; }
+function asstSos(cc){
+  const g = asstGuide(cc);
+  const list = g && g.sos ? g.sos : cc === "ID" ? SOS_ID : cc === "KH" ? SOS_KH : SOS;
+  return list.map(([n, num, note]) => `<li><b>${esc(n)}: <a href="tel:${esc(num)}">${esc(num)}</a></b>${note ? " · " + esc(note) : ""}</li>`).join("");
+}
+function asstMoney(t){
+  const m = t.match(/(\d[\d,]*(?:\.\d+)?)\s*(k|m|thousand|million)?\s*([a-z$£€฿₫]+(?: [a-z]+)?)/);
+  const pre = t.match(/([$£€฿₫])\s*(\d[\d,]*(?:\.\d+)?)/);
+  let amt = null, unit = "";
+  if (m){ amt = parseFloat(m[1].replace(/,/g, "")) * (/^(k|thousand)$/.test(m[2] || "") ? 1e3 : /^(m|million)$/.test(m[2] || "") ? 1e6 : 1); unit = " " + m[3] + " "; }
+  else if (pre){ amt = parseFloat(pre[2].replace(/,/g, "")); unit = " " + pre[1] + " "; }
+  if (amt == null || !isFinite(amt)) return null;
+  const hit = ASST_CUR.find(([re]) => re.test(unit)); if (!hit) return null;
+  const from = hit[1], local = (D.countries[S.country] || {}).cur || "THB";
+  const gbp = toGBP(amt, from), to = from === "GBP" ? local : "GBP";
+  return {amt, from, gbp, out: to === "GBP" ? `£${fmtNum(Math.round(gbp * 100) / 100)}` : money(niceRound(gbp * rate(to), to), to)};
+}
+function asstPhrase(t, raw){
+  const m = raw.match(/(?:how (?:do|would|can) (?:i|you|we) say|what(?:'s| is) (?:the word for )?|say|translate)\s+["“']?([^"”'?]+?)["”']?(?:\s+in\s+([a-z]+))?\s*\??$/i);
+  if (!m) return null;
+  const want = foldText(m[1]).replace(/^(a|an|the) /, ""), lang = m[2] ? foldText(m[2]) : "";
+  const cc = Object.keys(PHRASEBOOKS).find(k => foldText(PHRASEBOOKS[k].name).startsWith(lang) && lang) || S.country;
+  const pb = PHRASEBOOKS[cc] || PHRASEBOOKS.TH;
+  const all = pb.list.flatMap(sec => sec.p);
+  const hit = all.find(p => foldText(p[0]) === want) || all.find(p => foldText(p[0]).includes(want)) || all.find(p => want.split(" ").every(w => foldText(p[0]).includes(w)));
+  return {cc, pb, hit, want:m[1].trim()};
+}
+async function asstMore(text, t, has, act, dest){
+  // money: "how much is 500 baht", "200k dong in pounds", "£20 in baht"
+  if (has(/ (how much is|convert|in pounds|in gbp|worth|in baht|in dong|in kip|in rupiah|is that) /) || /^\s*[$£€฿₫]?\s*\d/.test(text)){
+    const mo = asstMoney(" " + String(text).toLowerCase() + " ");
+    if (mo) return `<p><b>${esc(fmtNum(mo.amt))} ${esc(mo.from)}</b> is about <b>${esc(mo.out)}</b>${mo.from !== "GBP" ? "" : ` in ${esc(CUR_NAME[(D.countries[S.country] || {}).cur] || "")}`}.</p><p class="note">At the rates saved in the app (${esc(D.rates[mo.from === "GBP" ? (D.countries[S.country] || {}).cur || "THB" : mo.from] ? D.rates[mo.from === "GBP" ? (D.countries[S.country] || {}).cur || "THB" : mo.from].note : "")}). Card and ATM rates are a little worse.</p>${act("Open the converter", "go:#tools/currency")}`;
+  }
+  if (has(/ (exchange rate|the rate|rates today|currency) /)){
+    const cc = asstCountry(t), c = D.countries[cc], cur = c.cur;
+    return `<p><b>${esc(c.name)}</b> uses the ${esc(CUR_NAME[cur] || cur)}${c.alt && c.alt.length ? ` (and ${esc(c.alt.map(a => CUR_NAME[a] || a).join(", "))})` : ""}. £1 is about <b>${esc(money(niceRound(rate(cur), cur), cur))}</b>.</p><p class="note">${esc(D.rates[cur] ? D.rates[cur].note : "")}</p>${act("Open the converter", "go:#tools/currency")}`;
+  }
+  // phrases: "how do I say thank you", "what's hello in Vietnamese"
+  const ph = asstPhrase(t, text);
+  if (ph){
+    if (ph.hit) return `<p><b>${esc(ph.hit[0])}</b> in ${esc(ph.pb.name)}: <b lang="${esc(ph.pb.lang)}">${esc(ph.hit[1])}</b></p><p>Say it like: <b>${esc(ph.hit[3] || ph.hit[2])}</b></p>${act("Open the phrasebook", "go:#tools/translate")}`;
+    return `<p>“${esc(ph.want)}” isn’t in the ${esc(ph.pb.name)} phrasebook, but the translator can do it (with signal).</p>${act("Open the translator", "go:#tools/translate")}`;
+  }
+  // per-country guide: visas, laws, safety and scams, money tips, when to go, embassies
+  const cc = asstCountry(t), g = asstGuide(cc), cn = (D.countries[cc] || {}).name || "Thailand";
+  const guideBits = (key, title) => g && g[key] ? `<p><b>${esc(title)} (${esc(cn)})</b></p><ul class="known">${(Array.isArray(g[key]) ? g[key] : [g[key]]).slice(0, 5).map(x => `<li>${Array.isArray(x) ? esc(x.join(": ")) : x}</li>`).join("")}</ul>` : "";
+  if (has(/ (emergency|ambulance|police|fire|999|911|112) /) || has(/ (hospital|doctor) (number|phone)/)) return `<p><b>Emergency numbers in ${esc(cn)}</b></p><ul class="known">${asstSos(cc)}</ul>${act("Open Emergency", "go:#tools/emergency")}`;
+  if (g && has(/ (visa|entry|passport|arrival card|immigration|how long can i stay|overstay) /)) return guideBits("entry", "Entry and visas") + `<p class="note">From gov.uk; check again before you go.</p>${act("Open the guide", "go:#tools/guide")}`;
+  if (g && has(/ (law|laws|illegal|legal|allowed|banned|vape|vaping|drugs|weed|cannabis|fine|fines) /)) return guideBits("laws", "Laws that catch travellers out") + act("Open the guide", "go:#tools/guide");
+  if (g && has(/ (safe|safety|scam|scams|danger|dangerous|crime|rip off|ripped off) /)) return guideBits("safety", "Staying safe") + act("Open the guide", "go:#tools/guide");
+  if (g && has(/ (when to go|best time|season|rainy|dry season|monsoon) /)) return guideBits("when", "When to go") + act("Open Weather", "go:#tools/weather");
+  if (g && has(/ (embassy|consulate|lost passport|stolen passport) /)) return guideBits("embassies", "The British embassy") + act("Open Emergency", "go:#tools/emergency");
+  if (g && has(/ (money|cash|atm fee|card|cards|tip|tipping) /) && !has(/ (budget|how much) /)) return guideBits("money", "Money") + act("Open the converter", "go:#tools/currency");
+  if (has(/ (time difference|what time|timezone|time zone|hours ahead) /)) return `<p>${esc(cn)} is <b>${esc(ASST_TZ[cc] || "ahead of the UK")}</b>.</p>`;
+  if (has(/ (grab|bolt|gojek|uber|taxi app|ride app|get a taxi|get a ride|tuk tuk|tuktuk) /)) return `<p><b>Getting a ride in ${esc(cn)}</b></p><p>${esc(D.rides[cc] || D.rides.TH)}</p>${act("What should a ride cost?", "ask:how much is a taxi")}`;
+  // the app's own tools
+  if (has(/ (lost|cant find|can't find|where are you|help me find) /) && has(/ (i m|im|i am|we re|were|lost) /)) return `<p>Use <b>I’m lost</b> in Friends: one tap pops up an alert on all your mates’ phones with where you are, a button to call you, and your group call link.</p>${act("Open Friends", "go:#tools/friends")}`;
+  if (has(/ (where are my friends|my friends|my mates|where is (sam|ben|tom|everyone)) /)) return `<p>Your friends who share their location show on the map.</p>${act("Show friends on the map", "friends:")}`;
+  if (has(/ (who owes|owe|owes|split|tally|iou) /)) return `<p>${esc(typeof splitSummary === "function" ? splitSummary() : "")}</p>${act("Open Split costs", "go:#tools/split")}`;
+  if (has(/ (my saved|saved places|bookmarks|favourites|favorites) /)){ const n = Object.keys(S.saved || {}).length; return `<p>You’ve saved <b>${n}</b> place${n === 1 ? "" : "s"}.</p>${act("See them", "go:#saved")}`; }
+  if (has(/ (offline|no signal|no data|download|save for offline) /)) return `<p>Save a city in Offline & backup: its places, map, guide, phrasebook and saved photos then work with no signal.</p>${act("Open Offline & backup", "go:#tools/offline")}`;
+  if (has(/ (passport copy|my passport|documents|my tickets|insurance|booking) /)) return `<p>Your documents (passport, tickets, insurance) are kept on this phone in Documents, and open with no signal.</p>${act("Open Documents", "go:#tools/docs")}`;
+  if (has(/ (surf|waves|swell|surfing) /)) return `<p>Surf spots and today’s wave forecast are in Activities › Surf.</p>${act("Show surf spots", "surf:")}`;
+  if (has(/ (drink|drinks|drinking|beer|beers|bar|bars|pub|pubs|club|clubs|clubbing|booze|boozer|cocktail|cocktails|party|nightlife|bottle shop|liquor) /)){
+    const pt = focusPt();
+    if (!pt.none){
+      const boo = doChip("boozer"), res = await Places.near("do", pt, {maxKm:3, want:8, test:p => boo.f(p)});
+      const cur = D.places.filter(p => p.c === "cool" && dist(pt, p) <= 3 && boo.f(p));
+      const items = sortItems(cur.concat(res.items), "near", pt).slice(0, 6);
+      if (items.length) return `<p><b>Bars, clubs and bottle shops</b> near ${esc(S.focus ? S.focus.n : "you")}:</p><div class="mini">${items.map(p => `<button type="button" data-open="${esc(p.id)}"><span>${esc(p.n || kindLabel(p))}</span><small>${esc(kindLabel(p))} · ${distShort(dist(pt, p))}</small></button>`).join("")}</div>${cc === "TH" ? `<p class="note">In Thailand, shops sell alcohol only 11am–2pm and 5pm–midnight.</p>` : ""}${act("Show the Boozer map", "boozer:")}`;
+    }
+    return `<p>The Boozer section shows bars, pubs, clubs and bottle shops.</p>${act("Show the Boozer map", "boozer:")}`;
+  }
+  // a destination: "tell me about Hoi An", "what's Pai like"
+  if (dest && has(/ (tell me about|what s|what is|whats|about|like|worth|info|information) /) && typeof DEST_NOTE !== "undefined" && DEST_NOTE[dest]){
+    return `<p><b>${esc(dest)}</b>: ${esc(DEST_NOTE[dest])}</p>${act(`Stays in ${dest}`, `list:gaffs:${dest}`)}${act(`Food in ${dest}`, `list:munch:${dest}`)}${act(`Things to do in ${dest}`, `list:activities:${dest}`)}${act(`Get to ${dest}`, `plan:here>${dest}`)}`;
+  }
+  // nearby anything the map search understands ("nearest toilet", "cheap noodles near me", "open now")
+  const a = typeof parseAsk === "function" ? parseAsk(text) : null;
+  if (a && (a.kind === "ess" || a.kind === "move" || has(/ (near|nearby|nearest|closest|around here|open now|close by|walking distance) /))){
+    const r = await answerAsk(text).catch(() => null);
+    if (r && r.items.length) return `<p><b>${esc(askTitle(r.a))}</b>${r.ref.here ? ", nearest to you" : ` around ${esc(focusLabel())}`}:</p><div class="mini">${r.items.slice(0, 6).map(({p, km}) => `<button type="button" data-open="${esc(p.id)}"><span>${esc(p.n || kindLabel(p))}</span><small>${esc(kindLabel(p))} · ${distShort(km)}</small></button>`).join("")}</div>${act("Show on the map", "maptext:" + text)}`;
+  }
+  // costs, times and distances, feeling rough (the same answers as the map search)
+  const mi = typeof moreIntent === "function" ? moreIntent(text) : null;
+  if (mi) return `<p>${esc(mi.title || "Here’s what I worked out")}</p>${act("Show the answer", "more:" + text)}`;
+  return null;
+}
 async function assistantAnswer(text){
   const t = " " + foldText(text) + " ", has = re => re.test(t);
   const ds = destsIn(text), dest = ds[0] || (S.focus ? S.focus.n : nearestDest(focusPt(), 40)), inDest = p => p.city === dest;
@@ -534,12 +638,14 @@ async function assistantAnswer(text){
       return `<p><b>${esc(nodeLabel(fromN).replace(" (you’re here)", ""))} to ${esc(toN.n)}</b>, ${trips.length} way${trips.length === 1 ? "" : "s"} from the saved network:</p><ul class="known">${trips.map(tr => `<li>${tr.fastest ? "<b>Fastest:</b> " : tr.cheapest ? "<b>Cheapest:</b> " : ""}${[...new Set(tr.legs.map(L => L.o.mode.toLowerCase()))].join(" + ")}, ${fRange(tr.dmin, tr.dmax)}${tr.unpriced === tr.legs.length ? ", price to check live" : `, from ${tripFrom(tr)} (£${fmtNum(tr.pmin)})`}</li>`).join("")}</ul><p class="note">Times and prices are a saved baseline. Confirm before you pay.</p>${act("See the full journeys", `plan:${fromN.id || fromN.n}>${toN.id || toN.n}`)}`;
     }
   }
+  const extra = await asstMore(text, t, has, act, dest); if (extra) return extra;
   // essentials
   for (const [re, id] of [[/ (laundry|laundrette|wash my clothes|washing) /, "laundry"], [/ (atm|cash machine|cashpoint) /, "atm"], [/ (pharmacy|chemist) /, "pharmacy"], [/ (wifi|wi fi|internet) /, "wifi"],
     [/ (sim|data plan) /, "sim"], [/ (water|refill) /, "water"], [/ (supermarket|7 eleven|seven eleven|minimart) /, "shop"], [/ (toilet|loo) /, "toilet"]]){
     if (has(re)){ const e = ESS_BY_ID[id]; return `<p>I can show <b>${esc(e.l.toLowerCase())}</b> around ${esc(where)} on the map.</p>${act(`Show ${e.l} on the map`, `ess:${id}`)}`; }
   }
-  if (has(/ (hospital|doctor|police|emergency|ambulance|embassy) /)) return `<p>In an emergency: <b>Police 191</b>, <b>Tourist Police 1155</b> (English), <b>Ambulance 1669</b>.</p>${act("Open Emergency", "go:#tools/emergency")}`;
+  if (has(/ (hospital|doctor|police|emergency|ambulance|embassy) /)) return `<p><b>Emergency numbers</b></p><ul class="known">${asstSos(S.country)}</ul>${act("Open Emergency", "go:#tools/emergency")}`;
+  if (has(/ (visa|entry|passport|arrival card|tdac|immigration) /) && asstCountry(t) !== "TH") return `<p>The guide for ${esc(D.countries[asstCountry(t)].name)} has the entry rules from gov.uk.</p>${act("Open the guide", "go:#tools/guide")}`;
   if (has(/ (visa|entry|passport|arrival card|tdac|immigration) /)) return `<p>For British passports: visa-free for tourism for up to <b>30 days</b>, passport valid 6 months, and the free <b>digital arrival card (TDAC)</b> filled in online within the 3 days before you arrive. Checked ${GUIDE_CHECKED} on gov.uk; check again before you fly.</p>${act("Open the Thailand guide", "go:#tools/guide")}`;
   if (has(/ (weather|rain|hot|forecast|monsoon) /)) return `<p>The Weather tool has the forecast for ${esc(where)}.</p>${act("Open Weather", "go:#tools/weather")}`;
   // budget
@@ -579,15 +685,15 @@ async function assistantAnswer(text){
     if (!pick.length) return `<p>I don’t have researched things to do in ${esc(where)}${wantCheap ? " with a checked low price" : ""}, but the map data may.</p>${act(`See activities in ${where}`, `list:activities:${dest || ""}`)}`;
     return `<p><b>${wantCheap ? "Free and cheap things" : "Things"} to do in ${esc(where)}</b>, from ${cur.length} researched ideas. Tap one to read more, and use its bookmark to save it:</p><div class="mini">${pick.map(miniBtn).join("")}</div>${act(`See everything in ${where}`, `list:activities:${dest || ""}`)}`;
   }
-  return `<p>I can answer from this app’s own data. Try asking:</p><ul class="known"><li>Where should I stay in Chiang Mai?</li><li>What are affordable things to do in Bangkok?</li><li>How can I travel from Bangkok to Krabi?</li><li>What restaurants are nearby?</li><li>How much should I budget?</li><li>Where can I do laundry?</li></ul>`;
+  return `<p>I can answer from this app’s own data. Try asking:</p><ul class="known"><li>Where should I stay in Hoi An?</li><li>How do I get from Bangkok to Luang Prabang?</li><li>How much is 500,000 dong in pounds?</li><li>How do I say thank you in Vietnamese?</li><li>Do I need a visa for Laos?</li><li>Is vaping legal in Singapore?</li><li>Emergency numbers</li><li>Where can I get a drink near here?</li><li>Nearest toilet</li><li>How much should a taxi cost?</li><li>I’ve got a hangover</li><li>Tell me about Kampot</li><li>Who owes who?</li><li>Things to do in Ubud</li></ul>`;
 }
 TOOL_PAGES.assistant = root => {
-  const chips = ["Where should I stay in Chiang Mai?", "Affordable things to do in Bangkok", "How can I travel from Bangkok to Krabi?", "What restaurants are nearby?", "How much should I budget?", "Which places should I save?"];
+  const chips = ["Where should I stay in Chiang Mai?", "How do I get from Bangkok to Hanoi?", "How much is 1000 baht in pounds?", "How do I say thank you?", "Where can I get a drink near here?", "Nearest toilet", "Is it safe here?", "Do I need a visa for Vietnam?", "Emergency numbers", "I’ve got a hangover"];
   root.innerHTML = toolHero("Trip assistant", "Quick answers from this app’s own data") + `<div class="page">
     <div class="callout">${icon("info")}<div><b>This is not a live AI chatbot.</b> It works out answers on your phone from the app’s researched places, journey planner and map data, so it works offline and never makes up a business or a price.</div></div>
     <div class="chat" id="chat" aria-live="polite">${asst.log.map(m => `<div class="msg ${m.who}">${m.html}</div>`).join("")}</div>
     ${asst.log.length ? "" : `<div class="row" id="asstChips">${chips.map((c, i) => `<button class="chip" type="button" data-q="${i}" style="height:auto;min-height:34px;white-space:normal;text-align:left;padding:6px 10px">${esc(c)}</button>`).join("")}</div>`}
-    <form class="ask" id="askForm"><input type="text" id="askIn" autocomplete="off" enterkeyhint="send" placeholder="Ask about stays, food, journeys…" aria-label="Your question"><button class="btn primary" type="submit" aria-label="Ask">${icon("send","i s")}</button></form></div>`;
+    <form class="ask" id="askForm"><input type="text" id="askIn" autocomplete="off" enterkeyhint="send" placeholder="Ask about stays, food, journeys, money, visas…" aria-label="Your question"><button class="btn primary" type="submit" aria-label="Ask">${icon("send","i s")}</button></form></div>`;
   const ask = async text => {
     text = text.trim(); if (!text) return;
     asst.log.push({who:"me", html:esc(text)}); renderPage();
@@ -602,7 +708,12 @@ TOOL_PAGES.assistant = root => {
     if (kind === "go") go(a + (c ? ":" + c : ""));
     else if (kind === "ess") showEssentialOnMap(a);
     else if (kind === "list"){ if (c){ const d = D.cities.find(x => x[0] === c); if (d) setFocus({n:d[0], lat:d[1], lng:d[2]}); } go("#" + a); }
-    else if (kind === "plan"){ const [f, t] = b.dataset.act.slice(5).split(">"); const node = x => HUB[x] ? hubNode(x) : destNode(x); ui.tp.from = f === "bkk" && !ui.tp.from ? null : node(f); ui.tp.to = node(t); ui.tp.sel = 0; go("#tools/transport"); }
+    else if (kind === "plan"){ const [f, t] = b.dataset.act.slice(5).split(">"); const node = x => HUB[x] ? hubNode(x) : destNode(x); ui.tp.from = f === "here" || (f === "bkk" && !ui.tp.from) ? null : node(f); ui.tp.to = node(t); ui.tp.sel = 0; ui.tp.go = !!ui.tp.to; go("#tools/transport"); }
+    else if (kind === "friends") openFriendsMap();
+    else if (kind === "surf") openSurfMap();
+    else if (kind === "boozer"){ ui.mapCats = new Set(["cool"]); ui.doKinds = new Set(["boozer"]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); }
+    else if (kind === "maptext" || kind === "more"){ const q = b.dataset.act.slice(kind.length + 1); if (kind === "more") showMore(q, moreIntent(q)); else showAnswer(q); }
+    else if (kind === "ask") ask(b.dataset.act.slice(4));
   });
 };
 

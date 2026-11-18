@@ -810,3 +810,48 @@ button.sf-c:disabled{cursor:default;opacity:1}
 @keyframes benOut{to{transform:translateY(100%)}}
 @keyframes benWave{to{background-position:-1792px 0}}
 @media (prefers-reduced-motion:reduce){.funny-ben{animation:benWave 1.07s steps(16) 2}}
+/* friend photo cropper */
+#cropRoot .cfm-wrap{z-index:2700}
+.crop{text-align:center;max-width:320px}
+.crop-box{position:relative;overflow:hidden;margin:6px auto 0;border-radius:14px;touch-action:none;cursor:grab;background:#111}
+.crop-box img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none}
+.crop-ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.5);outline:2px solid rgba(255,255,255,.85);pointer-events:none}
+.crop .row{justify-content:center;margin-top:12px}
+/* I am lost */
+.sos-block h2{display:flex;align-items:center;gap:6px}
+.sos-pop .sos-acts{display:grid;gap:8px;margin-top:12px}
+.sos-pop .sos-acts .btn{justify-content:center}
+.sosRoot .cfm-wrap{z-index:2650}
+/* split: the developer takes someone out of a live group */
+.sp-mem{position:relative}
+.sp-mem .sp-memx{position:absolute;top:-4px;right:-6px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:var(--ink);padding:0}
+/* funny mode: Tom pops up (Munch, Nightlife) */
+.funny-pop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2800;width:min(320px,86vw);text-align:center;background:rgba(10,10,12,.92);color:#fff;border-radius:18px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:funnyIn .3s ease-out;transition:opacity .35s}
+.funny-pop img{width:100%;max-height:52vh;object-fit:contain;border-radius:12px;display:block}
+.funny-pop p{margin:10px 4px 2px;font-weight:700;font-size:calc(16px * var(--ts,1));line-height:1.3}
+.funny-pop.out{opacity:0}
+@keyframes funnyIn{from{transform:translate(-50%,-50%) scale(.6);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+/* developer: usage per friend */
+.stat-tab{display:grid;gap:10px;margin-top:8px}
+.stat-row{border-top:1px solid var(--line);padding-top:8px}
+.stat-row .who{display:flex;align-items:center;gap:8px}
+.stat-g{display:flex;flex-wrap:wrap;gap:6px 12px;margin:4px 0;font-size:calc(13px * var(--ts,1))}
+/* transport: compact journey cards, the leg-by-leg sheet and its map */
+.trip.compact .lchain{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:10px}
+.lchip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;border:1.5px solid var(--lc);font-size:calc(12px * var(--ts,1));color:var(--ink)}
+.lchip .i{color:var(--lc)}
+.larr{color:var(--muted)}
+.trip-more{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--link);font-weight:600;font-size:calc(13px * var(--ts,1))}
+.trip.open{border:0;padding:0;background:none;cursor:default}
+.legmap{height:260px;border-radius:var(--r-l);overflow:hidden;margin:10px 0 4px;border:1px solid var(--line)}
+.leg .li.legn{position:relative;background:var(--raised);color:var(--lc);box-shadow:inset 0 0 0 2px var(--lc)}
+.leg .li.legn i{position:absolute;top:-6px;left:-6px;min-width:16px;height:16px;border-radius:8px;background:var(--lc);color:#111;font:700 10px/16px var(--font);font-style:normal;text-align:center}
+.leg-ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--bg);color:var(--lc);box-shadow:0 0 0 2px var(--lc)}
+.leg-stop{display:flex;align-items:center;gap:4px;pointer-events:none}
+.leg-stop b{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:11px;box-shadow:0 0 0 2px var(--bg)}
+.leg-stop.first b{background:var(--food)}.leg-stop.last b{background:var(--accent);color:var(--on-accent)}
+.leg-stop span{font-size:11px;font-weight:600;color:var(--ink);text-shadow:0 0 3px var(--halo),0 0 3px var(--halo);white-space:nowrap}
+.tp-busy{display:flex;align-items:center;gap:10px;justify-content:center}
+/* a typical photo of the kind of place (not the place itself) says so */
+.typ{position:absolute;left:8px;top:8px;z-index:2;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;pointer-events:none}
+.photo.has-img{position:relative}

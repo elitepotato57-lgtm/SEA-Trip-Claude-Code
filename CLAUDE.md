@@ -40,19 +40,34 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (each finished game against someone counts once per phone; the loser's forfeit is kept on the phone). Turn games are written only by
   the player whose turn it is; Play again writes the new game and its number together (PATCH) so nothing is counted twice.
   Each game shows its rules the first time (`gm-seen`), and from the ? button.
-- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). On start `media/tommy.mp4`
+- Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozer**: bars,
+  pubs, clubs and bottle shops (kind `liquor`, added to built folders by `node tools/osm/add-booze.js`; extract.py keeps them now).
+- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch pops up `img/tom-fried.jpg`,
+  Nightlife `img/tom-aid-ping.png`. On start `media/tommy.mp4`
   plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
   (`funnyMapTap`, called from the map's click handler; GEO's China, which stops at 30°N, plus a coarse Natural Earth outline north of that) plays
   `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
   `media/ben-wave.mp4` by `python3 tools/ben-sprite.py` (flood-fills the black from the edges, so his navy jumper stays), animated with CSS `steps()`.
 - `js/split.js`: Tools › Split costs: "On this phone" (`S.split`, shared by link) or a live group with friends (bottom of
   `js/friends.js`: `groups/{gid}` in Firebase, members only; last copy kept on the phone for no signal). The page works from a "model".
-- Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`): no lookup on the phone.
-  Re-run it after rebuilding any `places/` folder. Place field `ph` is a phone number; a stored photo is `pic`.
+  The tally shows first; the payment form opens from **Add a payment**. Only the developer phone (`admins/`) can delete a live group or
+  take someone out of it (members can still add people); the rules enforce it.
+- Friends also has **I'm lost** (`frSosSend`): an alert on every friend's phone (`sos/{to}/{from}`, popup on any screen) with your spot,
+  a Call button (your number in `phones/{uid}`, readable only by the friends in `pallow/{uid}`) and your WhatsApp/FaceTime group call link.
+  A web app can't ring several phones at once. Photos of friends are cropped by hand first (`frCropPhoto`).
+- Tools › Developer also shares the developer phone's Google key with friends they switch on (`gkey`, `gkeyok/{uid}`, `gkeyask/{uid}`;
+  `googleKey()` falls back to it) and shows what's used by whom (`stats/{uid}`, counts only: Google photos/lookups/camera, pages opened).
+- Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`, then `node tools/photo-geo.js`,
+  which adds places OpenStreetMap doesn't link but whose Wikidata item has the same name at the same spot): no lookup on the phone.
+  Re-run both after rebuilding any `places/` folder. A place with no photo of its own shows a **typical** photo of its kind
+  (`img/kind/`, `KIND_PHOTO` in `js/detail.js`, checked by eye, credited, never temples), always labelled "Typical …". Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
-- `js/transport.js`: journey planner over `D.net` (Thailand, plus Bali, Lombok, the Gilis and southern Sumatra via Jakarta). Its map
+- `js/transport.js`: journey planner over `D.net` (Thailand, Cambodia, Vietnam, Laos, Singapore, plus Bali, Lombok, the Gilis and southern
+  Sumatra via Jakarta; the newer countries come from `node tools/transport-asia.js`, re-runnable, sources per link). Nothing is worked
+  out until **Search** is pressed; a journey opens in a sheet with every leg and a map (each leg its own colour, numbered stops, mode icons);
+  flight legs link to Google Flights on the chosen date. When a country is added to the map, research its transport too. Its map
   names the `D.cities` that aren't stops (`city-name` layer) and the stops from zoom 4.6.
   Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
@@ -72,7 +87,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
 - `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
-  cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet).
+  cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet), `check-new.js` (Map button, Boozer, typical photos, journey sheet).
 
 ## Rules
 
