@@ -71,13 +71,14 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     }
   }
 
-  // a card whose photo won't load (a broken link remembered on the phone) moves on to the typical photo, not the drawing
+  // a card whose photo won't load (a broken link remembered on the phone) tries the free photo, then keeps the drawing: never a typical photo
   await page.goto(BASE + "#gaffs"); await page.waitForTimeout(2500);
   const brokeId = await page.evaluate(() => { const sl = document.querySelector('#pageview [data-ph^="g-"]'); cph[sl.dataset.ph] = {src:"https://lh3.googleusercontent.com/broken-photo-for-test", at:Date.now(), g:true, gTried:true}; lsSet("card-photos-v3", cph); return sl.dataset.ph; });
   await page.reload(); await page.waitForTimeout(3000);
   await page.evaluate(id => document.querySelector(`#pageview [data-ph="${id}"]`).scrollIntoView(), brokeId); await page.waitForTimeout(3000);
   const broke = await page.evaluate(id => { const sl = document.querySelector(`#pageview [data-ph="${id}"]`), im = sl && sl.querySelector("img"); return {src:im ? im.getAttribute("src") : null, typ:!!(sl && sl.querySelector(".typ"))}; }, brokeId);
-  ok(broke.src && /^img\/kind\//.test(broke.src) && broke.typ, "a card photo that won't load falls back to a typical photo, labelled as one " + JSON.stringify(broke));
+  ok(!broke.src && !broke.typ, "a card photo that won't load leaves the drawing, never a typical photo " + JSON.stringify(broke));
+  ok(await page.evaluate(() => ![...document.querySelectorAll("#pageview .card img")].some(i => /img\/kind\//.test(i.getAttribute("src") || "")) && !document.querySelector("#pageview .card .typ")), "no typical photos on any card: a real photo or the drawing");
   await page.goto(BASE + "#munch"); await page.waitForTimeout(2000);
   await page.click(".card[data-open]");
   await page.waitForTimeout(1000);
