@@ -591,8 +591,7 @@ const CHIPS = {
   ],
   cool: [
     {id:"all", l:"All"},
-    {id:"boozer", l:"Boozer", ic:"beer", kinds:["bar","club","liquor"], f:it => it.osm ? ["bar","club","liquor"].includes(it.k) : hasT(it, "Nightlife") || /(bar|pub|club|beer|cocktail|speakeasy|brewery|rooftop)/.test(ptext(it)),
-      note:"Bars, pubs, beer gardens, clubs, speakeasies and bottle shops: everywhere that sells a drink. In Thailand, shops can only sell alcohol 11am to 2pm and 5pm to midnight."},
+    {id:"boozer", l:"Boozas", ic:"beer", kinds:["bar","club","liquor"], f:it => it.osm ? ["bar","club","liquor"].includes(it.k) : hasT(it, "Nightlife") || /(bar|pub|club|beer|cocktail|speakeasy|brewery|rooftop)/.test(ptext(it))},
     {id:"beaches", l:"Beaches", ic:"waves", kinds:["beach"], f:it => it.k === "beach" || hasT(it, "Beaches")},
     {id:"temples", l:"Temples", ic:"temple", kinds:["temple","worship"], f:it => it.osm ? it.k === "temple" || it.k === "worship" : hasT(it, "Temples")},
     {id:"markets", l:"Markets", ic:"cart", f:it => it.k === "market" || hasT(it, "Markets")},

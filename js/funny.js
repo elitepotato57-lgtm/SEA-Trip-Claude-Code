@@ -87,18 +87,33 @@ function funnyBen(){
   setTimeout(() => el.remove(), 3100);
 }
 /* ---------- a picture and a line that pop up for a moment (tap to close sooner) ---------- */
-function funnyPop(src, text, ms = 2200){
+function funnyPop(src, text, ms = 2200, alarm = false){
   if (!funnyOn() || typeof document === "undefined" || !document.body) return;
   const old = $("#funnyPop"); if (old) old.remove();
   const el = document.createElement("div");
   el.id = "funnyPop"; el.className = "funny-pop"; el.setAttribute("role", "status");
-  el.innerHTML = `<img src="${src}" alt=""><p>${esc(text)}</p>`;
+  if (alarm) el.classList.add("alarm");
+  el.innerHTML = `<img src="${src}" alt=""><p>${esc(text)}</p>${alarm ? [1, 2, 3, 4, 5, 6].map(i => `<span class="fp-bang b${i}" aria-hidden="true">!</span>`).join("") : ""}`;
+  if (alarm) funnyAlarm();
   document.body.appendChild(el);
   const bye = () => { el.classList.add("out"); setTimeout(() => el.remove(), 400); };
   el.onclick = bye; setTimeout(bye, ms);
 }
+// a very short alarm (about half a second, two-tone), made on the phone: no sound file to download
+function funnyAlarm(){
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ctx = funnyAlarm.ctx || (funnyAlarm.ctx = new AC()); if (ctx.state === "suspended") ctx.resume();
+    const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "square"; o.connect(g); g.connect(ctx.destination);
+    [0, .12, .24, .36].forEach((d, i) => o.frequency.setValueAtTime(i % 2 ? 660 : 990, t + d));
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.18, t + .02);
+    g.gain.setValueAtTime(.18, t + .44); g.gain.exponentialRampToValueAtTime(.0001, t + .5);
+    o.start(t); o.stop(t + .52);
+  } catch(e){}
+}
 const funnyMunchies = () => funnyPop(FUNNY_MUNCH, "Uh-oh, Tommy’s got the munchies again, hasn’t he?", 2200);
-const funnyNightlife = () => funnyPop(FUNNY_NIGHT, "Watch out for drug dealers. Cretins such as these two have been known for spiking your drinks and tag teaming arseholes.", 4200);
+const funnyNightlife = () => funnyPop(FUNNY_NIGHT, "Watch out for drug dealers. Cretins such as these two have been known for spiking your drinks and tag teaming bumholes.", 4200, true);
 function funnyOnRoute(){
   const r = parseHash(), key = r.view + "/" + r.sub;
   if (r.view === "munch" && !/^munch/.test(funnyRoute)) funnyMunchies();

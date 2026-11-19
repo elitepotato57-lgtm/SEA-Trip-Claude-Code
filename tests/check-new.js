@@ -21,7 +21,7 @@ let bad = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if
   // Activities: the section row, with Boozer
   await page.evaluate(() => { ui.mapCats = new Set(["cool"]); ui.essKinds.clear(); renderMapUI(); }); await page.waitForTimeout(400);
   const row = await page.evaluate(() => { const r = document.querySelector("#mapDo"); return r && !r.hidden ? [...r.querySelectorAll("[data-dok]")].map(b => b.textContent.trim()) : null; });
-  ok(row && row.includes("Boozer") && row.includes("Beaches"), "Activities shows its sections like Essentials: " + JSON.stringify(row));
+  ok(row && row.includes("Boozas") && row.includes("Beaches"), "Activities shows its sections (Boozas included) like Essentials: " + JSON.stringify(row));
   await page.evaluate(() => { map.jumpTo({center:[100.4975, 13.7590], zoom:15.5}); }); await page.waitForTimeout(500);
   await page.click('#mapDo [data-dok="boozer"]'); await page.waitForTimeout(3500);
   const boo = await page.evaluate(() => ({n:mapRun.items.length, kinds:[...new Set(mapRun.items.map(p => p.k))]}));
