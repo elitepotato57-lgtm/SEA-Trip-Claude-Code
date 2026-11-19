@@ -809,6 +809,17 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
     ok(/^[zj][A-Za-z0-9_-]+$/.test(code), "link-safe: " + code.slice(0, 20));
     eq(back, {people:["A", "B"], items:[{id:"x1", w:"Bus", a:7.5, c:"GBP", by:"A", to:["A", "B"], t:5}], del:["old"]});
   });
+  // photos: when a picture won't load (a Google one, then a Wikimedia one), the card moves on, ending with the typical photo
+  {
+    const hide = A.findPlace("g-bkk-hide");
+    const afterGoogle = await A.photoAfterFail(hide, "https://lh3.googleusercontent.com/places/x=s640");
+    const afterWiki = await A.photoAfterFail(hide, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/X.jpg/400px-X.jpg");
+    const afterTypical = await A.photoAfterFail(hide, "img/kind/hostel.jpg");
+    test("photos: a picture that won't load falls back to the next one, ending with the typical photo of its kind", () => {
+      eq(afterGoogle, "img/kind/hostel.jpg", "no signal in tests, so the free photo isn't found and the typical one is next");
+      eq(afterWiki, "img/kind/hostel.jpg"); eq(afterTypical, null, "nothing after the typical photo: the drawing stays");
+    });
+  }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");
@@ -873,6 +884,15 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
       eq(claim3, "ok", "the stranger's phone claimed first in this test"); eq(claim1, "permission");
       eq(set3, "ok"); eq(set1, "permission", "a non-developer can't set photos");
       eq(fb.root.photos[me2.uid], jpeg);
+    });
+    // the developer makes Sam a developer: Sam's phone shows Tools › Developer by itself, and hides it again when taken off
+    const devBefore = P2.S.dev === true;
+    await P3.frDb("PUT", `admins/${me2.uid}`, true); await P2.frDevSync();
+    const devOn = [P2.S.dev, P2.toolsInOrder().slice(-1)[0].id];
+    P2.S.dev = false; await P2.frDevSync(); const staysOff = P2.S.dev;        // Sam hides it with ELITE POTATO: it stays hidden
+    await P3.frDb("DELETE", `admins/${me2.uid}`); await P2.frDevSync();
+    test("developers: a phone made a developer gets Tools › Developer without typing anything, and loses it when taken off", () => {
+      eq(devBefore, false); eq(devOn, [true, "developer"]); eq(staysOff, false); eq([P2.S.dev, P2.S.devGranted], [false, false]);
     });
     const big = await P3.frSetPhoto(me1.uid, "data:image/jpeg;base64," + "A".repeat(50000)).then(() => "ok", e => e.message);
     const ph1 = await P1.frLoadPhotos(true);

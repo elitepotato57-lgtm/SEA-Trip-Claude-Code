@@ -29,6 +29,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   polling fallback).
   Sharing uses its own GPS watch (`frHere`), never the pretend test location. Developer phone (7 taps on Settings › About the data,
   then claim; `admins/`) is the only one that can set friends' photos (`photos/`, small JPEGs).
+  A phone a developer switches on in Tools › Developer (`admins/{uid}`) gets the Developer tool by itself (`frDevSync` in `frPoll`;
+  `S.devGranted` makes it flip once each way, so ELITE POTATO still hides it).
   Typing ELITE POTATO in the map search sets `S.dev`: Tools › Developer (last tool) has the Design Lab switch, stickers (add, rename,
   delete), who is a developer, and everyone's photos. The Design Lab is only ever shown on developer phones. Anyone can give a friend
   their own name and photo with the pencil (kept on the phone, `S.friends.list[uid].pic`).
@@ -60,7 +62,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`, then `node tools/photo-geo.js`,
   which adds places OpenStreetMap doesn't link but whose Wikidata item has the same name at the same spot): no lookup on the phone.
   Re-run both after rebuilding any `places/` folder. A place with no photo of its own shows a **typical** photo of its kind
-  (`img/kind/`, `KIND_PHOTO` in `js/detail.js`, checked by eye, credited, never temples), always labelled "Typical …". Place field `ph` is a phone number; a stored photo is `pic`.
+  (`img/kind/`, `KIND_PHOTO` in `js/detail.js`, checked by eye, credited, never temples), always labelled "Typical …". A card or sheet photo that won't load moves on (Google › free photo › typical photo, `photoAfterFail`); Google gets 8 s per card. Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).

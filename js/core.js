@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.17.1";
+const VERSION = "2.17.2";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -186,7 +186,7 @@ const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 // v: the saved-state version (2 = the test location is off unless someone picked one)
 const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, funny:false};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, funny:false};
 const S_SAVED = loadState();
 let S = Object.assign({}, S_DEFAULTS, S_SAVED);
 // Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.
