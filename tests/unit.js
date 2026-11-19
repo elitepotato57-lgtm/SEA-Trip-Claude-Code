@@ -809,15 +809,16 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
     ok(/^[zj][A-Za-z0-9_-]+$/.test(code), "link-safe: " + code.slice(0, 20));
     eq(back, {people:["A", "B"], items:[{id:"x1", w:"Bus", a:7.5, c:"GBP", by:"A", to:["A", "B"], t:5}], del:["old"]});
   });
-  // photos: when a picture won't load (a Google one, then a Wikimedia one), the card moves on, ending with the typical photo
+  // photos: when a picture won't load (a Google one, then a Wikimedia one), the card moves on, then nothing (no typical photos)
   {
     const hide = A.findPlace("g-bkk-hide");
     const afterGoogle = await A.photoAfterFail(hide, "https://lh3.googleusercontent.com/places/x=s640");
     const afterWiki = await A.photoAfterFail(hide, "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/X.jpg/400px-X.jpg");
     const afterTypical = await A.photoAfterFail(hide, "img/kind/hostel.jpg");
-    test("photos: a picture that won't load falls back to the next one, ending with the typical photo of its kind", () => {
-      eq(afterGoogle, "img/kind/hostel.jpg", "no signal in tests, so the free photo isn't found and the typical one is next");
-      eq(afterWiki, "img/kind/hostel.jpg"); eq(afterTypical, null, "nothing after the typical photo: the drawing stays");
+    test("photos: a real photo or none: no typical photos, and a picture that won't load moves on to the free photo, else nothing", () => {
+      eq([A.kindPhoto(hide), A.kindPhoto({id:"x", n:"Park", k:"park", osm:1})], [null, null]);
+      eq([afterGoogle, afterWiki, afterTypical], [null, null, null], "no signal in tests, so there's no free photo either: the drawing stays");
+      eq(A.G_DAILY.photo, 30, "about £25 a month for six phones");
     });
   }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
@@ -1034,6 +1035,11 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
     test("Google key: the developer shares it with friends they switch on; usage counts reach only developers", () => {
       ok(!!(asks && asks[me2.uid]), "Sam's ask reached the developer"); eq(before, ""); eq(peekKey, 401); eq(after, "test-google-key"); eq(dropped, "");
       eq(sumd[me2.uid].photo, 2); eq(sumd[me2.uid].views.map, 1); eq(peekStats, 401);
+    });
+    test("usage counts can be shown for today, the last 7 days, the last month or all time", () => {
+      const day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+      const st = {u:{n:"Sam", d:{[day(0)]:{photo:1}, [day(3)]:{photo:2}, [day(20)]:{photo:4}, [day(200)]:{photo:8}}}};
+      eq(P3.STAT_PERIODS.map(p => [p[1], P3.statSum(st, p[2]).u.photo]), [["Today", 1], ["Last 7 days", 3], ["Last month", 7], ["All time", 15]]);
     });
     // deleting a live split group: gone for every member
     await P3.liveDeleteGroup(gid);

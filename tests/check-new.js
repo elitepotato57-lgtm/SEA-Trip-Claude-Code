@@ -28,9 +28,9 @@ let bad = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if
   ok(boo.n > 0 && boo.kinds.every(k => ["bar", "club", "liquor"].includes(k) || k === undefined), "Boozer shows only bars, clubs and bottle shops around Khao San: " + JSON.stringify(boo));
   const liquor = await page.evaluate(async () => { const r = await Places.near("do", {lat:13.7563, lng:100.5018}, {maxKm:8, want:40, test:p => p.k === "liquor"}); return r.items.length; });
   ok(liquor > 0, "bottle shops are in the places data: " + liquor + " near central Bangkok");
-  // a toilet gets a typical photo, labelled
+  // a toilet with no photo of its own gets none (typical photos are switched off: a real photo or nothing)
   const typ = await page.evaluate(async () => { const r = await Places.near("ess", {lat:13.7563, lng:100.5018}, {maxKm:5, want:5, test:p => p.k === "toilet"}); const it = r.items[0]; if (!it) return null; const ph = await freePhoto(it); return ph && {src:ph.src, typical:ph.typical, credit:ph.credit}; });
-  ok(typ && /img\/kind\/toilet\.jpg/.test(typ.src) && typ.typical && /not this exact place/.test(typ.credit), "a toilet shows a typical photo, labelled as typical: " + JSON.stringify(typ));
+  ok(!typ || !/img\/kind\//.test(typ.src || ""), "a toilet with no photo of its own shows none, never a typical one: " + JSON.stringify(typ));
   // funny mode: Munch and Nightlife
   await page.evaluate(() => { S.funny = true; persist(); }); await page.evaluate(() => go("#munch")); await page.waitForTimeout(600);
   ok(await page.evaluate(() => /munchies/.test((document.querySelector("#funnyPop") || {}).textContent || "")), "funny mode: Tommy's got the munchies on Munch");

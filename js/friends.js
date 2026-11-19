@@ -1059,7 +1059,7 @@ async function statFlush(){
 }
 // totals per person over the last n days: {uid:{n, photo, details, vision, views:{feature:count}}}
 function statSum(all, n = 7){
-  const from = new Date(Date.now() - (n - 1) * 864e5).toISOString().slice(0, 10), out = {};
+  const from = isFinite(n) ? new Date(Date.now() - (n - 1) * 864e5).toISOString().slice(0, 10) : "", out = {};
   for (const [uid, x] of Object.entries(all || {})){
     const o = out[uid] = {n:x.n || "Someone", photo:0, details:0, vision:0, views:{}};
     for (const [d, c] of Object.entries(x.d || {})) if (d >= from) for (const [k, v] of Object.entries(c || {})){
@@ -1068,6 +1068,9 @@ function statSum(all, n = 7){
   }
   return out;
 }
+// the period the developer page shows: today, the last 7 days, the last month or all time
+const STAT_PERIODS = [["1", "Today", 1], ["7", "Last 7 days", 7], ["30", "Last month", 30], ["all", "All time", Infinity]];
+let statPeriod = "7";
 const STAT_NAMES = {map:"Map", gaffs:"Gaffs", munch:"Munch", activities:"Activities", tools:"Tools", saved:"Saved", discover:"Discover"};
 const statName = k => STAT_NAMES[k] || k.replace(/^tools-/, "").replace(/-/g, " ").replace(/^./, c => c.toUpperCase());
 async function paintDevExtras(){
@@ -1080,8 +1083,9 @@ async function paintDevExtras(){
   if (!$("#fr-dev2")) return;
   asks = asks || {}; oks = oks || {};
   const fl = Object.entries(frState().list), mine = googleKey() && realKey(S.gkey || window.SEA_GOOGLE_KEY || "");
-  const sum = statSum(all, 7), month = statSum(all, 30), rows = Object.entries(sum).sort((a, b) => (b[1].photo + b[1].details + b[1].vision) - (a[1].photo + a[1].details + a[1].vision));
-  const tot = k => Object.values(month).reduce((s, x) => s + x[k], 0);
+  const per = STAT_PERIODS.find(p => p[0] === statPeriod) || STAT_PERIODS[1];
+  const sum = statSum(all, per[2]), rows = Object.entries(sum).sort((a, b) => (b[1].photo + b[1].details + b[1].vision) - (a[1].photo + a[1].details + a[1].vision));
+  const tot = k => Object.values(sum).reduce((s, x) => s + x[k], 0);
   el.innerHTML = `<div class="block"><h2>Google photos for friends</h2>
       <p class="note">Share this phone’s Google key with the friends you switch on, so they get Google photos without adding a key themselves. The key stays in Firebase (never on the website), and each phone still has its own daily limit (${G_DAILY.photo} photos, ${G_DAILY.details} lookups, ${G_DAILY.vision} camera photos).</p>
       <p class="note" style="color:var(--ink)">${keyOn ? "A key is shared." : "No key shared yet."}</p>
@@ -1091,8 +1095,9 @@ async function paintDevExtras(){
       <h3 style="margin-top:12px">Who can use it</h3>
       ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 32)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-gkon="${esc(uid)}" aria-pressed="${oks[uid] === true}" aria-label="${esc(x.n)} can use the Google key"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
     <div class="block"><h2>What’s being used</h2>
-      <p class="note">Last 7 days, from each phone that has Friends on. Google charges for photos, place lookups and camera photos; the rest is free.</p>
-      <p class="note" style="color:var(--ink)">Last 30 days, everyone: <b>${tot("photo")}</b> Google photos, <b>${tot("details")}</b> place lookups, <b>${tot("vision")}</b> camera photos.</p>
+      <p class="note">From each phone that has Friends on. Google charges for photos, place lookups and camera photos; the rest is free.</p>
+      <div class="flags stat-per" role="group" aria-label="Which days to count">${STAT_PERIODS.map(([k, l]) => `<button class="chip" type="button" data-statper="${k}" aria-pressed="${k === per[0]}">${l}</button>`).join("")}</div>
+      <p class="note" style="color:var(--ink)">${per[1]}, everyone: <b>${tot("photo")}</b> Google photos, <b>${tot("details")}</b> place lookups, <b>${tot("vision")}</b> camera photos.</p>
       ${rows.length ? `<div class="stat-tab">${rows.map(([uid, x]) => {
         const top = Object.entries(x.views).sort((a, b) => b[1] - a[1]).slice(0, 5);
         return `<div class="stat-row"><div class="who">${frAvatar(uid, 30)}<b>${esc(uid === frMyId() ? "You" : frState().list[uid] ? frNameOf(uid) : x.n)}</b></div>
@@ -1101,6 +1106,7 @@ async function paintDevExtras(){
       }).join("")}</div>` : `<p class="note">Nothing yet: counts arrive from each phone within a few minutes of using the app.</p>`}</div>`;
   const sh = $("#gk-share"); if (sh) sh.onclick = async () => { if (!(await askConfirm("Share this phone’s Google key with the friends you switch on?", "Share key"))) return; gkShareKey(googleKey()).then(() => { toast("Key shared"); paintDevExtras(); }, frFail); };
   const un = $("#gk-unshare"); if (un) un.onclick = () => frDb("DELETE", "gkey").then(() => { toast("Key no longer shared"); paintDevExtras(); }, frFail);
+  el.querySelectorAll("[data-statper]").forEach(b => b.onclick = () => { statPeriod = b.dataset.statper; paintDevExtras(); });
   el.querySelectorAll("[data-gkok]").forEach(b => b.onclick = () => gkApprove(b.dataset.gkok, true).then(() => { toast("They can use it now"); paintDevExtras(); }, frFail));
   el.querySelectorAll("[data-gkon]").forEach(b => b.onclick = () => { const on = b.getAttribute("aria-pressed") !== "true"; gkApprove(b.dataset.gkon, on).then(() => b.setAttribute("aria-pressed", on), frFail); });
 }

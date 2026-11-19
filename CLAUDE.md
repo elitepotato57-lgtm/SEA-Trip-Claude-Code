@@ -58,11 +58,13 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   a Call button (your number in `phones/{uid}`, readable only by the friends in `pallow/{uid}`) and your WhatsApp/FaceTime group call link.
   A web app can't ring several phones at once. Photos of friends are cropped by hand first (`frCropPhoto`).
 - Tools › Developer also shares the developer phone's Google key with friends they switch on (`gkey`, `gkeyok/{uid}`, `gkeyask/{uid}`;
-  `googleKey()` falls back to it) and shows what's used by whom (`stats/{uid}`, counts only: Google photos/lookups/camera, pages opened).
+  `googleKey()` falls back to it) and shows what's used by whom (`stats/{uid}`, counts only: Google photos/lookups/camera, pages opened), for Today, Last 7 days,
+  Last month or All time (`STAT_PERIODS`; Firebase keeps every day).
 - Photos load from `places/photos.json` (each place's Commons file, built by `node tools/photo-index.js`, then `node tools/photo-geo.js`,
   which adds places OpenStreetMap doesn't link but whose Wikidata item has the same name at the same spot): no lookup on the phone.
-  Re-run both after rebuilding any `places/` folder. A place with no photo of its own shows a **typical** photo of its kind
-  (`img/kind/`, `KIND_PHOTO` in `js/detail.js`, checked by eye, credited, never temples), always labelled "Typical …". A card or sheet photo that won't load moves on (Google › free photo › typical photo, `photoAfterFail`); Google gets 8 s per card. Place field `ph` is a phone number; a stored photo is `pic`.
+  Re-run both after rebuilding any `places/` folder. **A place shows its own photo or none** (Dylan, 19 Nov 2026): the typical
+  photos of each kind (`img/kind/`, `KIND_PHOTO`) are switched off with `SHOW_TYPICAL = false` in `js/detail.js`. A card or sheet photo
+  that won't load moves on (Google › free photo › the drawing, `photoAfterFail`); Google gets 8 s per card. Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
@@ -103,8 +105,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Category colours (`--stay --food --do --ess --move`) must match between chips, pins and map clusters in every look.
 - Google: never add, invent or commit an API key. Dylan adds `config.js` himself on GitHub
   (`window.SEA_GOOGLE_KEY = "…";`). **Never delete or overwrite `config.js`.** Every Google feature must work without a key.
-  Spend cap GBP 2/month: cache results, only fetch for cards on screen, minimal fields, per-phone daily allowance
-  (`G_DAILY`: photo 40, details 25, vision 15).
+  Spend cap about GBP 25/month (Dylan, 19 Nov 2026; about six phones): cache results, only fetch for cards on screen, minimal fields,
+  per-phone daily allowance (`G_DAILY`: photo 30, details 25, vision 15). Google photos are never stored beyond a day or saved offline (Google's terms).
 - Documents stay on the phone (IndexedDB) and are read on the phone. Never send them to a server.
 - **Standing permission from Dylan (given 17 Nov 2026), for while he's travelling with only his phone:** once a change is done,
   merge it straight into `main` and push, so it goes live, **but only if `npm test` passes in full**. Work on a branch first,
