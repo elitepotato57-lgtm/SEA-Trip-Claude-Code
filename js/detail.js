@@ -280,7 +280,7 @@ async function savedPhoto(it){
 /* Card photos load only when the card scrolls into view. Order: Google (only with a key, within today's allowance),
    then a free Wikipedia / Wikimedia Commons photo, otherwise the card keeps its illustration.
    Answers are remembered on the phone (cardPhotoCache) so scrolling back never asks again. */
-const CPH_KEY = "card-photos-v2", CPH_MAX = 800;
+const CPH_KEY = "card-photos-v3", CPH_MAX = 800;
 let cph = lsGet(CPH_KEY, {}) || {};
 const cphSave = debounce(() => {
   const ks = Object.keys(cph);
@@ -300,14 +300,23 @@ async function cardPhoto(it){
   let src = null, g = false, gTried = false;
   if (googlePhotoFor(it) && gAllow("photo")){
     gTried = true;
-    const pl = await googlePlace(it, ["photos"]);
-    if (pl && pl.photos && pl.photos.length){ src = pl.photos[0].getURI({maxWidth: 640}); g = true; gSpend("photo"); }
+    const pl = await Promise.race([googlePlace(it, ["photos"]).catch(() => null), new Promise(r => setTimeout(() => r(null), 8000))]);
+    try { if (pl && pl.photos && pl.photos.length){ src = pl.photos[0].getURI({maxWidth: 640}); g = true; gSpend("photo"); } } catch(e){ src = null; }
   }
   let failed = false;
   if (!src){ const ph = await freePhoto(it); if (ph && ph.src) src = ph.src; else if (ph && ph.err) failed = true; }
   if (!src && !failed){ const kp = kindPhoto(it); if (kp) src = kp.src; }
   if (src || !failed){ cph[it.id] = {src, at:now, g, gTried}; cphSave(); }      // "no photo" is remembered; "couldn't check" isn't
   return src;
+}
+// the next picture to try when one won't load: after Google, the free photo; after that (or a free one), the typical photo
+async function photoAfterFail(it, bad){
+  if (!bad || /^img\/kind\//.test(bad)) return null;
+  if (!/wikimedia\.org|wikipedia\.org/.test(bad) && !/^img\//.test(bad) && !/^data:/.test(bad)){
+    const ph = await Promise.race([freePhoto(it).catch(() => null), new Promise(r => setTimeout(() => r(null), 10000))]);
+    if (ph && ph.src && ph.src !== bad) return ph.src;
+  }
+  const kp = kindPhoto(it); return kp && kp.src !== bad ? kp.src : null;
 }
 const cardWait = {};                                // one lookup per place even when it's on two cards at once
 const cardPhotoOnce = it => cardWait[it.id] || (cardWait[it.id] = cardPhoto(it).finally(() => { delete cardWait[it.id]; }));
@@ -319,11 +328,14 @@ function watchCardPhotos(root){
     slot.dataset.done = "1";
     const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src) slot.dataset.nophoto = "1"; return; }
     const img = new Image(); img.alt = ""; img.decoding = "async";
-    img.onerror = () => {
+    let cur = src, tries = 0;
+    img.onerror = async () => {
       const fb = !img.dataset.fb && thumbFallback(img.src); if (fb){ img.dataset.fb = "1"; img.src = fb; return; }
+      const next = tries++ < 3 ? await photoAfterFail(it, cur) : null;
+      if (next && slot.isConnected){ cur = next; img.dataset.fb = ""; cph[it.id] = {src:next, at:Date.now(), g:false, gTried:true}; cphSave(); img.src = next; return; }
       img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
     };
-    img.onload = () => { slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(src) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
+    img.onload = () => { if (!img.parentNode) slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(cur) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
     img.src = src;
   };
   if (!("IntersectionObserver" in window)){ slots.forEach(fill); return; }
@@ -362,6 +374,8 @@ function photoInto(box, it, ph){
     const im = box.querySelector("img");
     im.onerror = () => {
       const fb = !im.dataset.fb && thumbFallback(im.src); if (fb){ im.dataset.fb = "1"; im.src = fb; return; }
+      const kp = !ph.typical && kindPhoto(it);
+      if (kp && kp.src !== ph.src){ photoInto(box, it, kp); return; }
       box.classList.remove("has-img"); box.innerHTML = photoFallback(it, "none");
     };
     if (ph.google) return;                // a Google picture: its link and credit are already in place

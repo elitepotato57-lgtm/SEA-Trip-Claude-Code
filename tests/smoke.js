@@ -71,6 +71,13 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     }
   }
 
+  // a card whose photo won't load (a broken link remembered on the phone) moves on to the typical photo, not the drawing
+  await page.goto(BASE + "#gaffs"); await page.waitForTimeout(2500);
+  const brokeId = await page.evaluate(() => { const sl = document.querySelector('#pageview [data-ph^="g-"]'); cph[sl.dataset.ph] = {src:"https://lh3.googleusercontent.com/broken-photo-for-test", at:Date.now(), g:true, gTried:true}; lsSet("card-photos-v3", cph); return sl.dataset.ph; });
+  await page.reload(); await page.waitForTimeout(3000);
+  await page.evaluate(id => document.querySelector(`#pageview [data-ph="${id}"]`).scrollIntoView(), brokeId); await page.waitForTimeout(3000);
+  const broke = await page.evaluate(id => { const sl = document.querySelector(`#pageview [data-ph="${id}"]`), im = sl && sl.querySelector("img"); return {src:im ? im.getAttribute("src") : null, typ:!!(sl && sl.querySelector(".typ"))}; }, brokeId);
+  ok(broke.src && /^img\/kind\//.test(broke.src) && broke.typ, "a card photo that won't load falls back to a typical photo, labelled as one " + JSON.stringify(broke));
   await page.goto(BASE + "#munch"); await page.waitForTimeout(2000);
   await page.click(".card[data-open]");
   await page.waitForTimeout(1000);
@@ -470,6 +477,19 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(bClaim === "permission" && await B.pg.evaluate(uid => !!document.querySelector(`[data-frav="${uid}"] img`) || !!frPhotos[uid], uidB), "no other phone can become the developer, and everyone sees the photo " + bClaim);
     // live split inside Friends: Dylan starts a group and adds a taxi; Sam's Friends page shows it straight away, with history
     await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    // Dylan (the developer) switches Sam on as a developer: Sam's phone gets Tools › Developer by itself, no ELITE POTATO
+    await B.pg.evaluate(() => { S.dev = false; S.devGranted = false; persist(); });
+    await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(3000);
+    await A.pg.click(`#fr-dev [data-mkdev="${uidB}"]`); await A.pg.waitForTimeout(400);
+    await A.pg.click('#confirmRoot [data-cfm="1"]'); await A.pg.waitForTimeout(1500);
+    await B.pg.goto(BASE + "#tools"); await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(1500);
+    const bDev = await B.pg.evaluate(() => ({dev:S.dev, tile:!!document.querySelector('#pageview a[href="#tools/developer"]'), toast:(document.querySelector("#toastRoot") || {}).textContent || ""}));
+    ok(fb.root.admins[uidB] === true && bDev.dev === true && bDev.tile && /developer now/.test(bDev.toast), "making Sam a developer works: his phone shows Tools › Developer by itself " + JSON.stringify(bDev));
+    await B.pg.goto(BASE + "#tools/developer"); await B.pg.waitForTimeout(3000);
+    ok(await B.pg.evaluate(() => !!document.querySelector("#fr-dev [data-mkdev], #fr-dev [data-stkname], #fr-dev .fr-stickers")), "and Sam's Developer page has the developer tools, not “Make this phone the developer”");
+    await A.pg.click(`#fr-dev [data-mkdev="${uidB}"]`); await A.pg.waitForTimeout(1500);
+    await B.pg.goto(BASE + "#tools"); await B.pg.evaluate(() => frPoll()); await B.pg.waitForTimeout(1500);
+    ok(await B.pg.evaluate(() => S.dev === false && !document.querySelector('#pageview a[href="#tools/developer"]')), "switching him off again takes the Developer tool away");
     await A.pg.goto(BASE + "#tools/friends-split"); await A.pg.waitForTimeout(1500);
     await B.pg.goto(BASE + "#tools/friends-split"); await B.pg.waitForTimeout(1500);
     await A.pg.click("#fr-split #sp-newg"); await A.pg.waitForTimeout(500);

@@ -258,6 +258,7 @@ async function frPoll(){
     catch(e){ frLocs[uid] = e.status === 401 || e.status === 403 ? {hidden:true} : (frLocs[uid] || {err:true}); }
   }));
   try { const me = frMyId(); if (me) frGotInvites(await frDb("GET", `invites/${me}`)); } catch(e){}
+  frDevSync().catch(() => {});
   frLoadPhotos().catch(() => {});
   try {
     const me = frMyId();
@@ -619,6 +620,22 @@ async function paintDev(){
     if (on && !(await askConfirm(`Make ${frNameOf(uid)} a developer? They’ll be able to add stickers, set photos and choose developers.`, "Make developer"))) return;
     (on ? frDb("PUT", `admins/${uid}`, true) : frDb("DELETE", `admins/${uid}`)).then(() => { b.setAttribute("aria-pressed", on); toast(on ? `${frNameOf(uid)} is a developer` : `${frNameOf(uid)} isn’t a developer any more`); }, frFail);
   });
+}
+/* A developer made this phone a developer (admins/{uid}): Tools › Developer appears by itself, without typing ELITE POTATO.
+   Taken off again: it goes. Only changes developer mode once each way (S.devGranted), so ELITE POTATO still turns it off and on. */
+async function frDevSync(){
+  if (!frCfg() || !frMyId()) return;
+  const v = await frDb("GET", `admins/${frMyId()}`).catch(e => e && e.status ? false : undefined);
+  if (v === undefined) return;                                     // no signal: leave things as they are
+  const admin = v === true; frAdmin = admin;
+  if (admin && !S.devGranted){
+    S.devGranted = true; const was = S.dev === true; S.dev = true; persist();
+    if (!was){ toast("You’re a developer now: Tools › Developer, at the bottom"); if (ui.view === "tools" && !ui.sub) renderPage(); }
+  } else if (!admin && S.devGranted){
+    S.devGranted = false; S.dev = false; persist();
+    if (typeof closeLab === "function") closeLab(); if (typeof renderLabButton === "function") renderLabButton();
+    toast("You’re not a developer any more"); if (ui.view === "tools" && (!ui.sub || ui.sub === "developer")) go("#tools");
+  }
 }
 // developer mode: type ELITE POTATO in the map search (only changes this phone; typing it again turns it off)
 function frDevCode(text){
