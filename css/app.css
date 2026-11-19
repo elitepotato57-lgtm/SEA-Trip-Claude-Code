@@ -856,3 +856,10 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .typ{position:absolute;left:8px;top:8px;z-index:2;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;pointer-events:none}
 .photo.has-img{position:relative}
 .stat-per{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+/* the Nightlife warning: yellow exclamation marks flash round it */
+.funny-pop.alarm{overflow:visible;box-shadow:0 0 0 3px #FFD400,0 12px 40px rgba(0,0,0,.5)}
+.fp-bang{position:absolute;width:34px;height:34px;border-radius:50%;background:#FFD400;color:#141414;font:900 24px/34px var(--font);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.45);animation:fpBang .5s ease-in-out infinite alternate}
+.fp-bang.b1{top:-14px;left:-12px}.fp-bang.b2{top:-18px;left:calc(50% - 17px);animation-delay:.15s}.fp-bang.b3{top:-14px;right:-12px;animation-delay:.3s}
+.fp-bang.b4{bottom:-14px;left:-12px;animation-delay:.3s}.fp-bang.b5{bottom:-18px;left:calc(50% - 17px)}.fp-bang.b6{bottom:-14px;right:-12px;animation-delay:.15s}
+@keyframes fpBang{from{transform:scale(.85) rotate(-10deg)}to{transform:scale(1.15) rotate(10deg)}}
+@media (prefers-reduced-motion:reduce){.fp-bang{animation:none}}

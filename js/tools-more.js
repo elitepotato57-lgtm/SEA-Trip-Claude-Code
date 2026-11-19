@@ -607,7 +607,7 @@ async function asstMore(text, t, has, act, dest){
       const items = sortItems(cur.concat(res.items), "near", pt).slice(0, 6);
       if (items.length) return `<p><b>Bars, clubs and bottle shops</b> near ${esc(S.focus ? S.focus.n : "you")}:</p><div class="mini">${items.map(p => `<button type="button" data-open="${esc(p.id)}"><span>${esc(p.n || kindLabel(p))}</span><small>${esc(kindLabel(p))} · ${distShort(dist(pt, p))}</small></button>`).join("")}</div>${cc === "TH" ? `<p class="note">In Thailand, shops sell alcohol only 11am–2pm and 5pm–midnight.</p>` : ""}${act("Show the Boozer map", "boozer:")}`;
     }
-    return `<p>The Boozer section shows bars, pubs, clubs and bottle shops.</p>${act("Show the Boozer map", "boozer:")}`;
+    return `<p>The Boozas section shows bars, pubs, clubs and bottle shops.</p>${act("Show the Boozas map", "boozer:")}`;
   }
   // a destination: "tell me about Hoi An", "what's Pai like"
   if (dest && has(/ (tell me about|what s|what is|whats|about|like|worth|info|information) /) && typeof DEST_NOTE !== "undefined" && DEST_NOTE[dest]){

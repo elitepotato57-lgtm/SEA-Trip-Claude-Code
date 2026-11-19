@@ -56,6 +56,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(cl === 5, "a cluster layer for each of the 5 categories");
   ok(await page.evaluate(() => map.queryRenderedFeatures().some(f => /^cl-circle-/.test(f.layer.id))), "clusters are visible on screen");
   ok(await page.evaluate(() => S.funny === false && !document.querySelector("#funnyIntro") && ui.mapFriends === false), "a new phone: funny mode is off (no intro) and friends aren't on the map");
+  ok(await page.evaluate(() => { const c = doChip("boozer"); return c.l === "Boozas" && !c.note; }), "the Activities section is spelt Boozas, with no explainer when you pick it");
 
   for (const tab of ["gaffs", "munch", "activities", "tools", "tools/settings", "tools/transport", "tools/translate", "tools/emergency", "tools/split", "tools/friends", "tools/friends-play", "saved"]){
     await page.goto(BASE + "#" + tab); await page.waitForTimeout(1500);
@@ -734,6 +735,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     ok(await pg.evaluate(() => new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalWidth === 16 * 224 && i.naturalHeight === 200); i.onerror = () => r(false); i.src = "img/ben-wave.png"; })), "Ben's cut-out strip loads: 16 frames, see-through round him");
     await pg.waitForTimeout(3000);
     ok(await pg.evaluate(() => !document.querySelector("#funnyBen")), "and he goes again after waving");
+    // Nightlife: a short alarm, flashing yellow exclamation marks, and the right wording
+    await pg.evaluate(() => { window.__osc = 0; const AC = window.AudioContext; window.AudioContext = function(){ const c = new AC(); const mk = c.createOscillator.bind(c); c.createOscillator = () => { window.__osc++; return mk(); }; return c; }; funnyAlarm.ctx = null; funnyNightlife(); });
+    await pg.waitForTimeout(400);
+    const night = await pg.evaluate(() => { const el = document.querySelector("#funnyPop"); return el ? {t:el.textContent, bangs:el.querySelectorAll(".fp-bang").length, alarm:el.classList.contains("alarm"), osc:window.__osc, right:Math.round(el.getBoundingClientRect().right)} : null; });
+    ok(night && /bumholes/.test(night.t) && !/arseholes/.test(night.t) && night.bangs === 6 && night.alarm && night.osc === 1 && night.right <= 393, "funny mode Nightlife: a short alarm, six yellow exclamation marks, and “bumholes” " + JSON.stringify(night));
     await pg.goto(BASE + "#tools/settings"); await pg.waitForTimeout(800);
     ok(await pg.evaluate(() => document.querySelector("#funnyOn").getAttribute("aria-pressed") === "true"), "Settings shows Funny mode on");
     await pg.click("#funnyOn"); await pg.waitForTimeout(500);

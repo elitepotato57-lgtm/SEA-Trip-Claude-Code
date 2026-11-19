@@ -42,10 +42,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (each finished game against someone counts once per phone; the loser's forfeit is kept on the phone). Turn games are written only by
   the player whose turn it is; Play again writes the new game and its number together (PATCH) so nothing is counted twice.
   Each game shows its rules the first time (`gm-seen`), and from the ? button.
-- Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozer**: bars,
+- Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozas** (id `boozer`, no explainer toast): bars,
   pubs, clubs and bottle shops (kind `liquor`, added to built folders by `node tools/osm/add-booze.js`; extract.py keeps them now).
 - `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch pops up `img/tom-fried.jpg`,
-  Nightlife `img/tom-aid-ping.png`. On start `media/tommy.mp4`
+  Nightlife `img/tom-aid-ping.png` with a half-second two-tone alarm (Web Audio, `funnyAlarm`) and flashing yellow exclamation marks. On start `media/tommy.mp4`
   plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
   (`funnyMapTap`, called from the map's click handler; GEO's China, which stops at 30°N, plus a coarse Natural Earth outline north of that) plays
   `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
