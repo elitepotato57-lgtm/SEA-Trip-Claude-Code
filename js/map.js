@@ -521,7 +521,7 @@ function renderMapUI(){
   if (fr) fr.onclick = () => { ui.mapFriends = ui.mapFriends !== true; ui.essOpen = true; renderMapUI(); drawFriends(); if (ui.mapFriends){ frPoll().then(() => frFitAll()).catch(() => {}); } };
   top.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mapMode = b.dataset.mode; renderMapUI(); });
 
-  $("#mapSide").innerHTML = `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>
+  $("#mapSide").innerHTML = (exp("help-btn") ? `<button class="icon-btn help-btn" type="button" data-help aria-label="Help: emergency numbers and I’m lost">${icon("siren")}</button>` : "") + `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>
     <button class="icon-btn" id="locBtn" type="button" aria-label="Show where I am">${icon("locate")}</button>
     <button class="icon-btn" id="fitBtn" type="button" aria-label="Show the whole country">${icon("fit")}</button>
     ${one ? "" : `<button class="icon-btn zoomb" id="zinBtn" type="button" aria-label="Zoom in">${icon("plus")}</button>

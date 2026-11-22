@@ -874,3 +874,7 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 .map-listbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--mb-lift,0px));z-index:7;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(28,31,36,.96);color:var(--ink);font:inherit;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.35)}
 :root[data-look="paper"] .map-listbtn{background:rgba(251,245,232,.97)}
 #mapview:has(#mapBottom .preview) .map-listbtn,#mapview:has(#mapBottom .near) .map-listbtn{display:none}
+/* experiment help-btn */
+.help-btn{color:#fff!important;background:#C2453A!important;border-color:#C2453A!important}
+.help-sheet .tel{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.help-sheet .tel small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1))}

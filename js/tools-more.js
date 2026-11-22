@@ -477,6 +477,28 @@ const SOS = [["Police", "191", "General emergency line"], ["Tourist Police", "11
 const SOS_ID = [["Ambulance", "118", "Medical emergencies"], ["Police", "110", ""], ["Fire", "112", ""]];
 // Cambodia: gov.uk "Getting help", checked 12 Nov 2026
 const SOS_KH = [["Ambulance", "119", "Medical emergencies"], ["Police", "117", ""], ["Fire", "118", ""], ["Tourist police, Phnom Penh", "+85512942484", "Street 598. In Siem Reap the tourist police are next to the Angkor ticket office"]];
+/* Experiment help-btn: a help button in every page header and on the map. One tap: the emergency numbers and "I'm lost". */
+EXPERIMENTS.push({id:"help-btn", n:"Help button", d:"A red help button in every page header and on the map: emergency numbers and I’m lost in one tap."});
+function emergencyList(){
+  const ID = S.country === "ID", KH = S.country === "KH", G = GUIDES[S.country];
+  return G ? G.sos : ID ? SOS_ID : KH ? SOS_KH : SOS;
+}
+function openHelp(){
+  const list = emergencyList(), fr = typeof frCfg === "function" && frCfg() && Object.keys(frState().list).length;
+  openSheet(`<div class="sheet-head"><h2 id="help-t" style="margin:0">${icon("siren","i s")} Help</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="help-sheet">${list.map(([n, tel, d], i) => `<div class="tel"><div><b>${esc(n)}</b><small>${esc(d)}</small></div><a class="btn${i ? "" : " primary"}" href="tel:${esc(tel)}">${icon("phone","i s")}${esc(tel)}</a></div>`).join("")}
+      ${fr ? `<button class="btn danger wide" type="button" id="help-lost" style="margin-top:12px">${icon("alert","i s")}I’m lost: alert my mates</button>` : `<p class="note" style="margin-top:10px">I’m lost needs your mates added in Tools › Friends.</p>`}
+      <a class="btn wide" href="#tools/emergency" id="help-more" style="margin-top:8px">Embassy, hospitals and more</a></div>`, "help-t");
+  $("#help-more").addEventListener("click", () => closeDetail());
+  const b = $("#help-lost");
+  if (b) b.onclick = async () => {
+    if (!(await askConfirm("Send an “I’m lost” alert to all your friends, with where you are?", "Send alert", true))) return;
+    b.disabled = true;
+    try { const n = await frSosSend(); toast(`Alert sent to ${n} ${n === 1 ? "friend" : "friends"}`); if (exp("lost-share")) frSosShare(frSosHere); }
+    catch(e){ b.disabled = false; toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"); }
+  };
+}
+if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-help]")){ e.preventDefault(); openHelp(); } });
 TOOL_PAGES.emergency = root => {
   const ID = S.country === "ID", KH = S.country === "KH", G = GUIDES[S.country], list = G ? G.sos : ID ? SOS_ID : KH ? SOS_KH : SOS;
   const cname = G ? G.name : ID ? "Indonesia" : KH ? "Cambodia" : "Thailand";
