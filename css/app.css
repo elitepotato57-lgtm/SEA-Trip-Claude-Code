@@ -863,3 +863,10 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .fp-bang.b4{bottom:-14px;left:-12px;animation-delay:.3s}.fp-bang.b5{bottom:-18px;left:calc(50% - 17px)}.fp-bang.b6{bottom:-14px;right:-12px;animation-delay:.15s}
 @keyframes fpBang{from{transform:scale(.85) rotate(-10deg)}to{transform:scale(1.15) rotate(10deg)}}
 @media (prefers-reduced-motion:reduce){.fp-bang{animation:none}}
+/* experiment statusfade: a dark fade behind the clock on every page, and behind the map's search bar and chips */
+:root{--fade:18,20,23}
+:root[data-look="paper"]{--fade:243,234,215}
+html.x-statusfade body::before{content:"";position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 18px);z-index:1300;pointer-events:none;
+  background:linear-gradient(rgba(var(--fade),.96),rgba(var(--fade),.8) 65%,rgba(var(--fade),0))}
+html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:absolute;left:-10px;right:-10px;top:calc(-8px - env(safe-area-inset-top,0px));bottom:-26px;z-index:-1;pointer-events:none;
+  background:linear-gradient(rgba(var(--fade),.9),rgba(var(--fade),.72) 55%,rgba(var(--fade),0))}

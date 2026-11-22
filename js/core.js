@@ -21,6 +21,7 @@ function expSet(id, on){
   expClasses();
 }
 // each experiment also gets a class on <html> (x-<id>), for the ones that are mostly CSS
+EXPERIMENTS.push({id:"statusfade", n:"Fade behind the clock", d:"A dark fade under the phone’s clock on every page, and behind the map’s search bar and chips, so nothing shows through."});
 function expClasses(){ try { EXPERIMENTS.forEach(x => document.documentElement.classList.toggle("x-" + x.id, exp(x.id))); } catch(e){} }
 
 /* ---------- helpers ---------- */
