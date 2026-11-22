@@ -144,6 +144,12 @@ function applyTestLocation(){
   if (S.countryMode === "auto" && cc && cc !== S.country){ S.country = cc; persist(); }
   return true;
 }
+/* The last position any part of the app got (the map, Friends, I'm lost), shared, so iPhones aren't asked again and again:
+   a fix under 2 minutes old is used instead of asking for a new one. */
+let geoLast = null;
+const GEO_FRESH_MS = 120e3;
+function geoKeep(c){ if (c && isFinite(c.latitude)) geoLast = {lat:c.latitude, lng:c.longitude, acc:c.accuracy, at:Date.now()}; }
+const geoFresh = () => geoLast && Date.now() - geoLast.at < GEO_FRESH_MS ? geoLast : null;
 // done (optional) runs once the answer is in, whatever it is: used by "take me to the nearest …"
 function locate(prompted, done, quiet){
   const fin = () => { if (done) done(locStatus); };
@@ -154,7 +160,8 @@ function locate(prompted, done, quiet){
   }
   if (!("geolocation" in navigator)){ locStatus = "unavailable"; rerender(); if (prompted && !quiet) toast("Location isn’t available here. Pick a place instead."); return fin(); }
   locStatus = "asking";
-  navigator.geolocation.getCurrentPosition(pos => {
+  const got = pos => {
+    geoKeep(pos.coords);
     userLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy};
     const cc = countryAt(userLoc.lat, userLoc.lng);
     locStatus = cc ? "ok" : "outside";
@@ -166,7 +173,10 @@ function locate(prompted, done, quiet){
     if (cc && map && ((prompted && !quiet && ui.view === "map") || (first && (offView || !S.mapView)))) flyTo(userLoc, 13);
     if (typeof Heading !== "undefined") Heading.sync();          // keep the dot following the phone while the map is open
     rerender(); fin();
-  }, err => {
+  };
+  const fresh = geoFresh();
+  if (fresh){ got({coords:{latitude:fresh.lat, longitude:fresh.lng, accuracy:fresh.acc}}); return; }
+  navigator.geolocation.getCurrentPosition(got, err => {
     locStatus = err && err.code === 1 ? "denied" : "unavailable";
     rerender();
     if (prompted && !quiet) toast(locStatus === "denied" ? "Location is blocked. Pick a place instead." : "Couldn’t find you. Try again with signal.");

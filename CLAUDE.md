@@ -21,6 +21,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, add it to `EXP_ADOPTED`.
 - The map keeps the summary counts for any tile whose places are still downloading (`waiting` in `refreshMapData`), so zooming in past
   the counts-to-places switch on slow signal never leaves an empty patch. Voice search (`listen` in js/ask.js) searches after 1.4 s of quiet.
+- Asking once: every location request goes through `geoLast` (js/shell.js; a fix under 2 minutes old is reused, the map's and
+  Friends' GPS watches keep it fresh) and voice search reuses one recogniser (`recOne`). Settings explains the iPhone settings that make it permanent.
 - `js/design.js`: the Design Lab (floating panel, palette tab on the left edge). Applies `S.design` as CSS custom
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
