@@ -703,19 +703,22 @@ TOOL_PAGES.assistant = root => {
   };
   $("#askForm").onsubmit = e => { e.preventDefault(); const v = $("#askIn").value; $("#askIn").value = ""; ask(v); };
   root.querySelectorAll("[data-q]").forEach(b => b.onclick = () => ask(chips[+b.dataset.q]));
-  root.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
-    const [kind, a, c] = b.dataset.act.split(":");
-    if (kind === "go") go(a + (c ? ":" + c : ""));
-    else if (kind === "ess") showEssentialOnMap(a);
-    else if (kind === "list"){ if (c){ const d = D.cities.find(x => x[0] === c); if (d) setFocus({n:d[0], lat:d[1], lng:d[2]}); } go("#" + a); }
-    else if (kind === "plan"){ const [f, t] = b.dataset.act.slice(5).split(">"); const node = x => HUB[x] ? hubNode(x) : destNode(x); ui.tp.from = f === "here" || (f === "bkk" && !ui.tp.from) ? null : node(f); ui.tp.to = node(t); ui.tp.sel = 0; ui.tp.go = !!ui.tp.to; go("#tools/transport"); }
-    else if (kind === "friends") openFriendsMap();
-    else if (kind === "surf") openSurfMap();
-    else if (kind === "boozer"){ ui.mapCats = new Set(["cool"]); ui.doKinds = new Set(["boozer"]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); }
-    else if (kind === "maptext" || kind === "more"){ const q = b.dataset.act.slice(kind.length + 1); if (kind === "more") showMore(q, moreIntent(q)); else showAnswer(q); }
-    else if (kind === "ask") ask(b.dataset.act.slice(4));
-  });
+  root.querySelectorAll("[data-act]").forEach(b => b.onclick = () => asstAct(b, ask));
 };
+
+// what a button in an assistant answer does (the Trip assistant page, and answers in the map search)
+function asstAct(b, ask){
+  const [kind, a, c] = b.dataset.act.split(":");
+  if (kind === "go") go(a + (c ? ":" + c : ""));
+  else if (kind === "ess") showEssentialOnMap(a);
+  else if (kind === "list"){ if (c){ const d = D.cities.find(x => x[0] === c); if (d) setFocus({n:d[0], lat:d[1], lng:d[2]}); } go("#" + a); }
+  else if (kind === "plan"){ const [f, t] = b.dataset.act.slice(5).split(">"); const node = x => HUB[x] ? hubNode(x) : destNode(x); ui.tp.from = f === "here" || (f === "bkk" && !ui.tp.from) ? null : node(f); ui.tp.to = node(t); ui.tp.sel = 0; ui.tp.go = !!ui.tp.to; go("#tools/transport"); }
+  else if (kind === "friends") openFriendsMap();
+  else if (kind === "surf") openSurfMap();
+  else if (kind === "boozer"){ ui.mapCats = new Set(["cool"]); ui.doKinds = new Set(["boozer"]); ui.essKinds.clear(); ui.mapSaved = false; ui.mapMode = "map"; go("#map"); }
+  else if (kind === "maptext" || kind === "more"){ const q = b.dataset.act.slice(kind.length + 1); if (kind === "more") showMore(q, moreIntent(q)); else showAnswer(q); }
+  else if (kind === "ask") ask(b.dataset.act.slice(4));
+}
 
 /* ---------- deals: there is no free, legitimate deals feed, so this page says so and points to the real ones ---------- */
 TOOL_PAGES.deals = root => {

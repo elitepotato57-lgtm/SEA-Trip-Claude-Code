@@ -153,6 +153,15 @@ async function showAnswer(text){
   let r = null;
   try { r = await answerAsk(text); } catch(e){}
   const body = $("#askBody"); if (!body) return;
+  // experiment tools-groups: the Trip assistant's tile is hidden, so questions the map search can't place go to it here
+  if (!r && exp("tools-groups") && typeof assistantAnswer === "function"){
+    let html = null; try { html = await assistantAnswer(text); } catch(e){}
+    if (html && $("#askBody")){
+      body.innerHTML = `<div class="asst-ans" style="margin-top:10px">${html}</div><p class="note" style="margin-top:8px">Worked out on your phone from the app’s own data.</p>`;
+      body.querySelectorAll("[data-act]").forEach(b => b.onclick = () => { closeDetail(); asstAct(b, q => showAnswer(q)); });
+      return;
+    }
+  }
   if (!r){ body.innerHTML = `<p class="note" style="margin-top:10px">I can answer things like “nearest toilet”, “cheap noodles near me”, “best hostel”, “ATM” or “something to do today that isn't far”. For anything else, try the <a href="#tools/assistant">Trip assistant</a>.</p>`; return; }
   const where = r.ref.here ? "you" : r.ref.mapc ? "the middle of the map" : esc(focusLabel());
   if (!r.items.length){

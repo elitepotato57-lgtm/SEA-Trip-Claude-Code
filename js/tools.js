@@ -25,6 +25,18 @@ const TOOLS = [
 const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport", "developer"];
 const toolsInOrder = () => TOOLS.filter(t => !t.hidden).sort((a, b) => ((TOOL_ORDER.indexOf(a.id) + 1) || 99) - ((TOOL_ORDER.indexOf(b.id) + 1) || 99));
 const TOOL_PAGES = {};          // id -> {render(root), title}; filled in by each tool below
+/* Experiment tools-groups: no tiles that repeat other buttons (Transport is a tab, Settings and Saved are in the header,
+   Wi-Fi and the Essentials grid are on the map, Deals' free things are Activities' Free filter, the Trip assistant answers in the
+   map search). What's left is grouped: Right now, Our trip, Read up. */
+EXPERIMENTS.push({id:"tools-groups", n:"Tools: fewer tiles, in groups", d:"Hides tiles that repeat other buttons (Transport, Settings, Saved, Wi-Fi, Essentials, Deals, assistant) and groups the rest."});
+const TOOL_GROUPS = [["Right now", ["emergency", "friends", "translate", "currency", "weather"]], ["Our trip", ["docs", "offline", "discover", "developer"]], ["Read up", ["guide"]]];
+function toolsGroupedHTML(){
+  const extra = {offline:{id:"offline", l:"Offline & backup", d:"Save cities for no signal, back up", ic:"download", href:"#tools/offline"},
+    discover:{id:"discover", l:"Discover", d:"Destinations at a glance", ic:"compass", href:"#discover"}};
+  const byId = id => extra[id] || TOOLS.find(t => t.id === id && !t.hidden);
+  return TOOL_GROUPS.map(([g, ids]) => { const ts = ids.map(byId).filter(Boolean); return ts.length ? `<div class="sect"><h2>${g}</h2></div>
+    <div class="tgrid tgroup">${ts.map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="${t.href || "#tools/" + t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>` : ""; }).join("");
+}
 function renderTools(){
   const root = $("#pageview"), sub = ui.sub;
   if (sub === "transport"){ root.innerHTML = transportPage(); bindTransport(); return; }
@@ -32,6 +44,7 @@ function renderTools(){
   const [page, arg] = (sub || "").split("?");
   if (page && TOOL_PAGES[page]){ TOOL_PAGES[page](root, arg || ""); return; }
   const c = D.countries[S.country];
+  if (exp("tools-groups")){ root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page tools-grouped">${toolsGroupedHTML()}</div>`; return; }
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
     <div class="tgrid">${toolsInOrder().map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
     <div class="sect"><h2>Essentials nearby</h2><a href="#map" id="t-essmap">View on map</a></div>
