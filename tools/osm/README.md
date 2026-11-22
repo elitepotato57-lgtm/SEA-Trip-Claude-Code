@@ -8,13 +8,15 @@ The app's places (every gaff, munch spot, activity, essential and station) come 
 | Folder | Covers | Places |
 |---|---|---|
 | `places/th` | All of Thailand (built by an earlier version of this tool) | ~128,600 |
-| `places/id` | Indonesia: Lampung, South Sumatra and Bengkulu (Sumatra), Bali, and Lombok (+ the Gilis) | ~31,700 |
+| `places/id` | All of Indonesia (all 38 provinces, English names), OpenStreetMap of 21 Nov 2026 | ~170,800 |
+| `places/my` | All of Malaysia (13 states and 3 federal territories, Sabah and Sarawak included), OpenStreetMap of 21 Nov 2026 | ~76,600 |
 | `places/kh` | All of Cambodia (all 25 provinces, islands included), OpenStreetMap of 11 Nov 2026 | ~16,500 |
 | `places/vn` | All of Vietnam (the 34 provinces and cities of the July 2025 reform), OpenStreetMap of 17 Nov 2026 | ~74,500 |
 | `places/la` | All of Laos (17 provinces and Vientiane Capital), names in English where mapped | ~13,300 |
 | `places/sg` | All of Singapore (the whole country: it has no provinces) | ~19,100 |
 
-OpenStreetMap is much less detailed in Sumatra than in Thailand or Bali, so Sumatran towns have far fewer places.
+OpenStreetMap is much less detailed in Sumatra, Kalimantan and Papua than in Thailand, Java or Bali, so towns there have far fewer places
+(Raja Ampat and Pangkalan Bun have only a few dozen).
 Cambodia is well mapped in Phnom Penh, Siem Reap and the coast, thinner in the north-east (Mondulkiri, Ratanakiri).
 
 ## Rebuilding Cambodia
@@ -47,23 +49,54 @@ curl -Lo msb.osm.pbf https://download.geofabrik.de/asia/malaysia-singapore-brune
 - The app's Laos outline (`GEO` in `js/data.js`) is the real border simplified to ~400 m and checked before Thailand's,
   because the rough outlines put Savannakhet and Huay Xai on the Thai side of the Mekong.
 
-## Rebuilding Indonesia
+## Rebuilding Indonesia and Malaysia (built 22 Nov 2026)
+
+These were built from **download.openstreetmap.fr** (the same OpenStreetMap data as Geofabrik, cut by country), because cloud
+sessions can't reach Geofabrik. Its files keep only the border lines inside the country, so states and provinces whose
+borders run out to sea (Selangor, Sabah, Riau, Riau Islands, North Sumatra) can't be assembled: `--repair-borders` joins the
+lines that are there and closes the gaps at sea with straight lines. Indonesia's file is ~2 GB and the full build ran out
+of memory (14 GB), so cut it down to the tags extract.py reads first with osmium-tool (`apt-get install osmium-tool`):
 
 ```bash
-python -m venv .venv && .venv/Scripts/python -m pip install osmium      # once (macOS/Linux: .venv/bin/python)
-curl -LO https://download.geofabrik.de/asia/indonesia/sumatra-latest.osm.pbf
-curl -LO https://download.geofabrik.de/asia/indonesia/nusa-tenggara-latest.osm.pbf
-.venv/Scripts/python tools/osm/extract.py \
-  --pbf sumatra-latest.osm.pbf,nusa-tenggara-latest.osm.pbf --cc ID --out places/id \
-  --regions ID-LA,ID-SS,ID-BE,ID-BA,ID-NB --region-names "Lampung,South Sumatra,Bengkulu,Bali,Lombok" \
-  --clip "ID-NB:115.75,-9.0,116.74,-8.15" \
-  --dests "Bandar Lampung:-5.4294:105.2626;Palembang:-2.9888:104.7569;Bengkulu:-3.7923:102.2624;Krui:-5.1889:103.9349;Pagar Alam:-4.0212:103.2517;Ubud:-8.5069:115.2625;Canggu:-8.65:115.13;Seminyak:-8.6899:115.1668;Uluwatu:-8.8208:115.1136;Sanur:-8.6946:115.2606;Amed:-8.3346:115.6409;Nusa Penida:-8.7445:115.5355;Kuta Lombok:-8.8853:116.2757;Senggigi:-8.4952:116.0447;Gili Trawangan:-8.3515:116.0383;Gili Air:-8.358:116.0817;Senaru:-8.3029:116.4007"
+python -m venv .venv && .venv/bin/python -m pip install osmium      # once (Windows: .venv/Scripts/python)
+curl -Lo malaysia.osm.pbf https://download.openstreetmap.fr/extracts/asia/malaysia-latest.osm.pbf     # ~250 MB
+curl -Lo indonesia.osm.pbf https://download.openstreetmap.fr/extracts/asia/indonesia-latest.osm.pbf   # ~2 GB
+osmium tags-filter indonesia.osm.pbf nwr/amenity nwr/tourism nwr/shop nwr/leisure nwr/natural nwr/waterway nwr/historic nwr/railway \
+  nwr/aeroway nwr/office nwr/public_transport nwr/sport nwr/place r/boundary=administrative w/boundary=administrative -o indonesia-poi.osm.pbf   # ~200 MB
+.venv/bin/python tools/osm/extract.py --pbf malaysia.osm.pbf --cc MY --out places/my --repair-borders --source "https://download.openstreetmap.fr/extracts/asia/malaysia-latest.osm.pbf" \
+  --regions MY-01,MY-02,MY-03,MY-04,MY-05,MY-06,MY-07,MY-08,MY-09,MY-10,MY-11,MY-12,MY-13,MY-14,MY-15,MY-16 \
+  --region-names "Johor,Kedah,Kelantan,Malacca,Negeri Sembilan,Pahang,Penang,Perak,Perlis,Selangor,Terengganu,Sabah,Sarawak,Kuala Lumpur,Labuan,Putrajaya" \
+  --dests "Kuala Lumpur:3.1517:101.6942;George Town:5.4142:100.3287;Langkawi:6.2913:99.7289;Malacca:2.1943:102.2487;Ipoh:4.5987:101.09;Cameron Highlands:4.4707:101.3777;Perhentian Islands:5.915:102.735;Tioman:2.8187:104.1586;Kota Bharu:6.1248:102.2378;Taman Negara:4.383:102.4012;Cherating:4.1265:103.3925;Kuching:1.5598:110.3454;Kota Kinabalu:5.978:116.0729;Semporna:4.4791:118.6119"
+.venv/bin/python tools/osm/extract.py --pbf indonesia-poi.osm.pbf --cc ID --out places/id --repair-borders --source "https://download.openstreetmap.fr/extracts/asia/indonesia-latest.osm.pbf" \
+  --regions ID-AC,ID-SU,ID-SB,ID-RI,ID-KR,ID-JA,ID-BE,ID-SS,ID-BB,ID-LA,ID-BT,ID-JK,ID-JB,ID-JT,ID-YO,ID-JI,ID-BA,ID-NB,ID-NT,ID-KB,ID-KT,ID-KS,ID-KI,ID-KU,ID-SA,ID-GO,ID-ST,ID-SR,ID-SN,ID-SG,ID-MA,ID-MU,ID-PB,ID-PD,ID-PA,ID-PT,ID-PE,ID-PS \
+  --region-names "Aceh,North Sumatra,West Sumatra,Riau,Riau Islands,Jambi,Bengkulu,South Sumatra,Bangka Belitung Islands,Lampung,Banten,Jakarta,West Java,Central Java,Yogyakarta,East Java,Bali,West Nusa Tenggara,East Nusa Tenggara,West Kalimantan,Central Kalimantan,South Kalimantan,East Kalimantan,North Kalimantan,North Sulawesi,Gorontalo,Central Sulawesi,West Sulawesi,South Sulawesi,Southeast Sulawesi,Maluku,North Maluku,West Papua,Southwest Papua,Papua,Central Papua,Highland Papua,South Papua" \
+  --dests "Bandar Lampung:-5.4294:105.2626;Palembang:-2.9888:104.7569;Bengkulu:-3.7923:102.2624;Krui:-5.1889:103.9349;Pagar Alam:-4.0212:103.2517;Ubud:-8.5069:115.2625;Canggu:-8.65:115.13;Seminyak:-8.6899:115.1668;Uluwatu:-8.8208:115.1136;Sanur:-8.6946:115.2606;Amed:-8.3346:115.6409;Nusa Penida:-8.7445:115.5355;Kuta Lombok:-8.8853:116.2757;Senggigi:-8.4952:116.0447;Gili Trawangan:-8.3515:116.0383;Gili Air:-8.358:116.0817;Senaru:-8.3029:116.4007;Jakarta:-6.1754:106.8272;Bandung:-6.9218:107.6071;Yogyakarta:-7.8013:110.3647;Mount Bromo:-7.9219:112.9652;Banyuwangi:-8.2095:114.3737;Malang:-7.9771:112.634;Medan:3.5895:98.6742;Bukit Lawang:3.548:98.1272;Lake Toba:2.6706:98.8608;Bukittinggi:-0.3052:100.3695;Pulau Weh:5.8706:95.2581;Labuan Bajo:-8.496:119.8936;Moni:-8.7502:121.8499;Rantepao:-2.9705:119.8987;Manado:1.49:124.8408;Makassar:-5.1343:119.4124;Raja Ampat:-0.4211:130.823;Pangkalan Bun:-2.6766:111.6316"
 ```
 
-The download files are big (Sumatra ~280 MB, Nusa Tenggara ~180 MB): keep them out of the repo.
-It takes a couple of minutes.
+Malaysia takes about 5 minutes, Indonesia about 15 (peak memory ~1.6 GB). Keep the .pbf files out of the repo (`*.osm.pbf` is in .gitignore).
+Tile files come out the same size as Thailand's (at most 1,500 places, ~50 KB on average). Indonesia's zoomed-out summary of
+things to do (`sum-do.json`, 258 KB) is bigger than Thailand's because OpenStreetMap has ~21,000 named hill peaks there.
+
+### Country outlines
+
+`tools/osm/outline.py` rebuilds a country's outline in `GEO` (js/data.js) from its real state borders, simplified to ~400 m,
+as was done for Laos. Malaysia's (3,562 points) and Brunei's (202) were rebuilt this way, so Johor Bahru's waterfront is
+Malaysia and Bandar Seri Begawan isn't:
+
+```bash
+.venv/bin/python tools/osm/outline.py --pbf malaysia.osm.pbf --name Malaysia --cc MY --regions MY-01,MY-02,MY-03,MY-04,MY-05,MY-06,MY-07,MY-08,MY-09,MY-10,MY-11,MY-12,MY-13,MY-14,MY-15,MY-16
+.venv/bin/python tools/osm/outline.py --pbf malaysia.osm.pbf --name Brunei --regions BN-BE,BN-BM,BN-TE,BN-TU
+```
+
+### Destinations and journeys
+
+`node tools/destinations-my-id.js` adds the Malaysian and new Indonesian destinations to `D.cities`, and
+`node tools/transport-my-id.js` adds their hubs and links to the journey planner (sources per link: Seat 61 and Wikivoyage).
+Both are re-runnable.
 
 - `--regions`: ISO 3166-2 codes of provinces (OpenStreetMap `admin_level=4`). Only places inside their borders are kept.
+- `--repair-borders`: join a border that the extract cut off at sea (see above).
+- `--source`: where the extract came from (kept in meta.json).
 - `--clip`: keep part of a province. West Nusa Tenggara (`ID-NB`) is clipped to Lombok and the Gilis, leaving out Sumbawa.
 - `--dests`: destinations to count places around (the numbers on the Discover page).
 
@@ -100,4 +133,5 @@ Data © OpenStreetMap contributors, available under the Open Database Licence (O
 ## Lockers and gluten-free on folders built earlier
 
 `node tools/osm/add-extras.js` asks the free Overpass API for luggage lockers / left-luggage desks and `diet:gluten_free`, and adds
-them to `places/th`, `places/kh` and `places/id` without a full rebuild. `extract.py` keeps both itself, so a rebuild needs nothing extra.
+them to `places/th` and `places/kh` without a full rebuild. `extract.py` keeps both itself (and bars, clubs and bottle shops, which
+`add-booze.js` added to older folders), so a rebuild needs nothing extra: `places/id` and `places/my` were built with them.

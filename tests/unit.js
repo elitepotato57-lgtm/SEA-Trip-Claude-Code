@@ -244,12 +244,13 @@ test("place names aren't mistaken for questions", () => {
 });
 
 /* ---------- Indonesia ---------- */
-test("Sumatra, Bali and Lombok are covered; Java and Bangkok's neighbours aren't mixed up", () => {
+test("all of Indonesia is covered (Sumatra, Java, Bali, Lombok, Flores, Sulawesi, Papua) and Bangkok's neighbours aren't mixed up", () => {
   ok(A.inPlaceDb(-2.9888, 104.7569), "Palembang");
   ok(A.inPlaceDb(-8.5069, 115.2625), "Ubud");
   ok(A.inPlaceDb(-8.3515, 116.0383), "Gili Trawangan");
   ok(A.inPlaceDb(13.7563, 100.5018), "Bangkok");
-  ok(!A.inPlaceDb(-6.2, 106.85), "Jakarta isn't covered yet");
+  for (const [n, lat, lng] of [["Jakarta", -6.2, 106.85], ["Yogyakarta", -7.8013, 110.3647], ["Labuan Bajo", -8.496, 119.8936], ["Komodo island", -8.55, 119.48],
+    ["Makassar", -5.1343, 119.4124], ["Raja Ampat", -0.4211, 130.823], ["Pulau Weh", 5.8706, 95.2581], ["Batam", 1.1, 104.04]]) eq(A.placeDbCc(lat, lng), "ID", n);
   ok(A.PLACE_DESTS.some(c => c[0] === "Palembang") && A.PLACE_DESTS.some(c => c[0] === "Gili Air"));
 });
 test("Indonesian food types, including Palembang's pempek", () => {
@@ -273,12 +274,17 @@ test("Indonesian estimates are in rupiah, and dearer in Bali than Sumatra", () =
 
 /* ---------- Indonesia: the hand-researched layer ---------- */
 const ID_DESTS = A.D.cities.filter(c => A.ccAt(c[1], c[2]) === "ID").map(c => c[0]);
-test("all 17 Indonesian destinations are in the trip data", () => {
-  eq(ID_DESTS.length, 17, ID_DESTS.join(", "));
+// the 17 that have the hand-researched layer (researched gaffs, munch spots and activities); the rest, added with the whole
+// country in Nov 2026, have Cambodia/Vietnam-level coverage: places database, note, photo and journey planner
+const ID_RESEARCHED = ["Bandar Lampung", "Palembang", "Bengkulu", "Krui", "Pagar Alam", "Ubud", "Canggu", "Seminyak", "Uluwatu", "Sanur", "Amed", "Nusa Penida",
+  "Kuta Lombok", "Senggigi", "Gili Trawangan", "Gili Air", "Senaru"];
+test("all 35 Indonesian destinations are in the trip data", () => {
+  eq(ID_DESTS.length, 35, ID_DESTS.join(", "));
+  ok(ID_RESEARCHED.every(d => ID_DESTS.includes(d)));
 });
 test("every Indonesian destination has researched places, Bali and Lombok several of each kind", () => {
   const small = new Set(["Senaru", "Krui", "Pagar Alam"]);      // little exists there (or online) beyond a few stays and sights
-  for (const d of ID_DESTS){
+  for (const d of ID_RESEARCHED){
     const here = A.D.places.filter(p => p.cc === "ID" && p.city === d);
     ok(here.length >= 5, `${d}: only ${here.length} researched places`);
     ok(here.some(p => p.c === "gaff") && here.some(p => p.c === "cool"), `${d}: needs a gaff and an activity`);
@@ -291,7 +297,7 @@ test("researched Indonesian places carry sources, sensible money and pins inside
   for (const p of id){
     if (p.verified) ok(p.src.length > 0 && p.src.every(s => /^https:\/\//.test(s[1])), `${p.id}: a researched place needs https sources`);
     if (p.p){ ok(["IDR", "GBP", "USD", "EUR"].includes(p.cur), `${p.id}: currency ${p.cur}`); ok(p.p.every(x => x > 0) && (p.p.length < 2 || p.p[1] >= p.p[0]), `${p.id}: price range`); }
-    ok(A.inPlaceDb(p.lat, p.lng), `${p.id}: pin ${p.lat},${p.lng} is outside Sumatra, Bali and Lombok`);
+    ok(A.inPlaceDb(p.lat, p.lng), `${p.id}: pin ${p.lat},${p.lng} is outside the places database`);
     ok(p.chk && p.t && p.t.length, `${p.id}: shape`);
   }
   eq(new Set(A.D.places.map(p => p.id)).size, A.D.places.length, "ids are unique");
@@ -512,7 +518,7 @@ test("Vietnam, Laos and Singapore are covered nationwide, islands and Mekong tow
     ["Nong Khai, across the Mekong in Thailand", 17.878, 102.742, "TH"], ["Chiang Khong, Thailand", 20.264, 100.405, "TH"], ["Ha Tien", 10.383, 104.488, "VN"]]){
     eq(A.placeDbCc(lat, lng), cc, n);
   }
-  eq(A.D.cities.filter(c => !A.inPlaceDb(c[1], c[2])).map(c => c[0]), ["Kuala Lumpur"], "every destination but Kuala Lumpur has places");
+  eq(A.D.cities.filter(c => !A.inPlaceDb(c[1], c[2])).map(c => c[0]), [], "every destination has places");
   for (const d of ["Hanoi", "Sapa", "Hoi An", "Ho Chi Minh City", "Phu Quoc"]) ok(A.VN_DESTS.some(c => c[0] === d), d);
   for (const d of ["Vientiane", "Vang Vieng", "Luang Prabang", "Don Det"]) ok(A.LA_DESTS.some(c => c[0] === d), d);
   ok(A.SG_DESTS.some(c => c[0] === "Singapore"));
@@ -705,6 +711,49 @@ test("feeling rough: hangover and the shits get the right list for the country, 
     ok(!A.remedyList(cc, "hangover").some(r => /loperamide|Imodium/i.test(r.n)), cc + ": no diarrhoea tablets for a hangover");
   }
   ok(/Prescription/.test(A.REMEDIES.ID.find(r => /Imodium/.test(r.n)).rx), "Imodium needs a prescription in Indonesia");
+});
+
+/* ---------- Malaysia (and the borders round it) ---------- */
+test("Malaysia is covered nationwide, Borneo and the islands included, and its borders aren't mixed up", () => {
+  for (const [n, lat, lng, cc] of [["Kuala Lumpur", 3.1517, 101.6942, "MY"], ["George Town", 5.4142, 100.3287, "MY"], ["Langkawi", 6.35, 99.8, "MY"], ["Tioman", 2.8, 104.17, "MY"],
+    ["Perhentian Islands", 5.915, 102.735, "MY"], ["Johor Bahru waterfront", 1.46, 103.76, "MY"], ["Kuching", 1.5598, 110.3454, "MY"], ["Kota Kinabalu", 5.978, 116.0729, "MY"],
+    ["Sipadan", 4.115, 118.629, "MY"], ["Labuan", 5.28, 115.24, "MY"], ["Limbang", 4.75, 115.0, "MY"], ["Singapore", 1.29, 103.85, "SG"], ["Woodlands, Singapore", 1.437, 103.786, "SG"],
+    ["Sentosa", 1.2494, 103.8303, "SG"], ["Koh Lipe", 6.488, 99.307, "TH"], ["Satun", 6.62, 100.07, "TH"], ["Sebatik, Indonesian half", 4.1, 117.85, "ID"], ["Pontianak", -0.02, 109.34, "ID"]]){
+    eq(A.placeDbCc(lat, lng), cc, n);
+  }
+  eq(A.placeDbCc(4.89, 114.94), null, "Brunei has no places database: Bandar Seri Begawan isn't Malaysia");
+  for (const d of ["Kuala Lumpur", "George Town", "Langkawi", "Malacca", "Cameron Highlands", "Perhentian Islands", "Tioman", "Taman Negara"]) ok(A.MY_DESTS.some(c => c[0] === d), d);
+  for (const d of ["Kuching", "Kota Kinabalu", "Semporna"]) ok(A.MY_BORNEO_DESTS.some(c => c[0] === d), d);
+  for (const [list, d] of [["JAVA_DESTS", "Yogyakarta"], ["JAVA_DESTS", "Mount Bromo"], ["SUMATRA_DESTS", "Lake Toba"], ["EAST_ID_DESTS", "Labuan Bajo"], ["BALI_LOMBOK_DESTS", "Gili Air"]]) ok(A[list].some(c => c[0] === d), `${d} in ${list}`);
+});
+test("Malaysia estimates: ringgit, sourced kinds only, the local food counts as Malaysian", () => {
+  const P = o => Object.assign({cc:"MY", lat:3.15, lng:101.7, n:"X"}, o);
+  eq(A.foodType(P({g:"food", k:"restaurant", n:"Restoran Nasi Kandar Pelita"})), "Malaysian");
+  const nl = A.estPrice(P({g:"food", k:"restaurant", n:"Nasi Lemak Wanjo"})); eq([nl.cur, nl.lo, nl.hi], ["MYR", 6, 12], "a hawker meal RM6–12");
+  const dorm = A.estPrice(P({g:"stay", k:"hostel", n:"Reggae Mansion"})); eq([dorm.cur, dorm.lo, dorm.hi], ["MYR", 35, 55]);
+  eq(A.estPrice(P({g:"do", k:"museum", n:"Muzium"})), null, "no source, no estimate");
+  eq(A.estPrice(P({g:"food", k:"restaurant", n:"Pizza Hut"})), null, "chains get no made-up ringgit price");
+  ok(A.REMEDIES.MY && A.PHRASEBOOKS.MY.list.length >= 5 && A.GUIDES.MY.sos.some(s => s[1] === "999"));
+  ok(/Sabah/.test(A.GUIDES.MY.warn), "the eastern Sabah islands warning is shown");
+});
+test("every Malaysian and new Indonesian destination has a hub the planner can reach from Bangkok, a note and a photo", () => {
+  const fs = require("fs"), path = require("path");
+  const credits = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "img", "credits.json"), "utf8"));
+  const dests = A.D.cities.filter(c => ["MY", "ID"].includes(A.placeDbCc(c[1], c[2]))).map(c => c[0]);
+  ok(dests.length >= 49, dests.length + " destinations");
+  for (const d of dests){
+    const h = Object.values(A.HUB).find(x => x.n === d); ok(h, `${d}: no hub`);
+    ok(A.DEST_NOTE[d], `${d}: no note`);
+    const f = A.DEST_IMG[d]; ok(f && fs.existsSync(path.join(__dirname, "..", f)), `${d}: no photo`);
+    if (f) ok(credits[f.replace("img/", "")], `${f}: no credit`);
+    if (h) ok(A.planTrips(A.hubNode("bkk"), A.hubNode(h.id)).length > 0, `Bangkok to ${d}`);
+  }
+  // land and sea links across the borders
+  ok(A.planTrips(A.hubNode("lipe"), A.hubNode("langkawi"))[0].legs.length === 1, "Koh Lipe–Langkawi ferry");
+  ok(A.planTrips(A.hubNode("sin"), A.hubNode("kul")).some(t => t.legs.length === 1 && t.legs[0].o.mode === "Train"), "Singapore–KL by train");
+  ok(A.planTrips(A.hubNode("kuching"), A.hubNode("pontianak")).some(t => t.legs[0].o.mode === "Bus"), "Kuching–Pontianak bus");
+  ok(A.planTrips(A.hubNode("banyuwangi"), A.hubNode("dps")).some(t => t.legs.every(L => L.o.mode !== "Flight")), "Java to Bali overland");
+  for (const e of A.D.net.edges.filter(e => e.myid && e.verified)) ok(e.src.length && e.src.every(s => /^https:\/\//.test(s[1])), `${e.a}–${e.b}: a researched leg needs sources`);
 });
 
 /* ---------- games (js/games.js) ---------- */

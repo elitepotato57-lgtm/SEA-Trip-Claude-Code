@@ -12,7 +12,8 @@ Usage (needs pyosmium:  pip install osmium):
   python tools/osm/extract.py --pbf sumatra-latest.osm.pbf --cc ID --out places/id \
       --regions ID-LA,ID-SS,ID-BE --region-names "Lampung,South Sumatra,Bengkulu"
 
-Extracts come from https://download.geofabrik.de/ (e.g. asia/indonesia/sumatra-latest.osm.pbf).
+Extracts come from https://download.geofabrik.de/ (e.g. asia/indonesia/sumatra-latest.osm.pbf), or its mirror-like
+https://download.openstreetmap.fr/extracts/ (e.g. asia/malaysia-latest.osm.pbf); say which with --source.
 --regions are ISO 3166-2 codes of admin_level 4 areas (provinces); only places inside them are kept.
   A plain country code (e.g. SG) takes the whole country (admin_level 2), for places with no provinces.
 --english-names: use a place's English name (name:en) when it has one and keep the local one as "nt" (Laos: names are in Lao script).
@@ -257,6 +258,53 @@ class Grid:
         return st == "in" or (st == "edge" and point_in_rings(x, y, self.rings))
 
 
+def repair_borders(pbf, codes):
+    """For regions whose relation osmium couldn't assemble (members missing from the extract): chain the outer ways that are there,
+    and close each gap with a straight line to the nearest loose end. The missing pieces are maritime borders far out at sea,
+    so the straight lines stay offshore. Returns {code: [(bbox, ring), ...]} for the regions it could close."""
+    if not codes: return {}
+    rels = {}
+    for o in osmium.FileProcessor(pbf, osmium.osm.RELATION).with_filter(osmium.filter.TagFilter(("boundary", "administrative"))):
+        code = o.tags.get("ISO3166-2") if o.tags.get("admin_level") == "4" else None
+        if code in codes and code not in rels: rels[code] = {m.ref for m in o.members if m.type == "w" and m.role in ("outer", "")}
+    want = set().union(*rels.values()) if rels else set()
+    ways = {}
+    fp = osmium.FileProcessor(pbf, osmium.osm.NODE | osmium.osm.WAY).with_locations().with_filter(osmium.filter.EntityFilter(osmium.osm.WAY))
+    for o in fp:
+        if o.id in want:
+            try: ways[o.id] = [(n.lon, n.lat) for n in o.nodes]
+            except Exception: pass
+    out = {}
+    for code, ids in rels.items():
+        segs = [ways[i] for i in ids if i in ways and len(ways[i]) > 1]
+        chains = []
+        while segs:
+            c = segs.pop(0); grew = True
+            while grew and c[0] != c[-1]:
+                grew = False
+                for i, sg in enumerate(segs):
+                    if sg[0] == c[-1]: c = c + sg[1:]
+                    elif sg[-1] == c[-1]: c = c + sg[::-1][1:]
+                    elif sg[-1] == c[0]: c = sg + c[1:]
+                    elif sg[0] == c[0]: c = sg[::-1] + c[1:]
+                    else: continue
+                    segs.pop(i); grew = True; break
+            chains.append(c)
+        closed = [c for c in chains if c[0] == c[-1]]
+        open_ = [c for c in chains if c[0] != c[-1]]
+        while open_:                       # join open chains end to nearest start (or its own start), straight across the gap
+            c = open_.pop(0)
+            while open_:
+                d = lambda p: math.hypot(p[0] - c[-1][0], p[1] - c[-1][1])
+                j, rev = min(((j, r) for j in range(len(open_)) for r in (0, 1)), key=lambda t: d(open_[t[0]][-1] if t[1] else open_[t[0]][0]))
+                if d(c[0]) < d(open_[j][-1] if rev else open_[j][0]): break
+                nxt = open_.pop(j); c = c + (nxt[::-1] if rev else nxt)
+            closed.append(c + [c[0]])
+        rr = [((min(p[0] for p in r), min(p[1] for p in r), max(p[0] for p in r), max(p[1] for p in r)), r) for r in closed if len(r) >= 4]
+        if rr: out[code] = rr
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pbf", required=True, help="one or more extracts, comma separated")
@@ -268,6 +316,9 @@ def main():
     ap.add_argument("--dest-km", type=float, default=12, help="how far round each destination to count, km")
     ap.add_argument("--box-fallback", action="store_true", help="use a region's --clip box when its border is missing or broken")
     ap.add_argument("--english-names", action="store_true", help="prefer name:en (keeping the local name as nt)")
+    ap.add_argument("--repair-borders", action="store_true", help="when a region's border can't be assembled because the extract cuts it off at sea, "
+                    "join the border lines that are there and close the gaps with straight lines")
+    ap.add_argument("--source", default="https://download.geofabrik.de/", help="where the extract was downloaded from (kept in meta.json)")
     a = ap.parse_args()
     codes = [c.strip() for c in a.regions.split(",") if c.strip()]
     clips = {}
@@ -293,6 +344,11 @@ def main():
               for inner in o.inner_rings(outer):
                   ip = [(n.lon, n.lat) for n in inner]
                   rr.append(((min(p[0] for p in ip), min(p[1] for p in ip), max(p[0] for p in ip), max(p[1] for p in ip)), ip))
+      # a border cut off at sea by the extract's edge (download.openstreetmap.fr keeps only the ways inside it): join what is there
+      if a.repair_borders:
+          for code, rr in repair_borders(pbf, [c for c in codes if c not in found and c not in regions]).items():
+              found[code] = rr
+              print(f"  {code}: border repaired from {len(rr)} ring(s) of the lines in this extract", flush=True)
       # a region whose border can't be assembled (a broken outline in OpenStreetMap) falls back to its --clip box, when it has one
       boxed = [c for c in codes if c not in found and c not in regions and c in clips and a.box_fallback]
       if not found and not boxed:
@@ -494,7 +550,7 @@ def main():
     names = [n.strip() for n in a.region_names.split(",")] if a.region_names else codes
     meta = {"cc": a.cc.upper(), "v": 1, "generated": today, "osm": osm_ts, "cap": CAP, "sumZ": SUM_Z, "kinds": KINDS, "groups": meta_groups,
             "search": {"split": split, "stop": stop}, "regions": [{"code": c, "name": n, "bb": [round(v, 4) for v in regions[c]["bb"]]} for c, n in zip(codes, names)],
-            "bb": [round(v, 4) for v in bbox], "attribution": "© OpenStreetMap contributors, ODbL", "source": "https://download.geofabrik.de/"}
+            "bb": [round(v, 4) for v in bbox], "attribution": "© OpenStreetMap contributors, ODbL", "source": a.source}
     with open(os.path.join(a.out, "meta.json"), "w", encoding="utf-8") as fh: json.dump(meta, fh, ensure_ascii=False, separators=(",", ":"))
     by_dest = {}
     for spec in [s for s in a.dests.split(";") if s.strip()]:

@@ -1,4 +1,4 @@
-// Adds two things to the built places databases (places/th, places/id, places/kh) without rebuilding them:
+// Adds two things to the built places databases (places/th, places/kh) without rebuilding them:
 //   - luggage lockers and left-luggage desks (OpenStreetMap amenity=luggage_locker / left_luggage) into Essentials
 //   - "gf" (gluten-free: 1 = options, 2 = only) on food places tagged diet:gluten_free
 // It asks the free Overpass API for just those tags, so it's a few seconds, not a full rebuild.
@@ -6,7 +6,8 @@
 //   node tools/osm/add-extras.js            (needs signal)
 const fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..", "..", "places");
-const DBS = [{dir:"th", area:'area["ISO3166-1"="TH"][admin_level=2]'}, {dir:"kh", area:'area["ISO3166-1"="KH"][admin_level=2]'}, {dir:"id", area:'area["ISO3166-1"="ID"][admin_level=2]'}];
+// places/id was rebuilt for the whole country in Nov 2026 by extract.py, which keeps both already: don't add them again
+const DBS = [{dir:"th", area:'area["ISO3166-1"="TH"][admin_level=2]'}, {dir:"kh", area:'area["ISO3166-1"="KH"][admin_level=2]'}];
 const lng2tile = (lng, z) => Math.floor((lng + 180) / 360 * 2 ** z);
 const lat2tile = (lat, z) => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z); };
 const readJ = f => JSON.parse(fs.readFileSync(f, "utf8"));

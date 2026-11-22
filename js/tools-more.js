@@ -232,7 +232,40 @@ const DEST_NOTE = {"Siem Reap":"Town by the temples of Angkor, with Pub Street a
   Palembang:"South Sumatra’s big river city, known for pempek fish cakes, the Ampera Bridge and the Musi river.",
   "Bandar Lampung":"Lampung’s capital on the bay at Sumatra’s southern tip, gateway to the islands and Way Kambas.",
   Bengkulu:"Quiet coastal city on Sumatra’s west coast with the old British Fort Marlborough.",
-  Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations."};
+  Krui:"Small surf town on Lampung’s remote west coast.", "Pagar Alam":"Cool highland town under Mount Dempo, surrounded by tea plantations.",
+  Jakarta:"Indonesia’s huge capital: the old Dutch quarter of Kota Tua, the National Monument, and the main air and rail hub.",
+  Bandung:"Cool, hilly city in West Java with Dutch art deco buildings, and the Tangkuban Perahu volcano crater nearby.",
+  Yogyakarta:"Java’s culture capital: the Sultan’s palace (Kraton), Malioboro Street and batik, with Prambanan and Borobudur a day trip away.",
+  "Mount Bromo":"Cemoro Lawang village on the rim of the Tengger caldera, for sunrise over the smoking Bromo volcano.",
+  Banyuwangi:"East Java town by the ferry to Bali, and the base for night hikes to the blue fire and acid lake of Ijen crater.",
+  Malang:"Cool hill city in East Java with colourful painted kampungs, and another way in to Bromo.",
+  Medan:"North Sumatra’s big city and airport: the gateway to Lake Toba and Bukit Lawang.",
+  "Bukit Lawang":"Jungle village on the edge of Gunung Leuser National Park, for guided treks to see wild orangutans.",
+  "Lake Toba":"Huge volcanic crater lake. Tuktuk, on Samosir island, is the backpacker base, among Batak villages.",
+  Bukittinggi:"Cool highland town in West Sumatra’s Minangkabau country, near the Sianok canyon and Lake Maninjau.",
+  "Pulau Weh":"Small island off Aceh at Indonesia’s northern tip, with diving and snorkelling around Iboih. Aceh enforces Sharia law: no alcohol.",
+  "Labuan Bajo":"Harbour town in western Flores, the base for boat trips into Komodo National Park (dragons, mantas, pink beach).",
+  Moni:"Village below Kelimutu, the volcano with three coloured crater lakes, best seen at sunrise.",
+  Rantepao:"Main town of Tana Toraja in Sulawesi’s highlands, known for its boat-shaped houses and elaborate funeral ceremonies.",
+  Manado:"North Sulawesi’s capital and the gateway to Bunaken marine park’s coral walls.",
+  Makassar:"South Sulawesi’s port city and air hub, with Fort Rotterdam and seafood along the Losari waterfront.",
+  "Raja Ampat":"Remote islands off West Papua with some of the richest coral reefs on earth, reached by ferry from Sorong.",
+  "Pangkalan Bun":"Central Kalimantan town that’s the start of river-boat (klotok) trips to the orangutans of Tanjung Puting National Park.",
+  // Malaysia
+  "Kuala Lumpur":"Malaysia’s capital: the Petronas Towers, the Batu Caves, hawker food in Chinatown and Jalan Alor, and the hub for buses, trains and cheap flights.",
+  "George Town":"Penang’s old town, a UNESCO World Heritage Site: shophouses, street art, clan houses and some of Malaysia’s best hawker food.",
+  Langkawi:"Duty-free island in the Andaman Sea, with beaches around Pantai Cenang, a cable car, mangrove boat trips and ferries to Koh Lipe.",
+  Malacca:"Old trading port and UNESCO World Heritage Site: the red Dutch Square, Jonker Street’s weekend night market and Nyonya food.",
+  Ipoh:"Perak’s capital: a colonial old town among limestone hills, famous for white coffee and bean sprout chicken.",
+  "Cameron Highlands":"Cool hill station of tea plantations, mossy forest trails and strawberry farms, around Tanah Rata.",
+  "Perhentian Islands":"Two small islands off the north-east coast with clear water, snorkelling and cheap diving. Best March to October: most dive shops close November to February for the monsoon.",
+  Tioman:"Jungle-covered island off the east coast, reached by ferry from Mersing: diving, snorkelling and jungle walks.",
+  "Kota Bharu":"Kelantan’s conservative Malay capital, known for its night market, and the gateway to the Perhentians and the Thai border.",
+  "Taman Negara":"One of the world’s oldest rainforests: canopy walkway, jungle treks and river boats from Kuala Tahan.",
+  Cherating:"Laid-back east-coast beach village, Malaysia’s best-known surf spot in the monsoon months.",
+  Kuching:"Sarawak’s riverside capital, the base for orangutans at Semenggoh and proboscis monkeys in Bako National Park.",
+  "Kota Kinabalu":"Sabah’s capital, with island-hopping in the marine park offshore and the road up to Mount Kinabalu.",
+  Semporna:"Small town that’s the jumping-off point for Sipadan and Mabul diving. The UK advises against all but essential travel to the islands off this coast (kidnap risk): read the Malaysia guide first."};
 // the guide for the country you're in (Indonesia gets its own; everywhere else the Thailand one)
 TOOL_PAGES.guide = root => {
   (S.country === "ID" ? guideID : S.country === "KH" ? guideKH : GUIDES[S.country] ? (r => guideFrom(r, GUIDES[S.country])) : guideTH)(root);
@@ -346,7 +379,31 @@ const GUIDES = {
     safety:["Singapore is very safe, but drunk or disorderly behaviour is punished hard: fines, prison or caning."],
     when:"Hot and humid all year. It rains most in the north-east monsoon, roughly November to January.",
     embassies:[["British High Commission Singapore", "https://www.gov.uk/world/organisations/british-high-commission-singapore"]],
-    sos:[["Police", "999", ""], ["Ambulance and fire", "995", "Medical emergencies"]]}
+    sos:[["Police", "999", ""], ["Ambulance and fire", "995", "Medical emergencies"]]},
+  // gov.uk Malaysia travel advice (updated 18 Nov 2026), checked 22 Nov 2026
+  MY:{name:"Malaysia", lang:"Malay", slug:"malaysia", checked:"22 Nov 2026",
+    warn:"<b>The UK advises against all but essential travel to the islands and dive sites off eastern Sabah, from Sandakan to Tawau</b> (including Lankayan, and the islands reached from Semporna), because of the threat of kidnapping. It doesn’t apply to mainland Sabah. Travelling against that advice can cancel your travel insurance.",
+    entry:["British passports need <b>no visa</b> for a holiday: you’re normally given <b>90 days</b> on arrival. Don’t overstay, even by a few days: fines, detention and a ban follow.",
+      "Your passport needs <b>at least 6 months</b> left from the day you arrive, undamaged, with no pages missing.",
+      "You must submit an <b>arrival card online</b> (on the Malaysian Immigration website) before you travel; airlines may ask for it at check-in.",
+      "Going between Peninsular Malaysia and <b>Sabah or Sarawak</b> (Malaysian Borneo)? Carry your passport: there’s immigration control and you get entry and exit stamps.",
+      "You may be asked for a urine test on arrival if drug use is suspected, and a positive result can mean detention or deportation even if you took it in a country where it’s legal."],
+    money:["The money is the Malaysian ringgit (RM).",
+      "Card and ATM fraud is widespread: cover your PIN and use machines inside banks or malls."],
+    laws:["<b>Drug penalties are extremely severe</b>, cannabis included and even in very small amounts: long prison terms, whipping and the death penalty for trafficking. Airports scan transit passengers’ bags too. Police raid places popular with foreigners and may test you.",
+      "Never carry a bag or package through an airport or border for someone else.",
+      "By law you must carry ID: <b>always carry your passport</b>.",
+      "Dress modestly, especially in conservative and rural areas; places of worship and government offices may turn you away without covered shoulders and knees.",
+      "Foreigners may not take part in demonstrations or protests.",
+      "To drive or ride you need a <b>1949 International Driving Permit</b> (only sold in the UK) and your UK licence; helmets are compulsory and drink-driving checks are common. Leaving the scene of an accident before the police arrive is illegal.",
+      "Same-sex sexual acts are illegal under federal law."],
+    safety:["Bag snatchers on motorbikes target tourists in the big cities: carry your bag on the side away from the road, and let go if it’s grabbed.",
+      "Drinks have been spiked in bars, even reputable ones, before robberies and assaults. Methanol in alcohol can kill.",
+      "Several overnight buses have crashed: pick a reputable operator. Boats have sunk from overloading: avoid overloaded ones and check there are life jackets.",
+      "Haze from forest fires in Indonesia can affect air quality and travel between June and October."],
+    when:"Hot and humid all year. Seasonal storms bring flooding and landslides, at different times in different parts of the country: check the Malaysian Meteorological Department (MET Malaysia) forecast before island trips.",
+    embassies:[["British High Commission Kuala Lumpur", "https://www.gov.uk/world/organisations/british-high-commission-kuala-lumpur"]],
+    sos:[["Police and ambulance", "999", ""], ["Ambulance (from a mobile)", "112", ""], ["Fire", "994", ""]]}
 };
 // the destinations of a country that has a places database
 const destsOf = cc => PLACE_DESTS.filter(c => placeDbCc(c[1], c[2]) === cc);
@@ -356,13 +413,13 @@ function guideFrom(root, G){
   root.innerHTML = toolHero(`${G.name} guide`, "The practical basics, with official sources") + `<div class="page">
   ${G.warn ? `<div class="callout">${icon("alert")}<div>${G.warn} ${src("gov.uk warnings", gov("warnings-and-insurance"))}.</div></div>` : ""}
   <section class="block"><h2>Getting in (British passport)</h2>${li(G.entry)}
-    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk entry requirements", gov("entry-requirements"))}. Other passports have different rules.</p></section>
+    <p class="note" style="margin-top:8px">Checked ${G.checked || GUIDE_NEW_CHECKED}. Source: ${src("gov.uk entry requirements", gov("entry-requirements"))}. Other passports have different rules.</p></section>
   <section class="block"><h2>Money</h2>${li(G.money)}
     <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/currency">Open the converter</a><button class="btn small" type="button" data-ess="atm">ATMs on the map</button></div></section>
   <section class="block"><h2>Laws that catch travellers out</h2>${li(G.laws)}
-    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}. This is a summary, not legal advice.</p></section>
+    <p class="note" style="margin-top:8px">Checked ${G.checked || GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}. This is a summary, not legal advice.</p></section>
   <section class="block"><h2>Staying safe</h2>${li(G.safety)}
-    <p class="note" style="margin-top:8px">Checked ${GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}.</p>
+    <p class="note" style="margin-top:8px">Checked ${G.checked || GUIDE_NEW_CHECKED}. Source: ${src("gov.uk safety and security", gov("safety-and-security"))}.</p>
     <div class="row" style="margin-top:8px"><a class="btn small primary" href="#tools/emergency">${icon("siren","i s")}Emergency numbers</a></div></section>
   <section class="block"><h2>Language</h2>
     <div class="row" style="margin-top:4px"><a class="btn small" href="#tools/translate">Open the ${esc(phrasebook().name)} phrasebook</a></div></section>
@@ -407,13 +464,19 @@ function guideID(root){
       <li>Watch for strong currents and obey beach flags.</li></ul>
     <p class="note" style="margin-top:8px">Checked ${GUIDE_ID_CHECKED}. Source: ${src("gov.uk Indonesia travel advice", "https://www.gov.uk/foreign-travel-advice/indonesia")}.</p>
     <div class="row" style="margin-top:8px"><a class="btn small primary" href="#tools/emergency">${icon("siren","i s")}Emergency numbers</a><button class="btn small" type="button" data-ess="water">Water refill points</button></div></section>
+  <section class="block"><h2>Regions with extra advice</h2>
+    <ul class="known"><li><b>Aceh</b> (Banda Aceh, Pulau Weh) enforces Sharia law, for non-Muslims too: alcohol is illegal there, and punishments include public caning.</li>
+      <li><b>Central Sulawesi</b> (on the way to the Togean Islands): take particular care in Palu, Poso and Tentena, where there has been conflict with terrorist groups.</li>
+      <li><b>Maluku</b>: take particular care on Ambon and Haruku islands.</li>
+      <li><b>Papua region</b> (Raja Ampat is in Southwest Papua): armed separatists fight the security forces, mainly in Highland Papua and Central Papua, and have said foreigners would be targeted. Hospitals are limited there.</li></ul>
+    <p class="note" style="margin-top:8px">Checked 22 Nov 2026. Source: ${src("gov.uk regional risks", "https://www.gov.uk/foreign-travel-advice/indonesia/regional-risks")}.</p></section>
   <section class="block"><h2>Language and manners</h2>
     <ul class="known"><li>Indonesian (Bahasa Indonesia) is the language. English is common in Bali’s tourist areas, much less so in Sumatra. A few polite words go a long way.</li>
       <li>Most Indonesians are Muslim; Bali is mostly Hindu. Away from the beach, cover shoulders and knees, and always in mosques and temples (Bali temples lend sarongs).</li>
       <li>Give and take things with your right hand.</li></ul>
     <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/translate">Open the phrasebook</a></div></section>
   <section class="block"><h2>When to go</h2>
-    <p>Roughly: Bali and Lombok are drier from about April to October and wetter from November to March. Southern Sumatra gets rain all year, most from about November to April.</p>
+    <p>Roughly: Bali and Lombok are drier from about April to October and wetter from November to March. Southern Sumatra gets rain all year, most from about November to April. In the dry season, roughly May to November, wildfire smoke haze can hang over the Riau Islands, central Sumatra and Kalimantan and disrupt flights.</p>
     <div class="row" style="margin-top:8px"><a class="btn small" href="#tools/weather">Check the forecast</a></div></section>
   ${D.rides.ID ? `<section class="block"><h2>Getting around</h2><p>${esc(D.rides.ID)}</p><div class="row" style="margin-top:8px"><a class="btn small" href="#tools/transport">Plan a journey</a></div></section>` : ""}
   <div class="sect"><h2>Destinations</h2><span class="note">${ID_DESTS.length}</span></div>

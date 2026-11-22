@@ -9,10 +9,11 @@ const A = load();
 const UA = {"User-Agent": "SEA-trip-app-build/1.0 (personal travel app)"};
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function getJSON(url, opts = {}){
-  for (let i = 0; i < 6; i++){
+  // Wikimedia answers 429 (too many requests) for minutes at a time from busy networks: keep trying, more slowly each time
+  for (let i = 0; i < 12; i++){
     try { const r = await fetch(url, {...opts, headers:{...UA, ...(opts.headers || {})}}); if (r.ok) return await r.json(); console.error("  status " + r.status); }
     catch(e){ console.error("  " + e.message); }
-    await sleep(3000 * (i + 1));
+    await sleep(Math.min(120000, 10000 * (i + 1)));
   }
   throw new Error("gave up on " + url.slice(0, 80));
 }

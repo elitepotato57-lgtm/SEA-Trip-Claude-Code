@@ -79,8 +79,9 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
-- `js/transport.js`: journey planner over `D.net` (Thailand, Cambodia, Vietnam, Laos, Singapore, plus Bali, Lombok, the Gilis and southern
-  Sumatra via Jakarta; the newer countries come from `node tools/transport-asia.js`, re-runnable, sources per link). Nothing is worked
+- `js/transport.js`: journey planner over `D.net` (Thailand, Cambodia, Vietnam, Laos, Singapore, Malaysia and Indonesia; the newer
+  countries come from `node tools/transport-asia.js` and `node tools/transport-my-id.js` (Malaysia, Java, Sumatra, Flores, Sulawesi,
+  Kalimantan, Raja Ampat), re-runnable, sources per link (Seat 61, Wikivoyage); legs whose source gives no time are `verified:false`). Nothing is worked
   out until **Search** is pressed; a journey opens in a sheet with every leg and a map (each leg its own colour, numbered stops, mode icons);
   flight legs link to Google Flights on the chosen date. When a country is added to the map, research its transport too. Its map
   names the `D.cities` that aren't stops (`city-name` layer) and the stops from zoom 4.6.
@@ -95,11 +96,16 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (`--ts` text size, `--chip`, `--pad`, `--card-gap`, `--card-ar`, radii).
 - `sw.js`: service worker. Bump `APP` when files change. The app's own `js/`, `css/` and `config.js` load
   network-first (so a phone never mixes versions); places and tiles are cached; `sea-trip-packs-v1` holds saved cities and is never trimmed.
-- `places/th/` (all of Thailand), `places/id/` (Indonesia: Lampung, South Sumatra, Bengkulu, Bali, Lombok), `places/kh/`, `places/vn/`, `places/la/` and `places/sg/` (all of Cambodia, Vietnam, Laos, Singapore): the places
-  databases, listed in `PLACE_DBS` in `js/places.js`. Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`).
+- `places/th/`, `places/id/`, `places/my/`, `places/kh/`, `places/vn/`, `places/la/` and `places/sg/` (all of Thailand, Indonesia, Malaysia,
+  Cambodia, Vietnam, Laos, Singapore): the places databases, listed in `PLACE_DBS` in `js/places.js` (order matters for points outside
+  every outline). Built from OpenStreetMap by `tools/osm/extract.py` (see `tools/osm/README.md`; Indonesia and Malaysia came from
+  download.openstreetmap.fr with `--repair-borders`, since cloud sessions can't reach Geofabrik). Malaysia's and Brunei's outlines in
+  `GEO` are real borders from `tools/osm/outline.py`; `node tools/destinations-my-id.js` adds their destinations to `D.cities`.
   Luggage lockers and gluten-free (`gf`) were added to the existing folders by `node tools/osm/add-extras.js` (Overpass); extract.py now keeps both.
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
-  numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
+  numbers (`js/tools-more.js`; `GUIDES` entries can carry their own `checked` date), destinations (`D.cities`, `DEST_NOTE`, Explore sections
+  in `js/places.js`/`js/lists.js`: Indonesia by island group, Malaysia and Malaysian Borneo). The app follows `S.country`.
+  Researched gaffs/munch/activities (`D.places`) exist for Thailand, Indonesia's original 17 destinations and a few main cities elsewhere.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
 - `tests/`: `run-all.js` (what `npm test` runs: unit and smoke with experiments off, then again with `SEA_EXP=all`), `unit.js` (logic, in Node), `smoke.js` (phone-size browser run; `EXPON` when all on), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
   cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet), `check-new.js` (Map button, Boozer, typical photos, journey sheet).

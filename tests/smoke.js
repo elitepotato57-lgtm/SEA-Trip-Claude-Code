@@ -714,6 +714,37 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await c.close();
   }
 
+  // Malaysia: a new phone in Kuala Lumpur gets Malaysia, ringgit estimates, the Malaysia guide (with the Sabah warning),
+  // 999 and the Malay phrasebook; and every Malaysian destination has somewhere to stay, eat and visit nearby
+  {
+    const {c, pg} = await phoneIn({latitude:3.1517, longitude:101.6942});
+    const k = await pg.evaluate(() => ({cc:S.country, st:locStatus}));
+    ok(k.cc === "MY" && k.st === "ok", "a fresh install in Kuala Lumpur picks Malaysia " + JSON.stringify(k));
+    await pg.goto(BASE + "#munch"); await pg.waitForTimeout(3500);
+    const ml = await pg.evaluate(() => { const t = (document.querySelector("#pageview .cards") || {}).textContent || ""; return {cards:document.querySelectorAll("#pageview .card[data-open]").length, rm:/RM ?\d/.test(t), baht:/฿/.test(t)}; });
+    ok(ml.cards > 5 && ml.rm && !ml.baht, "the Munch list in Kuala Lumpur shows ringgit estimates, never baht " + JSON.stringify(ml));
+    await pg.goto(BASE + "#tools/guide"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Malaysia guide/.test(document.querySelector("#pageview h1").textContent) && /eastern Sabah/.test(document.querySelector("#pageview").textContent)), "the guide switches to Malaysia, with the Sabah islands warning");
+    await pg.goto(BASE + "#tools/emergency"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => ["999", "994"].every(n => document.querySelector(`#pageview a[href="tel:${n}"]`))), "Malaysia's emergency numbers (999, 994)");
+    await pg.goto(BASE + "#tools/translate"); await pg.waitForTimeout(800);
+    ok(await pg.evaluate(() => /Malay phrasebook/.test(document.querySelector("#h-pb").textContent) && /Terima kasih/.test(document.querySelector("#pageview").textContent)), "the phrasebook switches to Malay");
+    await pg.goto(BASE + "#discover"); await pg.waitForTimeout(1500);
+    const dsc = await pg.evaluate(() => ({t:document.querySelector("#pageview").textContent, w:document.documentElement.scrollWidth}));
+    ok(/Explore Malaysia/.test(dsc.t) && /Explore Malaysian Borneo/.test(dsc.t) && /Explore Java/.test(dsc.t) && dsc.w <= 393, "Discover has the Malaysia, Borneo and Java sections, no sideways scroll " + JSON.stringify({w:dsc.w}));
+    const near = await pg.evaluate(async () => {
+      const out = {};
+      for (const d of MY_DESTS.concat(MY_BORNEO_DESTS)){
+        const pt = {lat:d[1], lng:d[2]}, r = {};
+        for (const g of ["stay", "food", "do"]){ const f = await Places.nearest(g, pt, {maxKm:12}); r[g] = f && f.p ? +f.km.toFixed(1) : null; }
+        out[d[0]] = r;
+      }
+      return out;
+    });
+    ok(Object.keys(near).length >= 14 && Object.values(near).every(r => r.stay != null && r.food != null && r.do != null), "a stay, food and something to do near every Malaysian destination " + JSON.stringify(near));
+    await c.close();
+  }
+
   // Funny mode (Settings): Tommy's intro when the app opens, China talks back on the map, Ben waves on Friends
   {
     const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
