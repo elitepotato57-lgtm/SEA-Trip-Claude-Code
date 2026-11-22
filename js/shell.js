@@ -159,6 +159,7 @@ function locate(prompted, done, quiet){
     return fin();
   }
   if (!("geolocation" in navigator)){ locStatus = "unavailable"; rerender(); if (prompted && !quiet) toast("Location isn’t available here. Pick a place instead."); return fin(); }
+  const had = locStatus === "ok" || locStatus === "outside";     // location already working this visit: a recent fix will do
   locStatus = "asking";
   const got = pos => {
     geoKeep(pos.coords);
@@ -174,7 +175,7 @@ function locate(prompted, done, quiet){
     if (typeof Heading !== "undefined") Heading.sync();          // keep the dot following the phone while the map is open
     rerender(); fin();
   };
-  const fresh = geoFresh();
+  const fresh = had && geoFresh();
   if (fresh){ got({coords:{latitude:fresh.lat, longitude:fresh.lng, accuracy:fresh.acc}}); return; }
   navigator.geolocation.getCurrentPosition(got, err => {
     locStatus = err && err.code === 1 ? "denied" : "unavailable";
