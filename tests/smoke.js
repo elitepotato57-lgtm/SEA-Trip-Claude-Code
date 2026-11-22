@@ -96,7 +96,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.goto(BASE + "#tools"); await page.waitForTimeout(600);
   ok(await page.evaluate(() => !document.querySelector('#pageview a[href="#tools/developer"]')), "no Developer tool until ELITE POTATO is typed");
   await page.evaluate(() => { S.dev = true; persist(); renderPage(); }); await page.waitForTimeout(600);
-  ok(await page.evaluate(() => { const t = [...document.querySelector("#pageview .tgrid").querySelectorAll("a.tool")]; return t.length && t[t.length - 1].getAttribute("href") === "#tools/developer"; }), "a developer phone gets Developer as the last tool");
+  // (grouped Tools, an experiment: Developer is the last tile of its group, Our trip)
+  ok(await page.evaluate(ex => { const g = ex ? [...document.querySelectorAll("#pageview .tgroup")].find(x => x.previousElementSibling && /Our trip/.test(x.previousElementSibling.textContent)) : document.querySelector("#pageview .tgrid"); const t = g ? [...g.querySelectorAll("a.tool")] : []; return t.length && t[t.length - 1].getAttribute("href") === "#tools/developer"; }, EXPON), "a developer phone gets Developer as the last tool");
   await page.goto(BASE + "#tools/developer"); await page.waitForTimeout(800);
   // Experiments: every switch is listed with its description; all off on a normal phone (all on in the experiments test run)
   const ex = await page.evaluate(() => ({n:EXPERIMENTS.length, rows:document.querySelectorAll("#dev-exp [data-exp]").length, on:[...document.querySelectorAll("#dev-exp [data-exp]")].map(b => b.getAttribute("aria-pressed")), w:document.documentElement.scrollWidth}));
@@ -139,7 +140,9 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   // Wi-Fi finder: straight to the main map with only Wi-Fi showing
   await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
-  await page.click('#pageview a[href="#tools/wifi"]'); await page.waitForTimeout(5000);
+  // (with grouped Tools, an experiment, there's no Wi-Fi tile: Wi-Fi is on the map; its page still opens the same way)
+  if (EXPON) await page.evaluate(() => go("#tools/wifi")); else await page.click('#pageview a[href="#tools/wifi"]');
+  await page.waitForTimeout(5000);
   const wf = await page.evaluate(() => ({view:ui.view, ess:[...ui.essKinds], cats:ui.mapCats.size, n:mapRun.items.length, onlyWifi:mapRun.items.every(p => p.k === "wifi")}));
   ok(wf.view === "map" && wf.ess.join() === "wifi" && wf.cats === 0 && wf.onlyWifi, "Wi-Fi finder opens the map with only Wi-Fi places " + JSON.stringify(wf));
   await page.evaluate(() => { ui.essKinds.clear(); ui.essOpen = false; ui.mapCats = new Set(["gaff", "munch", "cool"]); mapRun.stash = null; renderMapUI(); });
