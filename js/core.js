@@ -155,8 +155,13 @@ const NOTES = {THB:[20,100,500,1000],USD:[1,5,10,20],EUR:[5,10,20,50],AUD:[5,10,
 /* ---------- Paper Atlas look (Settings > Look) ----------
    Same map data, warmer colours: cream land, soft blue water, muted green parks, terracotta roads.
    OpenFreeMap's font server only has Noto Sans, so map labels stay Noto (italic for water names). */
+/* Experiment daylight: small grey text gets stronger contrast, and Settings can switch to the light look (Paper Atlas)
+   in the daytime, 7am to 6pm, checked when the app opens. */
+EXPERIMENTS.push({id:"daylight", n:"Daylight readability", d:"Stronger contrast for small grey text, and a Settings option to use the light look during the day."});
+const isDaytime = (d = new Date()) => d.getHours() >= 7 && d.getHours() < 18;
+const lookPaper = () => S.look === "paper" || (exp("daylight") && S.dayLook === true && isDaytime());
 function applyLook(){
-  const paper = S.look === "paper", root = document.documentElement;
+  const paper = lookPaper(), root = document.documentElement;
   if (paper) root.dataset.look = "paper"; else delete root.dataset.look;
   const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = paper ? "#F3EAD7" : "#121417";
   if (paper && !document.getElementById("serifFont")){
@@ -190,7 +195,7 @@ function mapStyle(){
   return st;
 }
 function mapStyleBase(){
-  if (S.look !== "paper") return MAP_STYLE;
+  if (!lookPaper()) return MAP_STYLE;
   const st = JSON.parse(JSON.stringify(MAP_STYLE)); st.name = "SEA Trip, Paper Atlas";
   st.layers.forEach(l => {
     if (PAPER_MAP[l.id]) Object.assign(l.paint = l.paint || {}, PAPER_MAP[l.id]);
@@ -205,7 +210,7 @@ const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 // v: the saved-state version (2 = the test location is off unless someone picked one)
 const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, mapsApp:"google", funny:false};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, dayLook:false, mapsApp:"google", funny:false};
 const S_SAVED = loadState();
 let S = Object.assign({}, S_DEFAULTS, S_SAVED);
 // Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.

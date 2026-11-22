@@ -893,3 +893,6 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 .card.slim .ph{display:none}
 .card.slim .body{padding-right:56px}
 .card.slim .blurb,.card.slim .tags{display:none}
+/* experiment daylight: stronger contrast for small grey text (night look; Paper Atlas gets darker greys) */
+html.x-daylight:not([data-look="paper"]){--muted:#C9C9CB;--faint:#ADAEAF;--placeholder:#B4B5B6}
+html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
