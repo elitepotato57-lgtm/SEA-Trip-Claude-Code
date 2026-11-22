@@ -825,6 +825,13 @@ test("experiment route-save: the route's cities, in trip order, each one that ca
   eq(r[0], "Bangkok"); ok(r.length >= 10 && r.indexOf("Chiang Mai") < r.indexOf("Hanoi"), r.join(", "));
 });
 
+test("experiment driver-card: offered only on gaffs with a Thai or Lao name or address", () => {
+  const P = load(); P.expSet("driver-card", true);
+  const here = P.D.places.find(p => p.id && p.nt === "โรงแรมเฮีย");
+  ok(P.driverOK(here)); ok(!P.driverOK({c:"gaff", n:"No Thai", nt:"", ad:"12 Main St"})); ok(!P.driverOK({c:"munch", nt:"ร้าน"}));
+  P.expSet("driver-card", false); ok(!P.driverOK(here), "off: no button");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

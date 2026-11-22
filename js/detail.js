@@ -417,6 +417,23 @@ function bookingBlock(it){
 }
 
 /* ---------- the details sheet ---------- */
+/* Experiment driver-card (from TRAVELLER-IDEAS.md): on a gaff with a Thai or Lao name or address, a button opens a full-screen
+   card with them in big script, white on black so it reads in a dark taxi. Tap anywhere to close. */
+EXPERIMENTS.push({id:"driver-card", n:"Show this to the driver", d:"On a gaff with a Thai or Lao name or address: a full-screen card in big script, readable in a dark taxi."});
+const localScript = s => /[\u0e00-\u0eff]/.test(s || "");
+const driverOK = it => exp("driver-card") && it && it.c === "gaff" && (localScript(it.nt) || localScript(it.ad));
+function openDriverCard(it){
+  const lao = /[\u0e80-\u0eff]/.test((it.nt || "") + (it.ad || "")), lang = lao ? "lo" : "th";
+  const el = document.createElement("div"); el.className = "driver-card"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Show this to the driver");
+  el.innerHTML = `<div class="dc-in">${lao ? "" : `<div class="dc-ask" lang="th">กรุณาไปที่นี่</div>`}
+    ${localScript(it.nt) ? `<div class="dc-name" lang="${lang}">${esc(it.nt)}</div>` : ""}
+    ${localScript(it.ad) ? `<div class="dc-addr" lang="${lang}">${esc(it.ad)}</div>` : ""}
+    <div class="dc-en">${esc(it.n)}${it.area || it.city ? ", " + esc(it.area || it.city) : ""}</div>
+    ${it.ph ? `<a class="btn" href="tel:${esc(it.ph)}" style="margin-top:14px">${icon("phone","i s")}Call the hostel</a>` : ""}
+    <div class="dc-close">Tap anywhere to close</div></div>`;
+  el.onclick = e => { if (!e.target.closest("a")) el.remove(); };
+  document.body.appendChild(el);
+}
 /* Experiment plan-here: "Plan a journey here" on every place, and the main button when the place is over 20 km away. */
 EXPERIMENTS.push({id:"plan-here", n:"Plan a journey here", d:"Every place’s details get “Plan a journey here”; over 20 km away, it’s the main button instead of Directions."});
 const farAway = (it, ref) => !!ref && dist(ref, it) > 20;
@@ -526,6 +543,7 @@ function openDetail(id){
     const rel = D.routes.filter(r => r.a.includes(it.city) || r.b.includes(it.city));
     if (rel.length) body += `<h4>Saved routes</h4><ul class="known">${rel.map(r => `<li>${esc(r.a)} → ${esc(r.b)}, ${esc(r.mode.toLowerCase())}${r.p ? `, ${esc(withGBP(routeLocal(r), r.p, r.cur))}` : ""}</li>`).join("")}</ul>`;
   }
+  if (driverOK(it)) body += `<button class="btn wide" type="button" id="dtDriver" style="margin-top:12px">${icon("car","i s")}Show this to the driver</button>`;
   if (it.c === "gaff") body += bookingBlock(it);
   body += detailActions(it, ref);
   if (it.ap) body += `<p class="note">The pin is approximate. Directions goes to the real address.</p>`;
@@ -540,6 +558,7 @@ function openDetail(id){
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const shr = $("#dtShare"); if (shr) shr.onclick = () => shareIt(it);
+  const drv = $("#dtDriver"); if (drv) drv.onclick = () => openDriverCard(it);
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   if (wantsSurf(it)) fillSurf(it);
   const box0 = $("#photoBox");
