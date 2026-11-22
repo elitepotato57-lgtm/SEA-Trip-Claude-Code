@@ -222,6 +222,21 @@ function tripCard(t, idx){
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
   </div>`;
 }
+EXPERIMENTS.push({id:"tp-legnames", n:"Transport: clearer leg names", d:"Local rides are named by their stop (“To Thong Sala Pier”), and “Bus, Bus, minivan or taxi” reads “Bus, minivan or taxi”."});
+// a leg's title in the journey sheet. Experiment tp-legnames: a local ride at either end is named by the pier, station or
+// bus stop it takes you to (or from), instead of "Koh Phangan → Koh Phangan"
+function legTitle(t, k){
+  const L = t.legs[k], plain = `${NODE[L.from].n} → ${NODE[L.to].n}`;
+  if (!exp("tp-legnames")) return plain;
+  const local = L.o.mode === "Local ride" || (L.o.mode === "Taxi" && !(L.o.src || []).length);
+  if (!local) return plain;
+  const nx = t.legs[k + 1], pv = t.legs[k - 1];
+  if (nx && L.to[0] !== "@"){ const s = stationOf(nx.from === nx.o.a ? nx.o.da : nx.o.db); return `To ${s && s.lat != null ? s.n : NODE[L.to].n}`; }
+  if (pv && L.from[0] !== "@"){ const s = stationOf(pv.to === pv.o.b ? pv.o.db : pv.o.da); return `From ${s && s.lat != null ? s.n : NODE[L.from].n} to ${NODE[L.to].n}`; }
+  return NODE[L.from].n === NODE[L.to].n ? `Around ${NODE[L.to].n}` : plain;
+}
+// "Bus" and "Bus, minivan or taxi" together read "Bus, Bus, minivan or taxi": drop the mode when the operator already says it
+const legKind = o => exp("tp-legnames") && o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -231,15 +246,15 @@ function tripSheetHTML(t){
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
     const lp = o.p ? withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
     return `<div class="leg"><span class="li legn" style="--lc:${LEG_COLS[k % LEG_COLS.length]}"><i>${k + 1}</i>${icon(MODE_IC[o.mode] || "bus", "i s")}</span><div>
-      <b>${esc(NODE[L.from].n)} → ${esc(NODE[L.to].n)}</b>
-      <div class="m">${esc(o.mode)}${o.op ? ", " + esc(o.op) : ""}</div>
+      <b>${esc(legTitle(t, k))}</b>
+      <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
       ${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
   const a = NODE[t.legs[0].from].n, b = NODE[t.legs[t.legs.length - 1].to].n;
-  const notes = t.legs.flatMap(L => L.o.notes.map(n => `${NODE[L.from].n} → ${NODE[L.to].n}: ${n}`));
+  const notes = t.legs.flatMap((L, k) => L.o.notes.map(n => `${legTitle(t, k)}: ${n}`));
   const srcs = t.legs.flatMap(L => L.o.src || []);
   return `<div class="sheet-head"><h2 id="trip-title" style="margin:0">${esc(a)} → ${esc(b)}</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
     <div class="trip open">

@@ -798,6 +798,15 @@ test("experiment tp-fastest: Koh Phangan to Quy Nhon keeps the truly fastest jou
   ok(on.legs.some(L => L.o.mode === "Flight" && L.to === "nhatrang"), "flies into Nha Trang");
 });
 
+test("experiment tp-legnames: a local ride is named by its pier, and no “Bus, Bus, minivan or taxi”", () => {
+  const P = load(), c = P.D.cities.find(c => c[0] === "Quy Nhon");
+  P.expSet("tp-fastest", true); P.expSet("tp-legnames", true);
+  const t = P.planTrips({n:"Koh Phangan", lat:9.71, lng:100.02}, {n:c[0], lat:c[1], lng:c[2]})[0];
+  eq(P.legTitle(t, 0), "To Thong Sala Pier");
+  ok(t.legs.every(L => !/^(\w+), \1/i.test(P.legKind(L.o))), t.legs.map(L => P.legKind(L.o)).join(" / "));
+  P.expSet("tp-legnames", false); eq(P.legTitle(t, 0), "Koh Phangan → Koh Phangan", "off: as before");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
