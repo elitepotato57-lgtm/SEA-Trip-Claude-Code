@@ -49,7 +49,7 @@ function renderTools(){
     <div class="tgrid">${toolsInOrder().map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
     <div class="sect"><h2>Essentials nearby</h2><a href="#map" id="t-essmap">View on map</a></div>
     <div class="egrid">${["laundry","atm","pharmacy","water","shop","supermarket","sim","hospital"].map(id => { const e = ESS_BY_ID[id]; return `<button class="ebtn" type="button" data-ess="${id}">${icon(e.ic)}${e.l.replace(" and minimarts", "")}</button>`; }).join("")}</div>
-    <p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>
+    ${explain("tools-ess", `<p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>`)}
     <div class="sect"><h2>App</h2></div>
     <div class="tgrid"><a class="tool" href="#saved"><span class="ti">${icon("bookmark")}</span><span><b>Saved places</b><small>${Object.keys(S.saved).length} saved on this phone</small></span></a>
       <a class="tool alt" href="#tools/settings"><span class="ti">${icon("cog")}</span><span><b>Settings</b><small>Location, rates, data</small></span></a>

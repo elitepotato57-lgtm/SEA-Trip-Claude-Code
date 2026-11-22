@@ -217,7 +217,7 @@ function paintListBody(cat){
   let html = "";
   const whereTxt = pt.none ? "" : st.radius ? ` within ${st.radius} km of ${S.focus ? S.focus.n : "you"}` : ` near ${S.focus ? S.focus.n : "you"}`;
   html += `<p class="note" style="margin-top:10px"><b style="color:var(--ink)">${items.length.toLocaleString("en-GB")}${run.more ? "+" : ""}</b> ${items.length === 1 ? "place" : "places"}${esc(whereTxt)}. <span id="listStatus"></span></p>`;
-  if (st.sort === "top" && !pt.none && items.length) html += `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`;
+  if (st.sort === "top" && !pt.none && items.length) html += explain("list-order", `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`);
   if (chip && chip.note) html += `<p class="note" style="margin-top:4px">${esc(chip.note)}</p>`;
   if (st.open) html += `<p class="note" style="margin-top:4px">Open now only counts places whose opening hours are known (Thailand time). Places with unknown hours are left out.</p>`;
   if (pt.none) html += `<div class="callout">${icon("pin")}<div><b>Pick a place to see everything nearby.</b> You’re seeing the researched places only.<div class="row" style="margin-top:8px"><button class="btn small primary" type="button" data-where>Choose a place</button></div></div></div>`;
@@ -258,7 +258,7 @@ function stayStrip0(){
     <label class="field">Guests<select id="st-g">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${+s.guests === n ? "selected" : ""}>${n}</option>`).join("")}<option value="more" ${+s.guests > 8 ? "selected" : ""}>8+</option></select></label>
     <label class="field" ${+s.guests > 8 ? "" : "hidden"} id="st-gn-wrap">How many?<input type="number" id="st-gn" inputmode="numeric" min="9" max="${MAX_GUESTS}" value="${+s.guests > 8 ? +s.guests : 9}"></label>
   </div>
-  <p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`;
+  ${explain("stay-dates", `<p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`)}`;
 }
 function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");

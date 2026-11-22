@@ -886,3 +886,6 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 .stay-fold>summary::-webkit-details-marker{display:none}
 .stay-fold>summary .i.xs{margin-left:auto}
 .stay-fold[open]>summary{margin-bottom:8px}
+/* experiment notes-once: the (i) that opens an explainer note again */
+.info-i{display:inline-grid;place-items:center;width:22px;height:22px;margin:4px 0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:700 13px/1 Georgia,serif;font-style:italic;padding:0}
+.info-i[aria-expanded="true"]{color:var(--ink)}
