@@ -870,6 +870,20 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
       eq(A.G_DAILY.photo, 30, "about £25 a month for six phones");
     });
   }
+  // voice search: an iPhone that never marks the words final and never stops by itself still searches after a short pause
+  {
+    let made = null;
+    function FakeRec(){ made = this; this.start = () => {}; this.stop = () => { this.stopped = true; }; }
+    const V = load(undefined, {webkitSpeechRecognition:FakeRec});
+    let got = "unset", texts = [];
+    const r = V.listen(t => texts.push(t), (t, err) => { got = err ? "ERR " + err : t; });
+    made.onresult({resultIndex:0, results:[Object.assign([{transcript:"nearest"}], {isFinal:false})]});
+    made.onresult({resultIndex:0, results:[Object.assign([{transcript:"nearest toilet"}], {isFinal:false})]});
+    await new Promise(res => setTimeout(res, 2600));
+    test("voice search: after a pause it searches with the words heard, even if the phone never says it's finished", () => {
+      ok(!!r && made.stopped, "listening was stopped after the pause"); eq(got, "nearest toilet"); eq(texts.slice(-1)[0], "nearest toilet");
+    });
+  }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");

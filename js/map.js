@@ -714,7 +714,7 @@ function bindMapSearch(){
       inp.value = final;
       // the same intents as typing: "nearest pharmacy" goes straight to it, other questions get the list of answers
       if (nearestIntent(final)){ close(); inp.blur(); goNearest(final); }
-      else if (typeof parseAsk === "function" && parseAsk(final)){ close(); inp.blur(); showAnswer(final); }
+      else if ((typeof parseAsk === "function" && parseAsk(final)) || (typeof moreIntent === "function" && moreIntent(final))){ close(); inp.blur(); showAnswer(final); }
       else { online = []; paint(); runRemote(); }
     });
     if (rec){ mic.setAttribute("aria-pressed", "true"); mic.classList.add("on"); inp.value = ""; inp.placeholder = "Listening…"; setTimeout(() => inp.placeholder = "Search places or ask a question", 6000); }
