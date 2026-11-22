@@ -815,6 +815,11 @@ test("experiment en-towns: Khmer and Lao town names become English (Kampot, not 
   P.expSet("en-towns", true); eq(P.osmPlace([2, 13.75, 100.5, "restaurant", "Y", 0, {}], [["Pathum Wan", "Bangkok"]], "food", "TH").city, "Bangkok", "Latin names untouched");
 });
 
+test("experiment lost-share: the WhatsApp text carries a Google Maps link to where you are", () => {
+  eq(A.frSosText({lat:9.71234567, lng:100.0123456}), "I’m lost, I’m here: https://www.google.com/maps/search/?api=1&query=9.71235,100.01235");
+  ok(/no location/.test(A.frSosText(null)));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

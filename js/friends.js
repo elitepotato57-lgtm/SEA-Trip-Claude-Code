@@ -947,6 +947,16 @@ async function frAllowPhone(){
 }
 async function frPhoneOf(uid){ try { return await frDb("GET", `phones/${uid}`); } catch(e){ return null; } }
 // sends the alert to every friend; resolves how many it reached
+/* Experiment lost-share: the alert only pops up on phones with the app open, so after sending, the phone's share sheet opens
+   too, with "I'm lost, I'm here: <Google Maps link>" ready for WhatsApp (a WhatsApp button as well, if the share sheet can't open). */
+EXPERIMENTS.push({id:"lost-share", n:"I’m lost: also share to WhatsApp", d:"After the alert, the share sheet opens with “I’m lost, I’m here: <map link>”; the note no longer promises a pop-up on closed apps."});
+let frSosHere = null;
+const frSosText = here => `I’m lost, I’m here: ${here ? `https://www.google.com/maps/search/?api=1&query=${here.lat.toFixed(5)},${here.lng.toFixed(5)}` : "(no location yet)"}`;
+async function frSosShare(here){
+  const text = frSosText(here);
+  try { if (navigator.share){ await navigator.share({text}); return true; } } catch(e){ if (e && e.name === "AbortError") return true; }
+  return false;
+}
 async function frSosSend(){
   const f = frState(), me = await frMe(), ids = Object.keys(f.list);
   if (!ids.length) throw new Error("Add your mates in Friends first");
@@ -954,6 +964,7 @@ async function frSosSend(){
   let here = frMeHere();
   if (!here && typeof navigator !== "undefined" && navigator.geolocation) here = await new Promise(r => navigator.geolocation.getCurrentPosition(p => r({lat:p.coords.latitude, lng:p.coords.longitude}), () => r(null), {enableHighAccuracy:true, timeout:8000, maximumAge:60e3}));
   const body = {t:{".sv":"timestamp"}, n:f.name || "A friend", ...(here ? {lat:+here.lat.toFixed(5), lng:+here.lng.toFixed(5)} : {}), ...(f.callLink ? {cl:f.callLink} : {})};
+  frSosHere = here || null;
   const r = await Promise.allSettled(ids.map(uid => frDb("PUT", `sos/${uid}/${me.uid}`, body)));
   return r.filter(x => x.status === "fulfilled").length;
 }
@@ -984,7 +995,7 @@ async function frSosPopup(uid, x){
 function frSosHTML(){
   const f = frState();
   return `<div class="block sos-block"><h2>${icon("alert","i s")}I’m lost</h2>
-    <p class="note">One tap pops up an alert on all your mates’ phones with where you are, a button to call you, and your group call link.</p>
+    <p class="note">${exp("lost-share") ? "One tap sends an alert to all your mates with where you are, a button to call you and your group call link. It pops up straight away on phones with the app open; others see it when they next open it, so a WhatsApp message with your location goes too." : "One tap pops up an alert on all your mates’ phones with where you are, a button to call you, and your group call link."}</p>
     <button class="btn danger wide" type="button" id="fr-sos">${icon("alert","i s")}I’m lost: alert everyone</button>
     <details class="more" style="margin-top:10px"><summary>${f.phone ? "Your number and group call" : "Set up: your number and a group call link"}</summary>
       <label class="field" style="margin-top:8px">Your phone number (with country code)<input id="fr-phone" type="tel" autocomplete="tel" placeholder="+44 7700 900123" value="${esc(f.phone || "")}"></label>
@@ -1002,10 +1013,11 @@ function frSosBind(root){
     s.disabled = true;
     try {
       const n = await frSosSend(); toast(`Alert sent to ${n} ${n === 1 ? "friend" : "friends"}`);
+      if (exp("lost-share")) frSosShare(frSosHere);        // the share sheet; the WhatsApp button below is there if it can't open
       // and your own quick-dial list, in case they don't see it
       const f = frState(), rows = await Promise.all(Object.keys(f.list).map(async uid => [uid, await frPhoneOf(uid)]));
       const box = root.querySelector("#fr-calls");
-      if (box) box.innerHTML = `<h3 style="margin-top:12px">Call them</h3>${f.callLink ? `<a class="btn primary wide" href="${esc(f.callLink)}" target="_blank" rel="noopener">${icon("users","i s")}Start the group call</a>` : ""}
+      if (box) box.innerHTML = (exp("lost-share") ? `<a class="btn wide" style="margin-top:12px" href="https://wa.me/?text=${enc(frSosText(frSosHere))}" target="_blank" rel="noopener" id="fr-soswa">${icon("send","i s")}Send my location on WhatsApp</a>` : "") + `<h3 style="margin-top:12px">Call them</h3>${f.callLink ? `<a class="btn primary wide" href="${esc(f.callLink)}" target="_blank" rel="noopener">${icon("users","i s")}Start the group call</a>` : ""}
         ${rows.map(([uid, num]) => `<div class="fr-row"><span>${frAvatar(uid, 32)}</span><div><b>${esc(frNameOf(uid))}</b></div>${num ? `<a class="btn small" href="tel:${esc(num)}">${icon("phone","i s")}Call</a>` : `<span class="note">no number saved</span>`}</div>`).join("")}`;
     } catch(e){ toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"); }
     s.disabled = false;
