@@ -89,6 +89,7 @@ function connectors(node, key){
     notes:[`About ${Math.round(x.km)} km by road`, "This stretch isn’t in the saved network yet, so the time is a rough estimate"], src:[], verified:false}));
   return legs;
 }
+EXPERIMENTS.push({id:"tp-fastest", n:"Transport: true fastest journey", d:"Always keeps the quickest journey, even when one of its legs has no saved price, so the Fastest badge is right."});
 const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0];
 // the quickest possible time from every stop to the destination (Dijkstra, backwards)
 function timeTo(adj, to){
@@ -145,11 +146,14 @@ function planTrips(fromN, toN){
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
   const best = Math.min(...trips.map(t => t.mid));
+  // experiment: the truly fastest journey is always kept, even when a leg on it has no saved price
+  const quickest = exp("tp-fastest") ? trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b) : null;
   trips = trips.filter(t => t.mid <= best * 2.5 + 2);
   const priced = trips.filter(t => !core(t));
   const keepUnpriced = new Set(trips.filter(t => core(t) && t.mid <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.mid - b.mid)).slice(0, 3));
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
     : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
+  if (quickest && !trips.includes(quickest)) trips.push(quickest);
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
   const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;

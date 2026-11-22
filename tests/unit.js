@@ -790,6 +790,14 @@ test("experiments: every one is off unless switched on on this phone; each has a
   const P = load(); P.expSet("demo", true); ok(P.exp("demo")); P.expSet("demo", false); ok(!P.exp("demo"));
 });
 
+test("experiment tp-fastest: Koh Phangan to Quy Nhon keeps the truly fastest journey (a flight to Nha Trang) and badges it", () => {
+  const P = load(), c = P.D.cities.find(c => c[0] === "Quy Nhon"), to = {n:c[0], lat:c[1], lng:c[2]};
+  P.expSet("tp-fastest", false); const off = P.planTrips(P.hubNode("phangan"), to).find(t => t.fastest);
+  P.expSet("tp-fastest", true); const all = P.planTrips(P.hubNode("phangan"), to), on = all.find(t => t.fastest);
+  ok(on.mid <= Math.min(...all.map(t => t.mid)) && on.mid < off.mid - 3, `fastest ${on.mid} h, was ${off.mid} h`);
+  ok(on.legs.some(L => L.o.mode === "Flight" && L.to === "nhatrang"), "flies into Nha Trang");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
