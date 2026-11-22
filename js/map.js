@@ -129,6 +129,14 @@ function onMapLoad(){
     "text-optional":true, "text-max-width":9}, paint:{"text-color":cssv("--ink"), "text-halo-color":cssv("--halo"), "text-halo-width":1.2}}));
   // the chosen place gets its own pin on top, so it stays visible even when its neighbours are bunched into a count
   map.addLayer({id:"sel-icon", type:"symbol", source:"sel", layout:{"icon-image":["get", "ic"], "icon-size":1.08, "icon-allow-overlap":true, "icon-ignore-placement":true}});
+  // "top 5 temples": the answer's places as numbered pins, drawn above everything else (js/ask.js)
+  map.addSource("pick", {type:"geojson", data:fc([])});
+  map.addLayer({id:"pick-dot", type:"circle", source:"pick", paint:{"circle-radius":["case", ["==", ["get", "sel"], 1], 15, 12.5], "circle-color":["case", ["==", ["get", "sel"], 1], cssv("--accent"), ["get", "col"]],
+    "circle-stroke-color":"#fff", "circle-stroke-width":2}});
+  map.addLayer({id:"pick-num", type:"symbol", source:"pick", layout:{"text-field":["get", "num"], "text-font":["Noto Sans Bold"], "text-size":13, "text-allow-overlap":true, "text-ignore-placement":true},
+    paint:{"text-color":["case", ["==", ["get", "sel"], 1], cssv("--on-accent"), cssv("--on-cat")]}});
+  map.on("click", "pick-dot", e => { const f = e.features && e.features[0]; if (f && !(e.originalEvent && e.originalEvent._hit)){ e.originalEvent && (e.originalEvent._hit = true); selectPlace(f.properties.id); } });
+  map.on("mouseenter", "pick-dot", () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", "pick-dot", () => map.getCanvas().style.cursor = "");
   map.addSource("me", {type:"geojson", data:fc([])});
   map.addLayer({id:"me-halo", type:"circle", source:"me", paint:{"circle-radius":16, "circle-color":"rgba(127,178,210,.22)"}});
   addHeadingImages();
@@ -162,6 +170,7 @@ function onMapLoad(){
   updateMe(); refreshMapData(); renderMapUI();
   if (typeof applyDesignToMap === "function") applyDesignToMap();      // Design Lab sizes and colours (js/design.js)
   if (ui.mapSel) highlightPin(findPlace(ui.mapSel));
+  drawPick();
 }
 /* With no signal and no saved map tiles, fall back to the built-in country outlines so the pins still make sense */
 function setOfflineBase(on){
@@ -288,7 +297,7 @@ const drawPins = () => refreshMapData();
 /* ---------- what should be on the map right now? ---------- */
 function activeGroups(){
   const g = [];
-  if (ui.mapSurf) return g;                                       // surf mode: only the researched surf spots
+  if (ui.mapSurf || ui.mapPick) return g;                         // surf mode: only the researched surf spots; a "top 5" answer: only those
   ["gaff","munch","cool","move"].forEach(c => { if (ui.mapCats.has(c)) g.push(CAT[c].grp); });
   if (ui.essKinds.size) g.push("ess");
   return g;
@@ -301,6 +310,7 @@ const passDo = it => !ui.doKinds.size || [...ui.doKinds].some(id => { const c = 
 const doKindSet = () => new Set([...ui.doKinds].flatMap(id => (doChip(id) || {}).kinds || []));
 function curatedForMap(){
   if (ui.mapSurf) return SURF.slice();
+  if (ui.mapPick) return [];
   return D.places.filter(p => ui.mapCats.has(p.c)).filter(passMapFilter);
 }
 
@@ -469,12 +479,13 @@ EXPERIMENTS.push({id:"map-onerow", n:"Map: one row of chips", d:"Sub-types show 
 function renderMapUI(){
   if (!$("#mapChips")) return;
   const one = exp("map-onerow");
-  const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved && !ui.mapSurf;
+  const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved && !ui.mapSurf && !ui.mapPick;
+  const pk = !!ui.mapPick;           // a "top 5" answer is showing: no section chip is lit
   const chip = (attrs, label, on, col) => `<button class="chip" type="button" ${attrs} aria-pressed="${on}" ${col ? `style="--c:${col}"` : ""}>${col ? '<span class="dot"></span>' : ""}${label}</button>`;
   $("#mapChips").innerHTML = chip("data-all", "All", all)
-    + ["gaff","munch","cool"].map(k => chip(`data-cat="${k}"`, CAT[k].label, ui.mapCats.has(k) && !ui.mapSaved, cssv(CAT[k].v))).join("")
-    + chip("data-ess", `Essentials${ui.essKinds.size ? ` (${ui.essKinds.size})` : ""}`, !!ui.essKinds.size || !!ui.essOpen, cssv("--ess"))
-    + chip(`data-cat="move"`, "Transport", ui.mapCats.has("move") && !ui.mapSaved, cssv("--move"))
+    + ["gaff","munch","cool"].map(k => chip(`data-cat="${k}"`, CAT[k].label, ui.mapCats.has(k) && !ui.mapSaved && !pk, cssv(CAT[k].v))).join("")
+    + chip("data-ess", `Essentials${ui.essKinds.size ? ` (${ui.essKinds.size})` : ""}`, (!!ui.essKinds.size || !!ui.essOpen) && !pk, cssv("--ess"))
+    + chip(`data-cat="move"`, "Transport", ui.mapCats.has("move") && !ui.mapSaved && !pk, cssv("--move"))
     + chip("data-surf", `${icon("waves","i xs")}Surf`, !!ui.mapSurf)
     + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved);
   const essRow = $("#mapEss");
@@ -501,6 +512,8 @@ function renderMapUI(){
     top.querySelector("[data-ess]").addEventListener("click", () => { ui.lastCat = "ess"; }, {capture:true});
     top.querySelector("[data-all]").addEventListener("click", () => { ui.lastCat = null; }, {capture:true});
   }
+  // any chip clears a "top 5" answer from the map
+  top.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => { if (ui.mapPick){ ui.mapPick = null; ui.mapSel = null; drawPick(); } }, {capture:true}));
   // any other chip leaves surf mode
   top.querySelectorAll("[data-all], [data-cat], [data-ess], [data-saved]").forEach(b => b.addEventListener("click", () => { if (ui.mapSurf){ ui.mapSurf = false; if (b.dataset.cat) ui.mapCats = new Set(); } }, {capture:true}));
   top.querySelector("[data-surf]").onclick = () => ui.mapSurf ? (ui.mapSurf = false, ui.mapCats = new Set(["gaff","munch","cool"]), renderMapUI()) : openSurfMap();
@@ -588,6 +601,7 @@ function selectPlace(id, fly){
   ui.mapSel = id || null;
   const it = id ? findPlace(id) : null;
   highlightPin(it);
+  drawPick();
   if (it && fly && map) flyTo(it, Math.max(map.getZoom(), 15));
   renderMapBottom();
 }
@@ -616,12 +630,15 @@ function renderMapBottom(){
   const el = $("#mapBottom"); if (!el) return;
   if (ui.mapMode === "list"){ el.innerHTML = ""; placeSide(0); return; }
   const sel = ui.mapSel ? findPlace(ui.mapSel) : null;
+  const bar = pickBar();
   if (sel){
-    el.innerHTML = previewCard(sel, selFilterNote(sel));
+    el.innerHTML = bar + previewCard(sel, ui.mapPick ? "" : selFilterNote(sel));
     $("#pvClose").onclick = () => selectPlace(null);
+    if (bar) bindPickBar(el);
     watchCardPhotos(el); paintSurf(el);
     placeSide(el.offsetHeight); return;
   }
+  if (bar){ el.innerHTML = bar; bindPickBar(el); placeSide(el.offsetHeight); return; }
   // no "Closest to you" strip any more: the bottom of the map stays clear until a place is picked
   el.innerHTML = ""; placeSide(0);
 }
@@ -636,7 +653,7 @@ function renderMapList(){
   const el = $("#mapList"); if (!el || ui.mapMode !== "list") return;
   padMapList();
   const ref = userLoc || (map && mapLoaded ? {lat:map.getCenter().lat, lng:map.getCenter().lng} : focusPt());
-  const items = sortItems(mapRun.items, "near", ref);
+  const items = ui.mapPick ? ui.mapPick.ids.map(id => ui.mapPick.byId[id]) : sortItems(mapRun.items, "near", ref);
   const head = mapRun.mode === "summary" && !ui.mapSaved
     ? `<div class="callout">${icon("info")}<div><b>${mapRun.total.toLocaleString("en-GB")} places in this area.</b> Zoom the map in to list them all. Showing the researched places for now.</div></div>` : "";
   el.innerHTML = head + (items.length ? `<p class="note" style="margin:0 2px 8px">${items.length.toLocaleString("en-GB")} places on screen, nearest first${items.length > 80 ? ". Showing the first 80" : ""}.</p><div class="cards">${items.slice(0, 80).map(p => placeCard(p, ref)).join("")}</div>`
@@ -684,7 +701,7 @@ function bindMapSearch(){
     const local = localMatches(text), names = new Set(local.map(s => s.n.toLowerCase()));
     const rem = remote.filter(s => !names.has(s.n.toLowerCase()));
     const offer = typeof askOffer === "function" ? askOffer(text) : null;
-    const askRow = offer ? `<button type="button" data-ask class="ask-sug">${icon(offer.nearest ? "nav" : "spark","i s")}<span>${esc(askTitle(offer.a))}<small>${offer.nearest ? `Shows it on the map${userLoc ? ", nearest to you" : ", using your location"}` : `Answer from the app's places${userLoc ? ", nearest to you" : ""}`}</small></span></button>` : "";
+    const askRow = offer ? `<button type="button" data-ask class="ask-sug">${icon(offer.nearest ? "nav" : offer.top ? "map" : "spark","i s")}<span>${esc(askTitle(offer.a))}<small>${offer.top ? "Shows only these on the map, numbered" : offer.nearest ? `Shows it on the map${userLoc ? ", nearest to you" : ", using your location"}` : `Answer from the app's places${userLoc ? ", nearest to you" : ""}`}</small></span></button>` : "";
     let h = (offer && offer.first ? askRow : "") + local.map((s, i) => `<button type="button" data-l="${i}">${icon(s.dest ? "pin" : "star","i s")}<span>${esc(s.n)}<small>${esc(s.sub)}</small></span></button>`).join("");
     if (offer && !offer.first) h += askRow;
     if (rem.length) h += `<div class="hd">More places in Thailand</div>` + rem.map((s, i) => `<button type="button" data-r="${i}">${icon((KIND[s.k] || {ic:"pin"}).ic,"i s")}<span>${esc(s.n)}<small>${esc((KIND[s.k] || {l:"Place"}).l)} · ${esc(s.area)}</small></span></button>`).join("");
@@ -693,7 +710,7 @@ function bindMapSearch(){
     if (!local.length && !rem.length && !online.length && text.length < 3) h = `<div class="hd">Keep typing…</div>`;
     box.innerHTML = h; box.hidden = !h;
     box.querySelectorAll("[data-l]").forEach(b => b.onclick = () => choose(local[+b.dataset.l]));
-    const ab = box.querySelector("[data-ask]"); if (ab) ab.onclick = () => { close(); inp.blur(); if (offer.nearest) goNearest(text, offer.a); else showAnswer(text); };
+    const ab = box.querySelector("[data-ask]"); if (ab) ab.onclick = () => { close(); inp.blur(); if (offer.top) goTop(text); else if (offer.nearest) goNearest(text, offer.a); else showAnswer(text); };
     box.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { const s = rem[+b.dataset.r]; choose({id:s.id, g:s.g, node:{n:s.n, lat:s.lat, lng:s.lng}}); });
     box.querySelectorAll("[data-o]").forEach(b => b.onclick = () => choose(online[+b.dataset.o]));
     const wb = box.querySelector("[data-web]"); if (wb) wb.onclick = async () => { busy = true; paint(); const r = await osmSearch(text); busy = false; online = r || []; if (!r) toast("Search needs signal"); else if (!r.length) toast("Nothing found. Try another spelling."); paint(); };
@@ -720,7 +737,8 @@ function bindMapSearch(){
       if (!final) return;
       inp.value = final;
       // the same intents as typing: "nearest pharmacy" goes straight to it, other questions get the list of answers
-      if (nearestIntent(final)){ close(); inp.blur(); goNearest(final); }
+      if (typeof parseTopN === "function" && parseTopN(final)){ close(); inp.blur(); goTop(final); }
+      else if (nearestIntent(final)){ close(); inp.blur(); goNearest(final); }
       else if ((typeof parseAsk === "function" && parseAsk(final)) || (typeof moreIntent === "function" && moreIntent(final))){ close(); inp.blur(); showAnswer(final); }
       else { online = []; paint(); runRemote(); }
     });

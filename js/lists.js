@@ -264,6 +264,31 @@ function stayStrip0(){
   </div>
   ${explain("stay-dates", `<p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`)}`;
 }
+/* "Measured from": the distance (and the whole list) can be worked out from any trip destination, not just where you are,
+   for planning ahead. It sets the same "where" as the place button at the top of the page. */
+function distFromField(){
+  const byCc = {};
+  for (const c of PLACE_DESTS){ const cc = placeDbCc(c[1], c[2]) || "TH"; (byCc[cc] = byCc[cc] || []).push(c); }
+  const order = [S.country, ...Object.keys(D.countries).filter(k => k !== S.country)].filter(k => byCc[k]);
+  const cur = S.focus ? S.focus.n : "";
+  const known = !cur || PLACE_DESTS.some(c => c[0] === cur);
+  return `<label class="field dist-from">Measured from<select id="l-from" aria-label="Measure the distance from">
+    <option value="" ${cur ? "" : "selected"}>Where I am now</option>
+    ${known ? "" : `<option value="__cur" selected>${esc(cur)}</option>`}
+    ${order.map(k => `<optgroup label="${esc(D.countries[k].name)}">${byCc[k].slice().sort((a, b) => a[0].localeCompare(b[0])).map(c => `<option value="${esc(c[0])}" ${c[0] === cur ? "selected" : ""}>${esc(c[0])}</option>`).join("")}</optgroup>`).join("")}
+  </select></label>`;
+}
+function bindDistFrom(root){
+  const sel = root.querySelector("#l-from"); if (!sel) return;
+  sel.onchange = () => {
+    if (sel.value === "__cur") return;
+    if (!sel.value){ setFocus(null); S.countryMode = "auto"; persist(); locate(true); renderPage(); return; }
+    const c = PLACE_DESTS.find(x => x[0] === sel.value); if (!c) return;
+    setFocus({n:c[0], lat:c[1], lng:c[2]});
+    const cc = ccAt(c[1], c[2]) || "TH"; if (S.country !== cc) setCountry(cc, true);
+    renderPage();
+  };
+}
 function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");
   const nFilters = (st.radius ? 1 : 0) + (st.sort !== DEFAULT_SORT[cat] ? 1 : 0) + (pfOn(cat) ? 1 : 0) + (st.minR ? 1 : 0) + st.flags.size + (st.picks ? 1 : 0);
@@ -274,6 +299,7 @@ function renderList(cat){
   if (st.filters){
     fp = `<div class="fpanel" id="fpanel">
       <div class="dist"><div class="note"><span>Distance</span><b id="l-distlab">${radiusLabel(st.radius)}</b></div><input type="range" id="l-dist" min="1" max="${RADIUS_MAX + 1}" step="1" value="${st.radius ? Math.min(st.radius, RADIUS_MAX) : RADIUS_MAX + 1}" aria-label="Distance in kilometres, up to 50 plus" ${focusPt().none ? "disabled" : ""}><div class="dist-ends"><span>0</span><span>25 km</span><span>50+</span></div></div>
+      ${distFromField()}
       <div class="controls"><label class="field">Sort<select data-sort>${sorts.map(([v, l]) => `<option value="${v}" ${st.sort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       ${cat === "gaff" ? `<label class="field">Reviews<select data-minr>${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+st.minR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
 </div>
@@ -316,6 +342,7 @@ function bindList(cat){
   root.querySelectorAll("[data-flag]").forEach(b => b.onclick = () => { const f = b.dataset.flag; st.flags.has(f) ? st.flags.delete(f) : st.flags.add(f); renderPage(); });
   const so = root.querySelector("[data-sort]"); if (so) so.onchange = () => { st.sort = so.value; renderPage(); };
   bindPF(root, cat, () => renderPage());
+  bindDistFrom(root);
   const mr = root.querySelector("[data-minr]"); if (mr) mr.onchange = () => { st.minR = +mr.value; renderPage(); };
   const pk = root.querySelector("[data-picks]"); if (pk) pk.onclick = () => { st.picks = !st.picks; renderPage(); };
   if (cat === "gaff"){

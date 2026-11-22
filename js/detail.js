@@ -483,7 +483,7 @@ function openDetail(id){
   const km = ref ? distText(dist(ref, it)) : null;
   const d = it.d || {};
   const fact = (l, v, wide) => `<div class="fact ${wide ? "wide" : ""}"><span class="l">${l}</span>${v}</div>`;
-  let body = "";
+  let body = pickNavHTML(it.id);        // one of a "top 5" answer: back to the others, previous, next (js/ask.js)
   body += `<div class="photo art" id="photoBox" data-id="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
     <div class="photo-links">${it.c === "gaff" ? "Room photos are on the booking sites. " : ""}<a href="${esc(L_maps(it))}" target="_blank" rel="noopener">More photos on Google Maps</a></div>`;
   const facts = [];
@@ -554,6 +554,7 @@ function openDetail(id){
       <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}${km && exp("detail-buttons") ? ` · ${esc(km)}` : ""}</div></div>
       <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>${body}`, "sheet-title", `--c:${col}`);
   highlightPin(it);
+  bindPickNav(it.id);
   const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, ntLang[0]);
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };

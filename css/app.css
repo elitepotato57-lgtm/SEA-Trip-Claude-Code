@@ -119,6 +119,8 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 
 /* chips */
 .scroller{display:flex;gap:6px;overflow-x:auto;margin:0 -16px;padding:2px 16px;scrollbar-width:none}
+/* rows that scroll sideways only ever move sideways (Dylan, 23 Nov 2026): no up-and-down wobble when the content is a hair taller */
+.scroller,.ptrack,.map-chips,.near-row,.lab-tabs{overflow-y:hidden;overscroll-behavior-x:contain}
 .scroller::-webkit-scrollbar{display:none}
 /* rows that scroll sideways fade out on the side that has more, so it's obvious there is more to swipe to */
 .fade-r{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 44px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 44px),transparent)}
@@ -134,6 +136,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .tools-row .sp{flex:1}
 .fpanel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:12px;margin:8px 0 0;display:grid;gap:10px}
 .fpanel .controls{display:flex;gap:8px;flex-wrap:wrap}
+.dist-from{margin-top:8px;min-width:0}
 .fpanel .flags{display:flex;gap:6px;flex-wrap:wrap}
 
 /* booking strip (Gaffs) */
@@ -873,7 +876,7 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 /* experiment map-onerow: the floating List / Map button */
 .map-listbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--mb-lift,0px));z-index:7;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(28,31,36,.96);color:var(--ink);font:inherit;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.35)}
 :root[data-look="paper"] .map-listbtn{background:rgba(251,245,232,.97)}
-#mapview:has(#mapBottom .preview) .map-listbtn,#mapview:has(#mapBottom .near) .map-listbtn{display:none}
+#mapview:has(#mapBottom .preview) .map-listbtn,#mapview:has(#mapBottom .near) .map-listbtn,#mapview:has(#mapBottom .pickbar) .map-listbtn{display:none}
 /* experiment help-btn */
 .help-btn{color:#fff!important;background:#C2453A!important;border-color:#C2453A!important}
 .help-sheet .tel{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -909,3 +912,24 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .stay-fold .field{gap:2px;font-size:calc(11px * var(--ts,1))}
 .stay-fold .stay input,.stay-fold .stay select{box-sizing:border-box;min-height:0;height:42px;padding:4px 10px;font-size:calc(14px * var(--ts,1));border-radius:var(--r-s)}
 .stay-fold>.note{font-size:calc(11.5px * var(--ts,1))}
+
+/* "top 5 temples": the strip of numbered answers at the bottom of the map, and Back / previous / next in a details sheet */
+.pickbar{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:8px 10px 10px;margin:0 0 8px;box-shadow:var(--shadow)}
+.pb-head{display:flex;align-items:center;gap:8px}
+.pb-head>div{flex:1;min-width:0}
+.pb-head b{display:block;font-size:calc(14px * var(--ts,1));color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-head small{display:block;font-size:calc(11.5px * var(--ts,1));color:var(--muted)}
+.pb-head .icon-btn{width:34px;height:34px;flex:none}
+.pb-row{margin:6px -10px 0;padding:2px 10px}
+.pb-row .chip{height:auto;min-height:40px;padding:4px 10px 4px 4px;gap:7px;max-width:220px;text-align:left;flex:none}
+.pb-n{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--raised);color:var(--ink);font-weight:700;font-size:12px}
+.pb-row .chip[aria-pressed="true"] .pb-n{background:var(--accent);color:var(--on-accent)}
+.pb-t{display:grid;min-width:0;line-height:1.2}
+.pb-t,.pb-t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-t small{font-size:calc(11px * var(--ts,1));color:var(--muted);font-weight:500}
+.pb-row .chip[aria-pressed="true"] .pb-t small{color:inherit;opacity:.85}
+.pick-nav{display:flex;align-items:center;gap:6px;margin:4px 0 10px}
+.pick-nav .sp{flex:1}
+.pick-nav .icon-btn{width:36px;height:36px}
+.pick-nav .icon-btn[disabled]{opacity:.35}
+.pick-nav .pn-next .i{transform:scaleX(-1)}
