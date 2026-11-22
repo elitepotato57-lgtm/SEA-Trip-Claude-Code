@@ -7,7 +7,7 @@ const {load} = require("../tests/load");
 const A = load();
 const UA = {"User-Agent": "SEA-trip-app-build/1.0 (personal travel app)"};
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const CC = {TH:["Q869", "th"], KH:["Q424", "km"], VN:["Q881", "vi"], LA:["Q819", "lo"], SG:["Q334", "zh"], ID:["Q252", "id"]};
+const CC = {TH:["Q869", "th"], KH:["Q424", "km"], VN:["Q881", "vi"], LA:["Q819", "lo"], SG:["Q334", "zh"], ID:["Q252", "id"], MY:["Q833", "ms"]};
 const BIG = new Set(["beach", "park", "nationalpark", "waterfall", "peak", "cave", "hotspring", "zoo", "themepark", "mall", "market", "airport", "attraction", "historic"]);
 const GENERIC = /\b(the|of|and|beach|pantai|bai|hat|haad|had|waterfall|falls?|air terjun|thac|nam tok|national park|park|taman|island|koh|ko|pulau|hon|mount|mt|gunung|nui|doi|phu|cave|goa|gua|hang|tham|museum|muzium|bao tang|market|pasar|cho|talat|station|stasiun|ga|airport|bandara|san bay|hotel|resort|temple|wat|chua|pura)\b/g;
 const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
@@ -21,10 +21,8 @@ const sorts = s => { const x = fold(s); return Object.keys(SORTS).filter(k => SO
 const km = (a, b) => { const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r; return Math.sqrt(x * x + y * y) * 6371; };
 async function wikidata(cc){
   const [q, lang] = CC[cc];
-  // Indonesia is huge: only the areas the app covers (Bali, Lombok, southern Sumatra)
-  const where = cc === "ID"
-    ? `SERVICE wikibase:box { ?i wdt:P625 ?c. bd:serviceParam wikibase:cornerSouthWest "Point(101.0 -9.2)"^^geo:wktLiteral. bd:serviceParam wikibase:cornerNorthEast "Point(116.8 -1.5)"^^geo:wktLiteral. } ?i wdt:P18 ?img.`
-    : `?i wdt:P17 wd:${q}; wdt:P625 ?c; wdt:P18 ?img.`;
+  // every country is covered in full now (Indonesia too, since Nov 2026)
+  const where = `?i wdt:P17 wd:${q}; wdt:P625 ?c; wdt:P18 ?img.`;
   const sparql = `SELECT ?i ?c ?img ?en ?loc WHERE { ${where} OPTIONAL{?i rdfs:label ?en FILTER(lang(?en)="en")} OPTIONAL{?i rdfs:label ?loc FILTER(lang(?loc)="${lang}")} }`;
   for (let k = 0; k < 5; k++){
     try {

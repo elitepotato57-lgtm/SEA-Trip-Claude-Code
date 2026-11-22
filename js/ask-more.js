@@ -85,6 +85,8 @@ const REMEDY_BASIC = (where, mini) => [
 REMEDIES.VN = REMEDY_BASIC("Pharmacies (nhà thuốc)", "Convenience stores and minimarts");
 REMEDIES.LA = REMEDY_BASIC("Pharmacies (ຮ້ານຂາຍຢາ, han khai ya)", "Minimarts");
 REMEDIES.SG = REMEDY_BASIC("Pharmacies (Guardian, Watsons and others)", "7-Eleven, Cheers and supermarkets");
+// Malaysia: the chains are the most common pharmacies and convenience stores in OpenStreetMap's Malaysia data (Nov 2026)
+REMEDIES.MY = REMEDY_BASIC("Pharmacies (farmasi: Watsons, Guardian and others)", "7-Eleven, KK Mart, FamilyMart and myNEWS");
 const RX_NOTE = {
   KH:"In Cambodia, check the expiry date on the packet: some pharmacies sell old stock.",
   ID:"Bali belly that lasts more than a couple of days, or comes with a fever, needs a clinic, not more tablets.",
@@ -184,6 +186,8 @@ function fareEstimates(km, at){
     const APPS = {ID:"Grab or Gojek", VN:"Grab or Xanh SM", SG:"Grab, Gojek or TADA", LA:"LOCA (Vientiane) or a tuk-tuk", MY:"Grab"};
     out.push({k:"app", label:APPS[cc] || "Grab or Bolt", lo:null, hi:null, cur:ccCur(cc), note:"The app shows the price before you book: the fairest guide to what a ride should cost here"});
     if (cc === "SG") out.push({k:"taxi", label:"Metered taxi", lo:null, hi:null, cur:"SGD", note:"Metered and honest; the MRT is cheaper still"});
+    // gov.uk Malaysia travel advice (safety and security), checked 22 Nov 2026
+    else if (cc === "MY") out.push({k:"taxi", label:"Taxi", lo:null, hi:null, cur:"MYR", note:"Taxis should use the meter. At airports you buy a fixed-price coupon at a counter in the terminal"});
     else out.push({k:"tuktuk", label:cc === "ID" ? "Local taxi or bemo" : cc === "VN" ? "Metered taxi (Mai Linh or Vinasun) or xe ôm" : "Tuk-tuk or songthaew", lo:null, hi:null, cur:ccCur(cc), note:"Not metered: check the app price first, then agree a price before you get in"});
   }
   return out;

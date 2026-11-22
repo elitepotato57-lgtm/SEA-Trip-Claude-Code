@@ -15,7 +15,7 @@ const TOOLS = [
   {id:"weather", l:"Weather", d:"Now and the next 7 days", ic:"cloudsun"},
   {id:"transport", l:"Transport", d:"Buses, trains, ferries and flights", ic:"bus"},
   {id:"wifi", l:"Wi-Fi finder", d:"Opens the map on places with Wi-Fi", ic:"wifi", alt:1},
-  {id:"guide", get l(){ return ((D.countries[S.country] && ["ID", "KH", "VN", "LA", "SG"].includes(S.country)) ? D.countries[S.country].name : "Thailand") + " guide"; }, d:"Entry rules, money, customs", ic:"book"},
+  {id:"guide", get l(){ return ((D.countries[S.country] && ["ID", "KH", "VN", "LA", "SG", "MY"].includes(S.country)) ? D.countries[S.country].name : "Thailand") + " guide"; }, d:"Entry rules, money, customs", ic:"book"},
   {id:"emergency", l:"Emergency", d:"Numbers, hospitals, embassy", ic:"siren", alt:1},
   {id:"assistant", l:"Trip assistant", d:"Ask about stays, food, journeys", ic:"spark"},
   {id:"deals", l:"Deals", d:"Where genuine offers are posted", ic:"tag", alt:1},
@@ -322,7 +322,33 @@ const PHRASES_SG = [
   {t:"Malay basics", p:[
     ["Thank you", "Terima kasih", "", "tuh-REE-ma KA-see"], ["Hello", "Selamat pagi", "", "suh-LAH-mat PAH-gee"], ["How much?", "Berapa?", "", "buh-RA-pa"]]}
 ];
-const PHRASEBOOKS = {ID:{list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}, KH:{list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"},
+/* Malay (Bahasa Malaysia): words and the "Say" spellings from Wikivoyage's Malay phrasebook (checked 22 Nov 2026). Malay is
+   written in Latin letters and close to Indonesian. English is widely spoken in towns. */
+const PHRASES_MY = [
+  {t:"Basics", p:[
+    ["Hello", "Helo", "", "HEH-loh"], ["Hello (to a Muslim; reply: Alaikum wassalam)", "Assalamu alaikum", "", "ah-sah-LAH-moo ah-LAY-koom"], ["Good morning", "Selamat pagi", "", "SLAH-mah(t) PAH-gee"],
+    ["How are you?", "Apa khabar?", "", "AH-puh KAH-bar"], ["Thank you", "Terima kasih", "", "TREE-muh KAH-seh"], ["You’re welcome", "Sama-sama", "", "SAH-muh SAH-muh"],
+    ["Yes", "Ya", "", "yuh"], ["No", "Tidak / tak", "", "TEE-dah’ / tah’"], ["Excuse me / sorry", "Maaf", "", "mah-AHF"],
+    ["I don’t understand", "Saya tak faham", "", "SAH-yuh tah’ fah-HAHM"], ["Do you speak English?", "Cakap Bahasa Inggeris?", "", "CHAH-kah(p) ba-HAH-suh ING-grees"],
+    ["Goodbye (you’re leaving)", "Selamat tinggal", "", "SLAH-mah(t) ting-GAHL"], ["Goodbye (they’re leaving)", "Selamat jalan", "", "SLAH-mah(t) JAH-lahn"]]},
+  {t:"Money and shopping", p:[
+    ["How much is this?", "Berapa harga ini?", "", "buh-RAH-puh HAHR-guh EE-nee"], ["How much is a ticket to …?", "Berapa harga tiket ke …?", "", "buh-RAH-puh HAHR-guh TEE-ke(t) kuh …"]]},
+  {t:"Food and drink", p:[
+    ["Water", "Air", "", "ah-EER (like “eye-ear”)"], ["Rice (cooked)", "Nasi", "", "NAH-see"], ["Spicy", "Pedas", "", "puh-DAHS"], ["Coffee", "Kopi", "", "KOH-pee"], ["Tea", "Teh", "", "teh"],
+    ["Beer", "Bir", "", "beer"], ["Takeaway, please", "Saya nak bungkuskan makanan", "", "SAH-yuh nah’ BOONG-koos-kahn mah-KAHN-ahn"],
+    ["I’m vegetarian (I don’t eat meat)", "Saya tidak makan daging", "", "SAH-yuh TEE-dah’ MAH-kahn DAH-ging"], ["The bill, please", "Boleh saya dapatkan bil sekarang?", "", "BOH-leh SAH-yuh dah-PAHT-kahn bil suh-KAH-rahng"]]},
+  {t:"Getting around", p:[
+    ["Where is the toilet?", "Di mana tandas?", "", "dee-MAH-nuh TAHN-dahs"], ["Turn left", "Belok kiri", "", "BEH-lo’ KEE-ree"], ["Turn right", "Belok kanan", "", "BEH-lo’ KAH-nahn"],
+    ["Straight ahead", "Terus", "", "tuh-ROOS"], ["Here", "Di sini", "", "dee SEE-nee"], ["Train station", "Stesen keretapi", "", "STEH-shen kuh-reh-TAH-pee"], ["Airport", "Lapangan terbang", "", "LAH-pah-ngahn TUHR-bahng"],
+    ["Do you have a room?", "Ada bilik kosong?", "", "AH-duh BEE-leh’ KOH-sohng"]]},
+  {t:"Help", p:[
+    ["Help!", "Tolong!", "", "TOH-lohng"], ["Police!", "Polis!", "", "po-LEES"], ["It’s an emergency", "Ini kecemasan", "", "ee-nee kuh-chuh-MAH-sahn"], ["I’m lost", "Saya tersesat", "", "SAH-yuh tuhr-SEH-sah(t)"],
+    ["I’m sick", "Saya sakit", "", "SAH-yuh SAH-kee(t)"], ["I need a doctor", "Saya perlu doktor", "", "SAH-yuh per-LOO DOH’-tohr"]]},
+  {t:"Numbers", p:[
+    ["1", "satu", "", "SAH-too"], ["2", "dua", "", "DOO-uh"], ["3", "tiga", "", "TEE-guh"], ["4", "empat", "", "UM-pah(t)"], ["5", "lima", "", "LEE-muh"], ["10", "sepuluh", "", "suh-POO-looh"],
+    ["20", "dua puluh", "", "DOO-uh POO-looh"], ["100", "seratus", "", "suh-RAH-toos"], ["1,000", "seribu", "", "suh-REE-boo"]]}
+];
+const PHRASEBOOKS = {MY:{list:PHRASES_MY, name:"Malay", lang:"ms", voice:"ms"}, ID:{list:PHRASES_ID, name:"Indonesian", lang:"id", voice:"id"}, KH:{list:PHRASES_KH, name:"Khmer", lang:"km", voice:"km"},
   VN:{list:PHRASES_VN, name:"Vietnamese", lang:"vi", voice:"vi"}, LA:{list:PHRASES_LA, name:"Lao", lang:"lo", voice:"lo"},
   SG:{list:PHRASES_SG, name:"Singapore", lang:"en", voice:"en"}, TH:{list:PHRASES, name:"Thai", lang:"th", voice:"th"}};
 const phrasebook = () => PHRASEBOOKS[S.country] || PHRASEBOOKS.TH;
@@ -411,7 +437,7 @@ function setupPage(){
     <p class="note" style="margin-top:10px">Built-in rates checked on: ${D.rateSources.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}.</p>
   </section>
   <section class="block" id="aboutData"><h2>About the data</h2>
-    <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a transport network (Thailand, Bali, Lombok and southern Sumatra) of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
+    <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a transport network across all seven countries of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
     <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} places in ${esc(listAnd(PLACE_DBS.map(db => (D.countries[db.cc] || {name:db.cc}).name)))} from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
     <p>Anything marked “not checked yet” uses typical prices, not ones we looked up. Taxi prices are estimates from Bangkok’s meter rates. OpenStreetMap doesn’t record prices or ratings, so its places never show a rating, and any price on one is a typical-price estimate marked “est.”.</p>
     <p class="note">Sources for the researched places: ${domains.map(esc).join(", ")}. Country outlines from Natural Earth. Weather by Open-Meteo. Exchange rates by the open currency-api project.</p>

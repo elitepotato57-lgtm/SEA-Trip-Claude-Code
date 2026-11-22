@@ -13,6 +13,8 @@ const FOOD_TYPES = [
   // so a "Phở" stall in Hanoi is Vietnamese food (priced in dong) and "lao" cuisine in Laos isn't filed under Isaan
   ["Vietnamese",        /^(vietnamese|regional|local)$/,                                                           /\bpho\b|\bbun\b|\bcom\b|banh mi|banh xeo|banh cuon|hu tieu|mi quang|cao lau|quan an|\bquan\b|vietnam/, "VN"],
   ["Lao",               /^(lao|laotian|regional|local)$/,                                                         /\blao\b|laap|larb|khao piak|khao poon|khao soi|tam mak hoong|or lam|sai oua|sticky rice|khao niao|\bfeu\b/, "LA"],
+  // Malaysia's everyday food: Malay, mamak (Indian-Muslim) and Nyonya places, and the hawker dishes in their names
+  ["Malaysian",         /^(malaysian|malay|mamak|nyonya|peranakan|regional|local)$/,                               /nasi lemak|nasi kandar|nasi campur|\bmamak\b|roti canai|char kway teow|kuey teow|\blaksa\b|\bmee\b|kedai makan|warung|\bnasi\b|nyonya|malaysian/, "MY"],
   // Indonesian specialities first, so "RM Padang" or "Pempek Candy" aren't filed under something general
   ["Pempek",            /^(pempek|empek-empek|empek empek)$/,                                                      /pempek|empek|tekwan|celimpungan|\blaksan\b|\bburgo\b|model ikan/],
   ["Padang food",       /^(padang|minangkabau|minang)$/,                                                           /padang|minang|rendang|nasi kapau|\bkapau\b/],
@@ -80,7 +82,7 @@ const brandOf = it => {
   return Object.keys(FOOD_BRANDS).find(b => b.length > 3 && n.toLowerCase().startsWith(b.toLowerCase())) || null;
 };
 // each country's everyday food label is only used there ("regional" cuisine means Thai food in Thailand, Indonesian food in Indonesia)
-const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer", VN:"Vietnamese", LA:"Lao"};
+const LOCAL_FOOD = {TH:"Thai", ID:"Indonesian", KH:"Khmer", VN:"Vietnamese", LA:"Lao", MY:"Malaysian"};
 const typeFits = (row, it) => !row[3] || row[3] === (it.cc || "TH");
 // Vietnamese names carry accents (Phở, Bún chả, Cơm tấm): match them without
 const plainName = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[đĐ]/g, "d");
@@ -183,6 +185,14 @@ const FOOD_TYPE_PRICE_SG = {"Food court":[6, 10], "Market food":[5, 10], "Street
 const FOOD_KIND_PRICE_SG = {foodcourt:[5, 10], market:[5, 10]};
 const DO_PRICE_SG = {bar:[10, 20, "A pint."], market:[0, 0, "Free to walk round."], park:[0, 0], beach:[0, 0]};
 const STAY_PRICE_SG = {hostel:[30, 40, "A dorm bed."]};
+/* Malaysia, in ringgit: a dorm bed RM35–55 a night and a hawker meal RM6–12 (AirAsia "Best budget travel in Malaysia: how far
+   your ringgit actually goes (2026)"; the same guide puts char kway teow and assam laksa at Penang and Ipoh hawker stalls at
+   RM6–10). A beer in a Kuala Lumpur bar from about RM20 for 330 ml; a 500 ml can in a convenience store from about RM5.50
+   (South East Asia Backpacker "How much does it cost to travel in Malaysia? 2026"). Checked 22 Nov 2026. Other kinds get no estimate. */
+const FOOD_TYPE_PRICE_MY = {"Malaysian":[6, 12], "Noodles":[6, 12], "Rice dishes":[6, 12], "Street food":[6, 12], "Market food":[6, 12], "Food court":[6, 12]};
+const FOOD_KIND_PRICE_MY = {market:[6, 12], foodcourt:[6, 12]};
+const DO_PRICE_MY = {bar:[20, 20, "A 330 ml beer in a city bar costs about RM20 or more; a can from a convenience store about RM5.50."], market:[0, 0, "Free to walk round."]};
+const STAY_PRICE_MY = {hostel:[35, 55, "A dorm bed."]};
 // which tables each country uses (others use Thailand's, converted)
 const PRICE_TABLES = {
   TH:{cur:"THB", food:FOOD_TYPE_PRICE, kind:FOOD_KIND_PRICE, do:DO_PRICE, stay:STAY_PRICE, stars:STAY_STARS},
@@ -190,7 +200,8 @@ const PRICE_TABLES = {
   KH:{cur:"USD", food:FOOD_TYPE_PRICE_KH, kind:FOOD_KIND_PRICE_KH, do:DO_PRICE_KH, stay:STAY_PRICE_KH, stars:{}, only:true},
   VN:{cur:"VND", food:FOOD_TYPE_PRICE_VN, kind:FOOD_KIND_PRICE_VN, do:DO_PRICE_VN, stay:STAY_PRICE_VN, stars:{}, only:true},
   LA:{cur:"LAK", food:FOOD_TYPE_PRICE_LA, kind:FOOD_KIND_PRICE_LA, do:DO_PRICE_LA, stay:STAY_PRICE_LA, stars:{}, only:true},
-  SG:{cur:"SGD", food:FOOD_TYPE_PRICE_SG, kind:FOOD_KIND_PRICE_SG, do:DO_PRICE_SG, stay:STAY_PRICE_SG, stars:{}, only:true}
+  SG:{cur:"SGD", food:FOOD_TYPE_PRICE_SG, kind:FOOD_KIND_PRICE_SG, do:DO_PRICE_SG, stay:STAY_PRICE_SG, stars:{}, only:true},
+  MY:{cur:"MYR", food:FOOD_TYPE_PRICE_MY, kind:FOOD_KIND_PRICE_MY, do:DO_PRICE_MY, stay:STAY_PRICE_MY, stars:{}, only:true}
 };
 
 // {lo, hi, cur, per, est:true, why, note?}  or null when we can't sensibly guess

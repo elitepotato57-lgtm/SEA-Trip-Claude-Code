@@ -1,20 +1,20 @@
 /* ============================================================
-   50-transport: the journey planner (lives in Tools). Thailand, Cambodia, Vietnam, Laos and Singapore, plus Bali, Lombok and
-   southern Sumatra in Indonesia. The links between them are researched (tools/transport-asia.js adds the newer countries).
+   50-transport: the journey planner (lives in Tools). Thailand, Cambodia, Vietnam, Laos, Singapore, Malaysia and Indonesia.
+   The links between them are researched (tools/transport-asia.js and tools/transport-my-id.js add the newer countries).
    ============================================================ */
 /* ---------- transport planner ---------- */
 const NET = D.net;
 const HUB = Object.fromEntries(NET.hubs.map(h => [h[0], {id:h[0], n:h[1], lat:h[2], lng:h[3], g:h[4], island:h[5]}]));
-const MODE_IC = {"Train":"train","Bus":"bus","Ferry":"ship","Flight":"plane","Minivan":"bus","Bus + ferry":"ship","Taxi":"car","Local ride":"car"};
-const MODE_COL = {"Train":"--accent-2","Bus":"--food","Minivan":"--food","Ferry":"--move","Bus + ferry":"--move","Flight":"--do","Taxi":"--ess","Local ride":"--ess"};
+const MODE_IC = {"Train":"train","Bus":"bus","Ferry":"ship","Flight":"plane","Minivan":"bus","Bus + ferry":"ship","Train + ferry":"train","Taxi":"car","Local ride":"car"};
+const MODE_COL = {"Train":"--accent-2","Bus":"--food","Minivan":"--food","Ferry":"--move","Bus + ferry":"--move","Train + ferry":"--accent-2","Flight":"--do","Taxi":"--ess","Local ride":"--ess"};
 const FLIGHT_EXTRA = [2, 3], CHANGE_EXTRA = [0.5, 1];
 const roadKm = (a, b) => dist(a, b) * 1.35;
-// The network covers Thailand and, in Indonesia, Bali, Lombok and southern Sumatra: rides, apps and money follow the country
+// The network covers every country on the map: rides, apps and money follow the country
 const nodeCc = n => (n && n.lat != null ? ccAt(n.lat, n.lng) : null) || "TH";
 const ccCur = cc => (D.countries[cc] && D.countries[cc].cur) || "THB";
 const RIDE_APPS = {TH:"Grab or Bolt", ID:"Grab or Gojek", VN:"Grab or Xanh SM", SG:"Grab, Gojek or TADA", LA:"LOCA (Vientiane) or a tuk-tuk", KH:"PassApp or Grab", MY:"Grab"};
-// countries the planner covers (Indonesia only where the places database is: Bali, Lombok, southern Sumatra)
-const PLAN_CC = new Set(["TH", "KH", "VN", "LA", "SG"]);
+// countries the planner covers (Indonesia: wherever the places database is, which is now the whole country)
+const PLAN_CC = new Set(["TH", "KH", "VN", "LA", "SG", "MY"]);
 const planCovers = n => { const cc = nodeCc(n); return PLAN_CC.has(cc) || (cc === "ID" && inPlaceDb(n.lat, n.lng)); };
 const rideApps = cc => RIDE_APPS[cc] || "Grab";
 function meterFare(km){
@@ -350,7 +350,7 @@ function transportPage(){
   else if (!tN) html += emptyBlock("Where are you heading?", `<div>Search for any place, or tap a dot on the map. You’ll see every way to get there: trains, buses, minivans, ferries, flights and taxis, with times, prices and where each one leaves from.</div>`);
   else if (!trips.length){
     const far = !tN.id && !connectors(tN, "@x").length;
-    html += emptyBlock(far ? "That’s outside the saved network" : "No saved connections yet", `<div>${far ? "The planner covers Thailand, Cambodia, Vietnam, Laos, Singapore, Bali, Lombok and southern Sumatra. Check Rome2Rio for this one." : "This trip isn’t in the saved network yet."}</div>`,
+    html += emptyBlock(far ? "That’s outside the saved network" : "No saved connections yet", `<div>${far ? "The planner covers Thailand, Cambodia, Vietnam, Laos, Singapore, Malaysia and Indonesia’s main stops. Check Rome2Rio for this one." : "This trip isn’t in the saved network yet."}</div>`,
       ext(`https://www.rome2rio.com/s/${enc(fN.n)}/${enc(tN.n)}`, "Search Rome2Rio " + icon("ext","i s")));
   }
   else html += `<p class="note" style="margin:0 0 8px">${trips.length} way${trips.length === 1 ? "" : "s"} to get there. Times and prices are a saved baseline, so confirm live before you pay.</p>` + trips.map(tripCard).join("");
