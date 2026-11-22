@@ -120,7 +120,9 @@ Both are re-runnable.
    - a `wd` (Wikidata item) or `wp` (English Wikipedia page) on researched places, only when that item **is** the place
      (never a town's item on a hostel). Temples get no photo unless the exact picture was looked at and listed in
      `PHOTO_CHECKED` (`js/detail.js`): no Buddha imagery.
-7. Run `node tools/photo-index.js` then `node tools/photo-geo.js` for the photos, then `npm test`.
+7. Run `node tools/photo-index.js` then `node tools/photo-geo.js` for the photos, then `npm test`. In a cloud session, run them
+   with `NODE_USE_ENV_PROXY=1` (Node's own fetch ignores the proxy otherwise); Wikimedia often answers "too many requests"
+   there, so photo-index.js keeps retrying for up to a few minutes per request. Add a new country's Wikidata item to `CC` in photo-geo.js.
 
 ## What it keeps
 
