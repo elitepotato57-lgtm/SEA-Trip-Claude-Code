@@ -781,6 +781,15 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
   } finally { A.S.funny = false; }
 });
 
+/* ---------- experiments (Tools › Developer › Experiments) ---------- */
+const EXPON = process.env.SEA_EXP === "all";
+test("experiments: every one is off unless switched on on this phone; each has a name and a one-line description", () => {
+  ok(A.EXPERIMENTS.every(x => x.id && x.n && x.d && !/\n/.test(x.d)), "names and descriptions");
+  eq(new Set(A.EXPERIMENTS.map(x => x.id)).size, A.EXPERIMENTS.length, "no two share an id");
+  ok(A.EXPERIMENTS.every(x => A.exp(x.id) === EXPON), EXPON ? "the test run switches them all on" : "all off for a normal phone");
+  const P = load(); P.expSet("demo", true); ok(P.exp("demo")); P.expSet("demo", false); ok(!P.exp("demo"));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

@@ -31,6 +31,9 @@ const PORT = +process.env.PORT || 8765;
 const BASE = process.env.BASE || `http://localhost:${PORT}/`;
 const IGNORE = /config\.js|ERR_TUNNEL|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_PROXY|Failed to load resource/;
 let failed = 0;
+// SEA_EXP=all: every experiment switched on (npm test runs the whole check both ways); a few checks of the old layout skip then
+const EXPON = process.env.SEA_EXP === "all";
+if (EXPON) console.log("Experiments: ALL ON");
 const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!cond) failed++; };
 
 (async () => {
@@ -38,7 +41,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   const browser = await chromium.launch(launchOpts);
   // the real config.js holds Dylan's keys: tests never use it (no real Google or Firebase calls)
   const newCtx = browser.newContext.bind(browser);
-  browser.newContext = async (...args) => { const c = await newCtx(...args); await c.route(/\/config\.js(\?|$)/, r => r.fulfill({status:200, contentType:"text/javascript", body:"/* config.js is blocked in tests */"})); return c; };
+  browser.newContext = async (...args) => { const c = await newCtx(...args); if (EXPON) await c.addInitScript(() => { try { localStorage.setItem("sea-exp-v1", JSON.stringify({"*":true})); } catch(e){} }); await c.route(/\/config\.js(\?|$)/, r => r.fulfill({status:200, contentType:"text/javascript", body:"/* config.js is blocked in tests */"})); return c; };
   // a phone in central Bangkok that allows location (the app no longer pretends: it uses the real position)
   const ctx = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
   const page = await ctx.newPage();

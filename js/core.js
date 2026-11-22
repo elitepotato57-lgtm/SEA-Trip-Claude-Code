@@ -5,6 +5,24 @@ const VERSION = "2.18.1";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
+/* ---------- experiments: changes Dylan can try on a developer phone (Tools › Developer › Experiments) ----------
+   Each is off for everyone unless switched on on that phone; with it off the app is exactly as before.
+   Kept on the phone only (localStorage "sea-exp-v1"); {"*":true} switches them all on (the test run does this). */
+const EXP_KEY = "sea-exp-v1";
+const EXPERIMENTS = [];      // {id, n: name, d: one-line description}; each experiment adds itself below, in the file it lives in
+function expState(){
+  if (!expState.v){ try { expState.v = JSON.parse(localStorage.getItem(EXP_KEY)) || {}; } catch(e){ expState.v = {}; } }
+  return expState.v;
+}
+function exp(id){ const s = expState(); return s[id] === true || (s["*"] === true && s[id] !== false); }
+function expSet(id, on){
+  const s = expState(); s[id] = !!on; delete s["*"];
+  try { localStorage.setItem(EXP_KEY, JSON.stringify(s)); } catch(e){}
+  expClasses();
+}
+// each experiment also gets a class on <html> (x-<id>), for the ones that are mostly CSS
+function expClasses(){ try { EXPERIMENTS.forEach(x => document.documentElement.classList.toggle("x-" + x.id, exp(x.id))); } catch(e){} }
+
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];

@@ -2,6 +2,7 @@
    90-boot: start the app
    ============================================================ */
 (function boot(){
+  expClasses();                         // experiments switched on in Tools › Developer (CSS ones)
   makeArt();
   const tested = applyTestLocation();
   show();
