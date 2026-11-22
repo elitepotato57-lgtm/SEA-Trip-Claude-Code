@@ -870,3 +870,7 @@ html.x-statusfade body::before{content:"";position:fixed;left:0;right:0;top:0;he
   background:linear-gradient(rgba(var(--fade),.96),rgba(var(--fade),.8) 65%,rgba(var(--fade),0))}
 html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:absolute;left:-10px;right:-10px;top:calc(-8px - env(safe-area-inset-top,0px));bottom:-26px;z-index:-1;pointer-events:none;
   background:linear-gradient(rgba(var(--fade),.9),rgba(var(--fade),.72) 55%,rgba(var(--fade),0))}
+/* experiment map-onerow: the floating List / Map button */
+.map-listbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--mb-lift,0px));z-index:7;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(28,31,36,.96);color:var(--ink);font:inherit;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+:root[data-look="paper"] .map-listbtn{background:rgba(251,245,232,.97)}
+#mapview:has(#mapBottom .preview) .map-listbtn,#mapview:has(#mapBottom .near) .map-listbtn{display:none}

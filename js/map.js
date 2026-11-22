@@ -456,8 +456,12 @@ function renderMapStatus(){
 }
 
 /* ---------- controls ---------- */
+/* Experiment map-onerow: one row of category chips; the row of sub-types (Essentials, or Activities' sections) only for the
+   category tapped last; Map/List becomes one floating button at the bottom; no + and − buttons (pinch to zoom). */
+EXPERIMENTS.push({id:"map-onerow", n:"Map: one row of chips", d:"Sub-types show only for the last category tapped, a floating List button replaces Map/List, and the + and − buttons go."});
 function renderMapUI(){
   if (!$("#mapChips")) return;
+  const one = exp("map-onerow");
   const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved && !ui.mapSurf;
   const chip = (attrs, label, on, col) => `<button class="chip" type="button" ${attrs} aria-pressed="${on}" ${col ? `style="--c:${col}"` : ""}>${col ? '<span class="dot"></span>' : ""}${label}</button>`;
   $("#mapChips").innerHTML = chip("data-all", "All", all)
@@ -467,16 +471,29 @@ function renderMapUI(){
     + chip("data-surf", `${icon("waves","i xs")}Surf`, !!ui.mapSurf)
     + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved);
   const essRow = $("#mapEss");
-  essRow.hidden = !(ui.essOpen || ui.essKinds.size);
+  essRow.hidden = !(ui.essOpen || ui.essKinds.size) || (one && ui.lastCat && ui.lastCat !== "ess");
   essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends === true}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
   const doRow = $("#mapDo");
   if (doRow){
-    doRow.hidden = !(ui.mapCats.has("cool") && !all && !ui.mapSaved && !ui.mapSurf && !ui.essKinds.size);
+    doRow.hidden = !(ui.mapCats.has("cool") && !all && !ui.mapSaved && !ui.mapSurf && !ui.essKinds.size) || (one && ui.lastCat !== "cool");
     doRow.innerHTML = doRow.hidden ? "" : DO_SECTIONS().map(c => `<button class="chip" type="button" data-dok="${c.id}" aria-pressed="${ui.doKinds.has(c.id)}">${c.ic ? icon(c.ic) : ""}${c.l}</button>`).join("");
   }
-  $("#mapModeRow").innerHTML = `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
+  $("#mapModeRow").innerHTML = one ? `<span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>` : `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
     <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
+  let fl = $("#mapListBtn");
+  if (one){
+    if (!fl){ fl = document.createElement("button"); fl.id = "mapListBtn"; fl.type = "button"; fl.className = "map-listbtn"; $("#mapview").appendChild(fl); }
+    const toList = ui.mapMode !== "list";
+    fl.dataset.mode = toList ? "list" : "map"; fl.innerHTML = toList ? `${icon("list","i s")}List` : `${icon("map","i s")}Map`;
+    fl.setAttribute("aria-label", toList ? "Show these places as a list" : "Back to the map");
+    fl.onclick = () => { ui.mapMode = fl.dataset.mode; renderMapUI(); };
+  } else if (fl) fl.remove();
   const top = $("#mapTop");
+  if (one){
+    top.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { ui.lastCat = b.dataset.cat; }, {capture:true}));
+    top.querySelector("[data-ess]").addEventListener("click", () => { ui.lastCat = "ess"; }, {capture:true});
+    top.querySelector("[data-all]").addEventListener("click", () => { ui.lastCat = null; }, {capture:true});
+  }
   // any other chip leaves surf mode
   top.querySelectorAll("[data-all], [data-cat], [data-ess], [data-saved]").forEach(b => b.addEventListener("click", () => { if (ui.mapSurf){ ui.mapSurf = false; if (b.dataset.cat) ui.mapCats = new Set(); } }, {capture:true}));
   top.querySelector("[data-surf]").onclick = () => ui.mapSurf ? (ui.mapSurf = false, ui.mapCats = new Set(["gaff","munch","cool"]), renderMapUI()) : openSurfMap();
@@ -507,13 +524,13 @@ function renderMapUI(){
   $("#mapSide").innerHTML = `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>
     <button class="icon-btn" id="locBtn" type="button" aria-label="Show where I am">${icon("locate")}</button>
     <button class="icon-btn" id="fitBtn" type="button" aria-label="Show the whole country">${icon("fit")}</button>
-    <button class="icon-btn zoomb" id="zinBtn" type="button" aria-label="Zoom in">${icon("plus")}</button>
-    <button class="icon-btn zoomb" id="zoutBtn" type="button" aria-label="Zoom out">${icon("minus")}</button>`;
+    ${one ? "" : `<button class="icon-btn zoomb" id="zinBtn" type="button" aria-label="Zoom in">${icon("plus")}</button>
+    <button class="icon-btn zoomb" id="zoutBtn" type="button" aria-label="Zoom out">${icon("minus")}</button>`}`;
   $("#satBtn").onclick = () => setBasemap(ui.basemap === "sat" ? "map" : "sat");
   // a tap on locate is the one place the compass is asked for (iPhone needs a tap), and it turns on precise GPS while the map is open
   $("#locBtn").onclick = () => { if (userLoc && map) flyTo(userLoc, Math.max(13, map.getZoom())); Heading.askCompass(); locate(true, st => { if (st === "ok" || st === "outside") Heading.startWatch(true); }); };
   $("#fitBtn").onclick = () => { const c = D.countries[S.country]; flyTo({lat:c.c[0], lng:c.c[1]}, c.z); };
-  $("#zinBtn").onclick = () => map && map.zoomIn(); $("#zoutBtn").onclick = () => map && map.zoomOut();
+  if (!one){ $("#zinBtn").onclick = () => map && map.zoomIn(); $("#zoutBtn").onclick = () => map && map.zoomOut(); }
 
   const list = $("#mapList"); list.hidden = ui.mapMode !== "list";
   $("#mapview").classList.toggle("listmode", ui.mapMode === "list");
