@@ -14,7 +14,12 @@ function expState(){
   if (!expState.v){ try { expState.v = JSON.parse(localStorage.getItem(EXP_KEY)) || {}; } catch(e){ expState.v = {}; } }
   return expState.v;
 }
-function exp(id){ const s = expState(); return s[id] === true || (s["*"] === true && s[id] !== false); }
+// Adopted (Dylan, 23 Nov 2026): on for everyone, no longer a switch. Their "off" branches are left in the code for now.
+const EXP_ADOPTED = new Set(["tp-fastest", "tp-legnames", "en-towns", "lost-share", "statusfade", "map-onerow", "help-btn", "plan-here",
+  "gaff-dates", "notes-once", "slim-cards", "daylight", "route-save", "driver-card"]);
+function exp(id){ if (EXP_ADOPTED.has(id)) return true; const s = expState(); return s[id] === true || (s["*"] === true && s[id] !== false); }
+// the experiments still to try (the switches in Tools › Developer)
+const expList = () => EXPERIMENTS.filter(x => !EXP_ADOPTED.has(x.id));
 function expSet(id, on){
   const s = expState(); s[id] = !!on; delete s["*"];
   try { localStorage.setItem(EXP_KEY, JSON.stringify(s)); } catch(e){}
