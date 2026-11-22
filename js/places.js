@@ -97,12 +97,26 @@ function placeDbCc(lat, lng){
   return w ? w.cc : null;
 }
 const ccAt = (lat, lng) => placeDbCc(lat, lng) || countryAt(lat, lng);
+/* Experiment en-towns: OpenStreetMap names Cambodian and Lao towns in Khmer or Lao script (កំពត, ຫຼວງພະບາງ).
+   Shown instead: the nearest trip destination within 30 km (Kampot), else the province from the places database (Battambang). */
+EXPERIMENTS.push({id:"en-towns", n:"English town names (Cambodia, Laos)", d:"Places show “Kampot” instead of “កំពត”: the nearest destination, or else the province, in English."});
+const NON_LATIN_TOWN = /[\u1780-\u17FF\u0E80-\u0EFF]/;
+function enTown(lat, lng, cc){
+  let best = null, bk = 30;
+  for (const c of D.cities){ const k = dist({lat, lng}, {lat:c[1], lng:c[2]}); if (k < bk){ bk = k; best = c[0]; } }
+  if (best) return best;
+  const db = PLACE_DBS.find(d => d.cc === cc), m = db && Places.metas[db.dir], regs = (m && m.regions) || [];
+  const inBox = regs.filter(r => r.bb && lng >= r.bb[0] && lat >= r.bb[1] && lng <= r.bb[2] && lat <= r.bb[3])
+    .sort((a, b) => (a.bb[2] - a.bb[0]) * (a.bb[3] - a.bb[1]) - (b.bb[2] - b.bb[0]) * (b.bb[3] - b.bb[1]));
+  return inBox.length ? inBox[0].name : (D.countries[cc] || {name:""}).name;
+}
 function osmPlace(row, areas, grp, cc = "TH"){
   const k = row[3], cn = (D.countries[cc] || {name:"Thailand"}).name, a = areas[row[5]] || [cn, cn], p = row[6] || {};
   const name = String(row[4] || "").split(";")[0].trim();        // OpenStreetMap sometimes packs two names into one field
   const it = {id:"o:" + row[0], osm:true, g:grp, c:CAT_OF_GRP[grp], k, n:name || (KIND[k] || {l:"Place"}).l, unnamed:!name, cc, city:a[1], area:a[0],
     lat:row[1], lng:row[2], ap:false, t:[(KIND[k] || {l:"Place"}).l], p:null, cur:null, r:null, s:[], tips:[], verified:false};
   for (const key in p) it[P_MAP[key] || key] = p[key];
+  if ((NON_LATIN_TOWN.test(it.city || "") || NON_LATIN_TOWN.test(it.area || "")) && exp("en-towns")){ const t = enTown(it.lat, it.lng, cc); it.city = it.area = t; }
   if (it.wp){ const m = /^en:(.+)$/.exec(it.wp); it.wpx = it.wp; it.wp = m ? m[1] : undefined; }
   return it;
 }

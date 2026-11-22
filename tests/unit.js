@@ -807,6 +807,14 @@ test("experiment tp-legnames: a local ride is named by its pier, and no “Bus, 
   P.expSet("tp-legnames", false); eq(P.legTitle(t, 0), "Koh Phangan → Koh Phangan", "off: as before");
 });
 
+test("experiment en-towns: Khmer and Lao town names become English (Kampot, not កំពត); off, as before", () => {
+  const P = load(), row = [1, 10.61, 104.18, "restaurant", "X", 0, {}], areas = [["ភូមិសុវណ្ណសាគរ, កំពត", "កំពត"]];
+  P.expSet("en-towns", true); const on = P.osmPlace(row, areas, "food", "KH");
+  P.expSet("en-towns", false); const off = P.osmPlace(row, areas, "food", "KH");
+  eq([on.city, on.area, off.city], ["Kampot", "Kampot", "កំពត"]);
+  P.expSet("en-towns", true); eq(P.osmPlace([2, 13.75, 100.5, "restaurant", "Y", 0, {}], [["Pathum Wan", "Bangkok"]], "food", "TH").city, "Bangkok", "Latin names untouched");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
