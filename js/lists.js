@@ -239,7 +239,18 @@ function paintListBody(cat){
   watchCardPhotos(body); paintSurf(body);
 }
 const MAX_GUESTS = 30;
+/* Experiment gaff-dates: check-in, check-out and guests fold into one "Add dates · 2 guests" button that opens them */
+EXPERIMENTS.push({id:"gaff-dates", n:"Gaffs: dates in one button", d:"Check-in, check-out and guests fold into one “Add dates · 2 guests” button that opens them."});
+const shortDay = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
 function stayStrip(){
+  const inner = stayStrip0();
+  if (!exp("gaff-dates")) return inner;
+  const p = stayParams(), g = +S.stay.guests || 2;
+  const label = p.ok ? `${shortDay(S.stay.cin)} – ${shortDay(S.stay.cout)} · ${g} guest${g === 1 ? "" : "s"}` : `Add dates · ${g} guest${g === 1 ? "" : "s"}`;
+  return `<details class="stay-fold" ${ui.stayOpen ? "open" : ""}><summary class="btn">${icon("calendar","i s")}${esc(label)}${icon("chevd","i xs")}</summary>${inner}</details>`;
+}
+if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("toggle", e => { if (e.target && e.target.classList && e.target.classList.contains("stay-fold")) ui.stayOpen = e.target.open; }, true);
+function stayStrip0(){
   const s = S.stay, t = todayISO();
   return `<div class="stay">
     <label class="field">Check-in<input type="date" id="st-in" min="${t}" value="${esc(s.cin)}"></label>

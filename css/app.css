@@ -881,3 +881,8 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 /* experiment detail-buttons */
 .actions.dt2{display:grid;gap:8px}
 .dt-small{display:flex;flex-wrap:wrap;gap:6px}
+/* experiment gaff-dates */
+.stay-fold>summary{list-style:none;width:100%;justify-content:flex-start}
+.stay-fold>summary::-webkit-details-marker{display:none}
+.stay-fold>summary .i.xs{margin-left:auto}
+.stay-fold[open]>summary{margin-bottom:8px}
