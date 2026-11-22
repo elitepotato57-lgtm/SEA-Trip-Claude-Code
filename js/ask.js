@@ -271,18 +271,25 @@ function showNearestOnMap(p, a, ref, real){
 
 /* ---------- speaking the question ---------- */
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+// iPhones often never mark the words as final and can keep listening, so: stop after a short silence (or as soon as the words
+// are final), and if nothing was marked final, use the last words heard. onDone is called once.
+const LISTEN_QUIET_MS = 1400;
 function listen(onText, onDone){
   if (!SpeechRec) return false;
   const rec = new SpeechRec();
   rec.lang = "en-GB"; rec.interimResults = true; rec.maxAlternatives = 1; rec.continuous = false;
-  let final = "";
+  let final = "", heard = "", quiet = null, done = false;
+  const finish = (text, err) => { if (done) return; done = true; clearTimeout(quiet); onDone(text, err); };
+  const stopSoon = ms => { clearTimeout(quiet); quiet = setTimeout(() => { try { rec.stop(); } catch(e){} setTimeout(() => finish((final || heard).trim()), 900); }, ms); };
   rec.onresult = e => {
-    let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++){ const t = e.results[i][0].transcript; if (e.results[i].isFinal) final += t; else interim += t; }
-    onText((final + interim).trim());
+    let interim = "", isFinal = false;
+    for (let i = e.resultIndex; i < e.results.length; i++){ const t = e.results[i][0].transcript; if (e.results[i].isFinal){ final += t; isFinal = true; } else interim += t; }
+    heard = (final + interim).trim() || heard;
+    onText(heard);
+    stopSoon(isFinal ? 150 : LISTEN_QUIET_MS);          // finished words: search now; otherwise wait for a pause
   };
-  rec.onerror = e => { onDone(null, e.error); };
-  rec.onend = () => onDone(final.trim());
+  rec.onerror = e => { if (e.error === "no-speech" && heard) finish(heard.trim()); else finish(null, e.error); };
+  rec.onend = () => finish((final || heard).trim());
   try { rec.start(); } catch(e){ return false; }
   return rec;
 }

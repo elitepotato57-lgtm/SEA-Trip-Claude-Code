@@ -100,13 +100,13 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(ex => { const g = ex ? [...document.querySelectorAll("#pageview .tgroup")].find(x => x.previousElementSibling && /Our trip/.test(x.previousElementSibling.textContent)) : document.querySelector("#pageview .tgrid"); const t = g ? [...g.querySelectorAll("a.tool")] : []; return t.length && t[t.length - 1].getAttribute("href") === "#tools/developer"; }, EXPON), "a developer phone gets Developer as the last tool");
   await page.goto(BASE + "#tools/developer"); await page.waitForTimeout(800);
   // Experiments: every switch is listed with its description; all off on a normal phone (all on in the experiments test run)
-  const ex = await page.evaluate(() => ({n:EXPERIMENTS.length, rows:document.querySelectorAll("#dev-exp [data-exp]").length, on:[...document.querySelectorAll("#dev-exp [data-exp]")].map(b => b.getAttribute("aria-pressed")), w:document.documentElement.scrollWidth}));
-  ok(ex.n >= 10 && ex.rows === ex.n && ex.on.every(v => v === String(EXPON)) && ex.w <= 393, `Tools › Developer lists all ${ex.n} experiments, ${EXPON ? "all on" : "all off"} ` + JSON.stringify(ex));
+  const ex = await page.evaluate(() => ({n:expList().length, rows:document.querySelectorAll("#dev-exp [data-exp]").length, on:[...document.querySelectorAll("#dev-exp [data-exp]")].map(b => b.getAttribute("aria-pressed")), w:document.documentElement.scrollWidth}));
+  ok(ex.n >= 1 && ex.rows === ex.n && ex.on.every(v => v === String(EXPON)) && ex.w <= 393, `Tools › Developer lists all ${ex.n} experiments, ${EXPON ? "all on" : "all off"} ` + JSON.stringify(ex));
   if (!EXPON){
-    await page.click('#dev-exp [data-exp="statusfade"]'); await page.waitForTimeout(300);
-    ok(await page.evaluate(() => exp("statusfade") && document.documentElement.classList.contains("x-statusfade") && JSON.parse(localStorage.getItem("sea-exp-v1")).statusfade === true), "a switch turns its experiment on, on this phone");
-    await page.click('#dev-exp [data-exp="statusfade"]'); await page.waitForTimeout(300);
-    ok(await page.evaluate(() => !exp("statusfade") && !document.documentElement.classList.contains("x-statusfade")), "and off again");
+    await page.click('#dev-exp [data-exp="tools-groups"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => exp("tools-groups") && document.documentElement.classList.contains("x-tools-groups") && JSON.parse(localStorage.getItem("sea-exp-v1"))["tools-groups"] === true), "a switch turns its experiment on, on this phone");
+    await page.click('#dev-exp [data-exp="tools-groups"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => !exp("tools-groups") && !document.documentElement.classList.contains("x-tools-groups")), "and off again");
   }
   await page.click("#dev-lab"); await page.waitForTimeout(500);
   ok(await page.evaluate(() => !!document.querySelector("#labBtn") && S.design.on === true), "the Design Lab switches on from Tools › Developer");
@@ -766,8 +766,19 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await c.close();
   }
 
-  // the experiments themselves, when they're all on
-  if (EXPON){
+  // zooming in on slow signal: while a tile's places are downloading, its area keeps its counts (it used to go empty)
+  {
+    const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
+    await c.route(/\/places\/th\/(stay|food|do)\/\d+-\d+-\d+\.json/, async r => { await new Promise(res => setTimeout(res, 6000)); r.continue().catch(() => {}); });
+    const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(5000);
+    await pg.evaluate(() => map.jumpTo({center:[98.9853, 18.7883], zoom:12.5})); await pg.waitForTimeout(2000);        // Chiang Mai: not loaded yet
+    const slow = await pg.evaluate(() => ({mode:mapRun.mode, loading:mapRun.loading, drawn:map.queryRenderedFeatures().filter(f => /^cl-circle-|^pt-/.test(f.layer.id)).reduce((s, f) => s + (+f.properties.w || 1), 0)}));
+    ok(slow.mode === "detail" && slow.loading && slow.drawn > 1000, "zooming in while places are still downloading keeps the counts on the map, no empty patch " + JSON.stringify(slow));
+    await c.close();
+  }
+  // the changes adopted from the experiments (on for everyone), and the two still being tried (all-on run only)
+  {
     await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
     const mx = await page.evaluate(() => ({list:!!document.querySelector("#mapListBtn"), zoom:!!document.querySelector("#zinBtn"), seg:!!document.querySelector('#mapModeRow [data-mode]'), help:!!document.querySelector("#mapSide [data-help]")}));
     ok(mx.list && !mx.zoom && !mx.seg && mx.help, "map-onerow / help-btn: a floating List button, no zoom buttons, a help button " + JSON.stringify(mx));
@@ -777,12 +788,12 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await page.click("#mapSide [data-help]"); await page.waitForTimeout(500);
     ok(await page.evaluate(() => !!document.querySelector("#sheetRoot .help-sheet a[href^='tel:']")), "the help button opens the emergency numbers");
     await page.evaluate(() => closeDetail());
-    await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
+    if (EXPON){ await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
     const tg = await page.evaluate(() => ({h:[...document.querySelectorAll("#pageview .sect h2")].map(h => h.textContent), wifi:!!document.querySelector('#pageview a[href="#tools/wifi"]'), w:document.documentElement.scrollWidth}));
-    ok(tg.h.join() === "Right now,Our trip,Read up" && !tg.wifi && tg.w <= 393, "tools-groups: Right now, Our trip, Read up; no repeated tiles " + JSON.stringify(tg));
+    ok(tg.h.join() === "Right now,Our trip,Read up" && !tg.wifi && tg.w <= 393, "tools-groups: Right now, Our trip, Read up; no repeated tiles " + JSON.stringify(tg)); }
     await page.evaluate(() => openDetail(D.places.find(x => x.nt === "โรงแรมเฮีย").id)); await page.waitForTimeout(800);
     const dt = await page.evaluate(() => ({main:document.querySelectorAll("#sheetRoot .actions .btn.primary").length, share:!!document.querySelector("#dtShare"), driver:!!document.querySelector("#dtDriver"), sub:document.querySelector("#sheetRoot .sheet-head .note").textContent}));
-    ok(dt.main === 1 && dt.share && dt.driver && /away/.test(dt.sub), "detail-buttons / driver-card: one main button, Share, the driver card, distance in the subtitle " + JSON.stringify(dt));
+    ok(dt.main === 1 && dt.driver && (!EXPON || (dt.share && /away/.test(dt.sub))), "detail-buttons / driver-card: one main button, Share, the driver card, distance in the subtitle " + JSON.stringify(dt));
     await page.click("#dtDriver"); await page.waitForTimeout(300);
     ok(await page.evaluate(() => /โรงแรมเฮีย/.test(document.querySelector(".driver-card").textContent)), "the driver card shows the Thai name in big script");
     await page.click(".driver-card"); await page.evaluate(() => closeDetail());

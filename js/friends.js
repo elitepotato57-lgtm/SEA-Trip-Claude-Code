@@ -556,8 +556,8 @@ TOOL_PAGES.developer = root => {
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="switch" type="button" id="dev-lab" aria-pressed="${labOn}"><i></i>Show the Design Lab</button>
       ${labOn ? `<button class="btn small" type="button" id="dev-openlab">${icon("palette","i s")}Open it</button>` : ""}</div></div>
     ${frCfg() ? `<div id="fr-dev"><div class="block"><p class="note">Checking…</p></div></div>` : `<div class="block"><h2>Stickers and developers</h2>${friendsSetupHTML()}</div>`}
-    ${EXPERIMENTS.length ? `<div class="block" id="dev-exp"><h2>Experiments</h2><p class="note">Changes to try out on this phone only. All off for everyone else. Switch one on, look around, switch it off to compare.</p>
-      ${EXPERIMENTS.map(x => `<div class="fr-row exp-row"><div><b>${esc(x.n)}</b><div class="note">${esc(x.d)}</div></div><button class="switch" type="button" data-exp="${esc(x.id)}" aria-pressed="${exp(x.id)}" aria-label="${esc(x.n)}"><i></i></button></div>`).join("")}</div>` : ""}
+    ${expList().length ? `<div class="block" id="dev-exp"><h2>Experiments</h2><p class="note">Changes to try out on this phone only. All off for everyone else. Switch one on, look around, switch it off to compare.</p>
+      ${expList().map(x => `<div class="fr-row exp-row"><div><b>${esc(x.n)}</b><div class="note">${esc(x.d)}</div></div><button class="switch" type="button" data-exp="${esc(x.id)}" aria-pressed="${exp(x.id)}" aria-label="${esc(x.n)}"><i></i></button></div>`).join("")}</div>` : ""}
     <div class="block"><button class="btn small" type="button" id="dev-off">Turn developer mode off on this phone</button></div></div>`;
   root.querySelectorAll("[data-exp]").forEach(b => b.onclick = () => { const on = !exp(b.dataset.exp); expSet(b.dataset.exp, on); b.setAttribute("aria-pressed", on); toast(on ? "On, on this phone only" : "Off"); });
   $("#dev-lab").onclick = () => { S.design.on = S.design.on !== true; persist(); if (!S.design.on) closeLab(); renderLabButton(); renderPage(); };

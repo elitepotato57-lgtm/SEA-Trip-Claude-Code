@@ -404,12 +404,13 @@ function refreshMapData(){
           }
         } else {
           // 2b. few enough: load just the tiles that cover the screen
+          const waiting = [];
           for (const g of groups) for (const leaf of Places.leavesIn(g, bb)){
             needed.add(leaf.key);
             const got = Places.loaded(leaf);
             if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k))){ if (passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } else if (PF_GRP[p.c]){ const r = pfReason(p, p.c); if (r) hidden[r] = (hidden[r] || 0) + 1; } } }
             else {
-              loading = true;
+              loading = true; waiting.push([g, leaf.bb]);
               if (!mapRun.pending.has(leaf.key)){
                 const ctl = new AbortController(); mapRun.pending.set(leaf.key, ctl); window.__mapStats.leafFetches++;
                 Places.leaf(leaf, ctl.signal).then(() => { mapRun.pending.delete(leaf.key); mapRun.failed = false; refreshMapSoon(); })
@@ -419,6 +420,12 @@ function refreshMapData(){
                   });
               }
             }
+          }
+          // while a tile's places are still downloading, its area keeps the counts from the summary, so zooming in past the
+          // point where the map switches from counts to places never leaves an empty patch (slow signal made this obvious)
+          for (const [g, lb] of waiting) for (const c of cells[g] || []){
+            if (c.lng < lb[0] || c.lng >= lb[2] || c.lat < lb[1] || c.lat >= lb[3]) continue;
+            const w = cellWeight(g, c, ek); if (w > 0) feats.push({type:"Feature", geometry:{type:"Point", coordinates:[c.lng, c.lat]}, properties:{w, g}});
           }
         }
       }
@@ -714,7 +721,7 @@ function bindMapSearch(){
       inp.value = final;
       // the same intents as typing: "nearest pharmacy" goes straight to it, other questions get the list of answers
       if (nearestIntent(final)){ close(); inp.blur(); goNearest(final); }
-      else if (typeof parseAsk === "function" && parseAsk(final)){ close(); inp.blur(); showAnswer(final); }
+      else if ((typeof parseAsk === "function" && parseAsk(final)) || (typeof moreIntent === "function" && moreIntent(final))){ close(); inp.blur(); showAnswer(final); }
       else { online = []; paint(); runRemote(); }
     });
     if (rec){ mic.setAttribute("aria-pressed", "true"); mic.classList.add("on"); inp.value = ""; inp.placeholder = "Listening…"; setTimeout(() => inp.placeholder = "Search places or ask a question", 6000); }

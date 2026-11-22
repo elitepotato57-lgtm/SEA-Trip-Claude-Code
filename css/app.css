@@ -904,3 +904,8 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .dc-addr{font-size:clamp(22px,7vw,34px);line-height:1.4;margin-top:16px;word-break:break-word}
 .dc-en{font-size:16px;color:#BDBDBD;margin-top:20px}
 .dc-close{font-size:13px;color:#8A8A8A;margin-top:26px}
+/* the dates and guests, once opened from "Add dates · 2 guests": smaller boxes */
+.stay-fold .stay{gap:6px 8px;margin-top:2px}
+.stay-fold .field{gap:2px;font-size:calc(11px * var(--ts,1))}
+.stay-fold .stay input,.stay-fold .stay select{height:34px;padding:4px 8px;font-size:calc(14px * var(--ts,1));border-radius:var(--r-s)}
+.stay-fold>.note{font-size:calc(11.5px * var(--ts,1))}

@@ -15,9 +15,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - **Experiments** (Dylan, 22 Nov 2026): changes to try on a developer phone, each behind its own switch in Tools › Developer ›
   Experiments, **off for everyone by default**; with a switch off the app must behave exactly as before. `exp(id)` (core.js) reads
   localStorage `sea-exp-v1` (`{"*":true}` = all on, used by the test run); each experiment adds itself to `EXPERIMENTS` next to its
-  code and gets an `x-<id>` class on `<html>`. Current ones: tp-fastest, tp-legnames, en-towns, lost-share, statusfade, map-onerow,
-  tools-groups, help-btn, plan-here, detail-buttons, gaff-dates, notes-once (`explain(key, html)`), slim-cards, daylight
-  (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, remove its switch.
+  code and gets an `x-<id>` class on `<html>`. Still switches: **tools-groups, detail-buttons**. Adopted for everyone on 23 Nov 2026
+  (`EXP_ADOPTED`, `exp()` returns true; their old "off" branches are still in the code, safe to delete later): tp-fastest, tp-legnames,
+  en-towns, lost-share, statusfade, map-onerow, help-btn, plan-here, gaff-dates, notes-once (`explain(key, html)`), slim-cards, daylight
+  (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, add it to `EXP_ADOPTED`.
+- The map keeps the summary counts for any tile whose places are still downloading (`waiting` in `refreshMapData`), so zooming in past
+  the counts-to-places switch on slow signal never leaves an empty patch. Voice search (`listen` in js/ask.js) searches after 1.4 s of quiet.
 - `js/design.js`: the Design Lab (floating panel, palette tab on the left edge). Applies `S.design` as CSS custom
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
