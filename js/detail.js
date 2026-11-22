@@ -416,6 +416,22 @@ function bookingBlock(it){
 }
 
 /* ---------- the details sheet ---------- */
+/* Experiment plan-here: "Plan a journey here" on every place, and the main button when the place is over 20 km away. */
+EXPERIMENTS.push({id:"plan-here", n:"Plan a journey here", d:"Every place’s details get “Plan a journey here”; over 20 km away, it’s the main button instead of Directions."});
+const farAway = (it, ref) => !!ref && dist(ref, it) > 20;
+function detailActions(it, ref){
+  const planAll = exp("plan-here"), far = planAll && farAway(it, ref), planBtn = it.c === "move" || planAll;
+  return `<div class="actions">
+    <a class="btn ${far ? "" : "primary"}" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
+    ${far ? `<button class="btn primary" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+    <a class="btn" href="${esc(L_apple(it))}" target="_blank" rel="noopener">${icon("nav")}Apple Maps</a>
+    <button class="btn" type="button" id="dtMap">${icon("map")}Show on map</button>
+    <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
+    ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext")}Read reviews</a>`}
+    <a class="btn" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers")}Satellite view</a>
+    ${planBtn && !far ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+  </div>`;
+}
 const WIFI_TXT = {1:"Yes", 2:"Free", 3:"For customers", 4:"Paid"};
 const socialLink = (v, base) => /^https?:/.test(v) ? v : base + v.replace(/^@/, "");
 const monthName = ym => { const m = /^(\d{4})-(\d{2})/.exec(ym || ""); return m ? `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m[2] - 1]} ${m[1]}` : ym; };
@@ -487,15 +503,7 @@ function openDetail(id){
     if (rel.length) body += `<h4>Saved routes</h4><ul class="known">${rel.map(r => `<li>${esc(r.a)} → ${esc(r.b)}, ${esc(r.mode.toLowerCase())}${r.p ? `, ${esc(withGBP(routeLocal(r), r.p, r.cur))}` : ""}</li>`).join("")}</ul>`;
   }
   if (it.c === "gaff") body += bookingBlock(it);
-  body += `<div class="actions">
-    <a class="btn primary" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
-    <a class="btn" href="${esc(L_apple(it))}" target="_blank" rel="noopener">${icon("nav")}Apple Maps</a>
-    <button class="btn" type="button" id="dtMap">${icon("map")}Show on map</button>
-    <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
-    ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext")}Read reviews</a>`}
-    <a class="btn" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers")}Satellite view</a>
-    ${it.c === "move" ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
-  </div>`;
+  body += detailActions(it, ref);
   if (it.ap) body += `<p class="note">The pin is approximate. Directions goes to the real address.</p>`;
   if (it.cur_) body += `<div class="srcs">${it.verified ? `Checked ${esc(it.chk)}. Sources: ${it.src.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}` : "Not checked yet. Prices are typical, not looked up, so confirm on the day."}${it.osmid ? ". Location and contact details from OpenStreetMap." : ""}</div>`;
   else body += `<div class="srcs">From OpenStreetMap${it.ts ? `, last edited ${esc(monthName(it.ts))}` : ""}${it.cd ? `, checked on site ${esc(it.cd)}` : ""}. © OpenStreetMap contributors. ${L_osm(it) ? `<a href="${esc(L_osm(it))}" target="_blank" rel="noopener">See or fix this listing</a>` : ""}</div>`;
