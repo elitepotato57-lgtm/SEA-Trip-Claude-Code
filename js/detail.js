@@ -419,7 +419,30 @@ function bookingBlock(it){
 /* Experiment plan-here: "Plan a journey here" on every place, and the main button when the place is over 20 km away. */
 EXPERIMENTS.push({id:"plan-here", n:"Plan a journey here", d:"Every place’s details get “Plan a journey here”; over 20 km away, it’s the main button instead of Directions."});
 const farAway = (it, ref) => !!ref && dist(ref, it) > 20;
+/* Experiment detail-buttons: one main Directions button (Google or Apple Maps, picked once in Settings), small Save, Share,
+   Satellite and Show on map buttons, and the distance in the subtitle instead of its own box. Share uses the phone's share sheet. */
+EXPERIMENTS.push({id:"detail-buttons", n:"Place details: one main button", d:"One Directions button (Google or Apple Maps, chosen in Settings), small Save, Share and Satellite buttons, distance in the subtitle."});
+const dirLink = it => S.mapsApp === "apple" ? L_apple(it) : L_dir(it);
+async function shareIt(it){
+  const url = L_maps(it), text = `${it.n}, ${it.area || it.city}`;
+  try { if (navigator.share){ await navigator.share({title:it.n, text, url}); return; } } catch(e){ if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(`${text}: ${url}`); toast("Link copied"); } catch(e){ toast("Couldn’t share from here"); }
+}
 function detailActions(it, ref){
+  if (exp("detail-buttons")){
+    const far = exp("plan-here") && farAway(it, ref);
+    return `<div class="actions dt2">
+      ${far ? `<button class="btn primary wide" type="button" id="dtPlan">${icon("route")}Plan a journey here</button><a class="btn wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`
+        : `<a class="btn primary wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`}
+      <div class="dt-small">
+        <button class="btn small" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark","i s")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
+        <button class="btn small" type="button" id="dtShare">${icon("share","i s")}Share</button>
+        <a class="btn small" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers","i s")}Satellite</a>
+        <button class="btn small" type="button" id="dtMap">${icon("map","i s")}On the map</button>
+        ${it.c === "move" || exp("plan-here") ? (far ? "" : `<button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`) : ""}
+        ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn small" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext","i s")}Reviews</a>`}
+      </div></div>`;
+  }
   const planAll = exp("plan-here"), far = planAll && farAway(it, ref), planBtn = it.c === "move" || planAll;
   return `<div class="actions">
     <a class="btn ${far ? "" : "primary"}" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
@@ -486,7 +509,7 @@ function openDetail(id){
   if (it.atm) facts.push(fact("ATM", "Yes"));
   if (it.wc) facts.push(fact("Wheelchair access", {yes:"Yes", limited:"Limited", no:"No"}[it.wc]));
   if (it.rel) facts.push(fact("Faith", esc(it.rel.replace(/_/g, " "))));
-  if (km) facts.push(fact("Distance", km));
+  if (km && !exp("detail-buttons")) facts.push(fact("Distance", km));
   // the name in the local script (Thai, or Lao in Laos, where the map shows the English name): show it to a driver
   const ntLang = /[\u0e80-\u0eff]/.test(it.nt || "") ? ["lo", "Lao"] : ["th", "Thai"];
   if (it.nt && /[\u0e00-\u0eff]/.test(it.nt)) facts.push(fact(`Name in ${ntLang[1]} (show a driver)`, `<span lang="${ntLang[0]}" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button>${ntLang[0] === "th" ? `<div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>` : ""}`, true));
@@ -509,12 +532,13 @@ function openDetail(id){
   else body += `<div class="srcs">From OpenStreetMap${it.ts ? `, last edited ${esc(monthName(it.ts))}` : ""}${it.cd ? `, checked on site ${esc(it.cd)}` : ""}. © OpenStreetMap contributors. ${L_osm(it) ? `<a href="${esc(L_osm(it))}" target="_blank" rel="noopener">See or fix this listing</a>` : ""}</div>`;
 
   openSheet(`<div class="sheet-head"><div><span class="kind"><span class="dot"></span>${esc(kindLabel(it))}${it.cur_ && it.c === "cool" && it.t.length > 1 ? `, ${esc(it.t.slice(1).join(", ").toLowerCase())}` : ""}</span>
-      <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}</div></div>
+      <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}${km && exp("detail-buttons") ? ` · ${esc(km)}` : ""}</div></div>
       <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>${body}`, "sheet-title", `--c:${col}`);
   highlightPin(it);
   const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, ntLang[0]);
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
+  const shr = $("#dtShare"); if (shr) shr.onclick = () => shareIt(it);
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   if (wantsSurf(it)) fillSurf(it);
   const box0 = $("#photoBox");

@@ -878,3 +878,6 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 .help-btn{color:#fff!important;background:#C2453A!important;border-color:#C2453A!important}
 .help-sheet .tel{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
 .help-sheet .tel small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1))}
+/* experiment detail-buttons */
+.actions.dt2{display:grid;gap:8px}
+.dt-small{display:flex;flex-wrap:wrap;gap:6px}

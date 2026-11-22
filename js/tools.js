@@ -392,6 +392,8 @@ function setupPage(){
     <p class="note">${frCfg() ? (frState().on ? `Sharing your location with ${Object.values(frState().list).filter(x => x.share).length} of ${Object.keys(frState().list).length} friends.` : "You aren’t sharing your location.") + " Choose who sees you, one by one." : "Not switched on yet (needs a free Firebase project, see FIREBASE-SETUP.md)."}</p>
     <a class="btn small" href="#tools/friends" style="margin-top:8px">${icon("users","i s")}Friends and sharing</a>
   </section>
+  ${exp("detail-buttons") ? `<section class="block"><h2>Directions open in</h2>
+    <div class="seg" role="group" aria-label="Maps app for directions" style="margin-top:6px"><button type="button" data-mapsapp="google" aria-pressed="${S.mapsApp !== "apple"}">Google Maps</button><button type="button" data-mapsapp="apple" aria-pressed="${S.mapsApp === "apple"}">Apple Maps</button></div></section>` : ""}
   <section class="block"><h2>Funny mode</h2>
     <p class="note">For the lads: Tommy says hello when the app opens, China talks back when you tap it on the map, and Ben waves when you open Friends.</p>
     <button class="switch" type="button" id="funnyOn" aria-pressed="${S.funny === true}" style="margin-top:6px"><i></i>Funny mode</button>
@@ -424,6 +426,7 @@ function bindSetup(){
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);
+  root.querySelectorAll("[data-mapsapp]").forEach(b => b.onclick = () => { S.mapsApp = b.dataset.mapsapp; persist(); renderPage(); toast(`Directions open in ${S.mapsApp === "apple" ? "Apple" : "Google"} Maps`); });
   $("#funnyOn").onclick = () => { if (typeof funnySet === "function") funnySet(S.funny !== true); else { S.funny = S.funny !== true; persist(); } toast(S.funny ? "Funny mode on. Close and reopen the app for Tommy." : "Funny mode off"); renderPage(); };
   const ga = $("#gkask"); if (ga) ga.onclick = () => gkAsk().then(() => toast("Asked: you’ll get Google photos once they say yes"), e => toast(e.message === "permission" ? "Firebase refused it: the developer needs to re-publish the rules" : "No signal? Try again"));
   $("#gkeySave").onclick = () => { S.gkey = $("#gkey").value.trim(); persist(); gReady = null; toast(S.gkey ? "Key saved on this phone" : "Key removed"); renderPage(); };
