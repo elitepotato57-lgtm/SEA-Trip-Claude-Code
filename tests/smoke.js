@@ -98,6 +98,15 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.evaluate(() => { S.dev = true; persist(); renderPage(); }); await page.waitForTimeout(600);
   ok(await page.evaluate(() => { const t = [...document.querySelector("#pageview .tgrid").querySelectorAll("a.tool")]; return t.length && t[t.length - 1].getAttribute("href") === "#tools/developer"; }), "a developer phone gets Developer as the last tool");
   await page.goto(BASE + "#tools/developer"); await page.waitForTimeout(800);
+  // Experiments: every switch is listed with its description; all off on a normal phone (all on in the experiments test run)
+  const ex = await page.evaluate(() => ({n:EXPERIMENTS.length, rows:document.querySelectorAll("#dev-exp [data-exp]").length, on:[...document.querySelectorAll("#dev-exp [data-exp]")].map(b => b.getAttribute("aria-pressed")), w:document.documentElement.scrollWidth}));
+  ok(ex.n >= 10 && ex.rows === ex.n && ex.on.every(v => v === String(EXPON)) && ex.w <= 393, `Tools › Developer lists all ${ex.n} experiments, ${EXPON ? "all on" : "all off"} ` + JSON.stringify(ex));
+  if (!EXPON){
+    await page.click('#dev-exp [data-exp="statusfade"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => exp("statusfade") && document.documentElement.classList.contains("x-statusfade") && JSON.parse(localStorage.getItem("sea-exp-v1")).statusfade === true), "a switch turns its experiment on, on this phone");
+    await page.click('#dev-exp [data-exp="statusfade"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => !exp("statusfade") && !document.documentElement.classList.contains("x-statusfade")), "and off again");
+  }
   await page.click("#dev-lab"); await page.waitForTimeout(500);
   ok(await page.evaluate(() => !!document.querySelector("#labBtn") && S.design.on === true), "the Design Lab switches on from Tools › Developer");
   await page.click("#labBtn"); await page.waitForTimeout(400);
@@ -752,6 +761,28 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await pg.reload(); await pg.waitForTimeout(2500);
     ok(offBen && await pg.evaluate(() => window.__fun.seen == null && !document.querySelector("#funnyIntro")), "with it off: no Ben, and no intro when the app opens");
     await c.close();
+  }
+
+  // the experiments themselves, when they're all on
+  if (EXPON){
+    await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
+    const mx = await page.evaluate(() => ({list:!!document.querySelector("#mapListBtn"), zoom:!!document.querySelector("#zinBtn"), seg:!!document.querySelector('#mapModeRow [data-mode]'), help:!!document.querySelector("#mapSide [data-help]")}));
+    ok(mx.list && !mx.zoom && !mx.seg && mx.help, "map-onerow / help-btn: a floating List button, no zoom buttons, a help button " + JSON.stringify(mx));
+    await page.click("#mapListBtn"); await page.waitForTimeout(800);
+    ok(await page.evaluate(() => ui.mapMode === "list" && document.querySelector("#mapListBtn").dataset.mode === "map"), "the List button opens the list, then says Map");
+    await page.click("#mapListBtn"); await page.waitForTimeout(500);
+    await page.click("#mapSide [data-help]"); await page.waitForTimeout(500);
+    ok(await page.evaluate(() => !!document.querySelector("#sheetRoot .help-sheet a[href^='tel:']")), "the help button opens the emergency numbers");
+    await page.evaluate(() => closeDetail());
+    await page.goto(BASE + "#tools"); await page.waitForTimeout(800);
+    const tg = await page.evaluate(() => ({h:[...document.querySelectorAll("#pageview .sect h2")].map(h => h.textContent), wifi:!!document.querySelector('#pageview a[href="#tools/wifi"]'), w:document.documentElement.scrollWidth}));
+    ok(tg.h.join() === "Right now,Our trip,Read up" && !tg.wifi && tg.w <= 393, "tools-groups: Right now, Our trip, Read up; no repeated tiles " + JSON.stringify(tg));
+    await page.evaluate(() => openDetail(D.places.find(x => x.nt === "โรงแรมเฮีย").id)); await page.waitForTimeout(800);
+    const dt = await page.evaluate(() => ({main:document.querySelectorAll("#sheetRoot .actions .btn.primary").length, share:!!document.querySelector("#dtShare"), driver:!!document.querySelector("#dtDriver"), sub:document.querySelector("#sheetRoot .sheet-head .note").textContent}));
+    ok(dt.main === 1 && dt.share && dt.driver && /away/.test(dt.sub), "detail-buttons / driver-card: one main button, Share, the driver card, distance in the subtitle " + JSON.stringify(dt));
+    await page.click("#dtDriver"); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => /โรงแรมเฮีย/.test(document.querySelector(".driver-card").textContent)), "the driver card shows the Thai name in big script");
+    await page.click(".driver-card"); await page.evaluate(() => closeDetail());
   }
 
   // offline: the service worker should already have saved the app
