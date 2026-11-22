@@ -766,6 +766,17 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await c.close();
   }
 
+  // zooming in on slow signal: while a tile's places are downloading, its area keeps its counts (it used to go empty)
+  {
+    const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
+    await c.route(/\/places\/th\/(stay|food|do)\/\d+-\d+-\d+\.json/, async r => { await new Promise(res => setTimeout(res, 6000)); r.continue().catch(() => {}); });
+    const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(5000);
+    await pg.evaluate(() => map.jumpTo({center:[98.9853, 18.7883], zoom:12.5})); await pg.waitForTimeout(2000);        // Chiang Mai: not loaded yet
+    const slow = await pg.evaluate(() => ({mode:mapRun.mode, loading:mapRun.loading, drawn:map.queryRenderedFeatures().filter(f => /^cl-circle-|^pt-/.test(f.layer.id)).reduce((s, f) => s + (+f.properties.w || 1), 0)}));
+    ok(slow.mode === "detail" && slow.loading && slow.drawn > 1000, "zooming in while places are still downloading keeps the counts on the map, no empty patch " + JSON.stringify(slow));
+    await c.close();
+  }
   // the changes adopted from the experiments (on for everyone), and the two still being tried (all-on run only)
   {
     await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
