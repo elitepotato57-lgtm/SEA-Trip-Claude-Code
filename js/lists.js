@@ -99,6 +99,10 @@ function makeArt(){
 }
 const artOf = it => `var(--art-${grpOfItem(it)})`;
 const artBadge = it => `<span class="ph-badge">${icon(kindIcon(it))}${esc(kindLabel(it))}</span>`;
+/* Experiment slim-cards: a place with no real photo gets a slim card (name, kind and price) instead of a full-size drawing.
+   Decided straight away when no photo is likely (and no Google key); otherwise once the photo lookup comes back empty. */
+EXPERIMENTS.push({id:"slim-cards", n:"Slim cards without photos", d:"Places with no real photo get a slim card (name, kind, price) instead of a big drawing."});
+const slimFirst = it => exp("slim-cards") && !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
 function placeCard(it, pt){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v);
   const km = pt && !pt.none ? dist(pt, it) : null;
@@ -133,7 +137,7 @@ function placeCard(it, pt){
     if (it.ac && it.c === "gaff") tags.push('<span class="tag">Air con</span>');
     if (it.x || it.wd) tags.push('<span class="tag pick">Notable</span>');
   }
-  return `<article class="card" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
+  return `<article class="card${slimFirst(it) ? " slim" : ""}" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
     <div class="ph" data-ph="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
     <div class="body"><h3>${esc(it.n)}</h3>${kr != null ? `<div class="rate">${starsHTML(kr)}</div>` : ""}${rev ? `<div class="rev">“${esc(rev.t)}” <small>${esc(rev.by ? rev.by + ", " : "")}Google review</small></div>` : ""}${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>

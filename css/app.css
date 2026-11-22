@@ -889,3 +889,7 @@ html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:a
 /* experiment notes-once: the (i) that opens an explainer note again */
 .info-i{display:inline-grid;place-items:center;width:22px;height:22px;margin:4px 0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:700 13px/1 Georgia,serif;font-style:italic;padding:0}
 .info-i[aria-expanded="true"]{color:var(--ink)}
+/* experiment slim-cards: no photo, no big drawing */
+.card.slim .ph{display:none}
+.card.slim .body{padding-right:56px}
+.card.slim .blurb,.card.slim .tags{display:none}

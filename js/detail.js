@@ -329,7 +329,7 @@ function watchCardPhotos(root){
   const fill = async slot => {
     const it = findPlace(slot.dataset.ph); if (!it || slot.dataset.done) return;
     slot.dataset.done = "1";
-    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src) slot.dataset.nophoto = "1"; return; }
+    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src){ slot.dataset.nophoto = "1"; if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim"); } return; }
     const img = new Image(); img.alt = ""; img.decoding = "async";
     let cur = src, tries = 0;
     img.onerror = async () => {
@@ -337,6 +337,7 @@ function watchCardPhotos(root){
       const next = tries++ < 3 ? await photoAfterFail(it, cur) : null;
       if (next && slot.isConnected){ cur = next; img.dataset.fb = ""; cph[it.id] = {src:next, at:Date.now(), g:false, gTried:true}; cphSave(); img.src = next; return; }
       img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
+      if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim");
     };
     img.onload = () => { if (!img.parentNode) slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(cur) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
     img.src = src;
