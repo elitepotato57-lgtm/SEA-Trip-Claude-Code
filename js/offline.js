@@ -263,9 +263,36 @@ async function restoreBackup(o, mode){
 }
 
 /* ---------- the page: Tools > Offline & backup ---------- */
+/* Experiment route-save: the cities on the trip route (D.trip) come first, in route order, and "Save my whole route" saves
+   them all in one go, after showing roughly how much space it needs. */
+EXPERIMENTS.push({id:"route-save", n:"Offline: save my whole route", d:"Cities listed in route order, and one button saves every city on the route (the size is shown first)."});
+const routeCities = () => (D.trip || []).map(t => PLACE_DESTS.find(c => c[0] === t[2])).filter(Boolean);
+// a rough size before saving: saved cities by what they took; the rest from how many files they need, at the average size so far
+async function routeSize(cities){
+  const saved = Object.values(S.packs || {}).filter(p => p.files && p.bytes), per = saved.length ? saved.reduce((s, p) => s + p.bytes, 0) / saved.reduce((s, p) => s + p.files, 0) : 30000;
+  let bytes = 0;
+  for (const c of cities){ const p = S.packs[c[0]]; if (p && p.bytes) bytes += p.bytes; else { try { bytes += (await packUrls(c)).length * per; } catch(e){ bytes += 5e6; } } }
+  return bytes * (S.packPhotos !== false ? 1.4 : 1);
+}
+async function saveRoute(root){
+  const cities = routeCities(); if (!cities.length) return;
+  const btn = $("#routeSave"); if (btn){ btn.disabled = true; btn.textContent = "Working out the size…"; }
+  const est = await routeSize(cities);
+  if (!(await askConfirm(`Save all ${cities.length} cities on the route for offline? About ${fmtBytes(est)} (an estimate). Keep the app open while it saves.`, "Save them all"))){ if (ui.sub === "offline") renderPage(); return; }
+  let done = 0, failed = 0;
+  for (const c of cities){
+    packState.busy = c[0]; packState.done = 0; packState.total = 0; packState.stage = "map"; if (ui.sub === "offline") renderPage();
+    const b = $("#routeSave"); if (b) b.textContent = `Saving ${c[0]} (${done + 1} of ${cities.length})…`;
+    try { await savePack(c, (d, t, stage) => { packState.done = d; packState.total = t; packState.stage = stage || "map"; }); done++; } catch(e){ failed++; }
+  }
+  packState.busy = null; if (ui.sub === "offline") renderPage();
+  toast(failed ? `Saved ${done} cities; ${failed} didn’t (check your signal and try again)` : `The whole route is saved for offline (${done} cities)`);
+}
 TOOL_PAGES.offline = root => {
   const ref = userLoc || (S.focus ? focusPt() : null);
-  const cities = PLACE_DESTS.slice().sort((a, b) => ref && !ref.none ? dist(ref, {lat:a[1], lng:a[2]}) - dist(ref, {lat:b[1], lng:b[2]}) : 0);
+  let cities = PLACE_DESTS.slice().sort((a, b) => ref && !ref.none ? dist(ref, {lat:a[1], lng:a[2]}) - dist(ref, {lat:b[1], lng:b[2]}) : 0);
+  const rc = exp("route-save") ? routeCities() : [];
+  if (rc.length) cities = rc.concat(cities.filter(c => !rc.includes(c)));
   const row = c => {
     const p = S.packs[c[0]], busy = packState.busy === c[0];
     return `<div class="pack" data-city="${esc(c[0])}"><div><b>${esc(c[0])}</b><small>${busy ? packStageText() : p ? `Saved ${agoText(p.at)} · ${fmtBytes(p.bytes)}${p.photos ? ` · ${p.photos} photos` : ""}` : "Not saved"}</small>
@@ -279,7 +306,9 @@ TOOL_PAGES.offline = root => {
     <button class="switch" type="button" id="packPh" aria-pressed="${S.packPhotos !== false}" style="margin-top:6px"><i></i>Include landmark photos (about 5–15 MB more per city)</button>
     <p class="note">Temples, museums, parks and other well-known places keep their photos offline (free Wikimedia Commons pictures, up to ${PACK_PHOTO_MAX} per city). Other places show the drawings with no signal: Google doesn't allow its photos to be stored.</p>
     <p class="note" id="storeLine"></p>
-    <div class="packs">${cities.map(row).join("")}</div>
+    ${rc.length ? `<button class="btn wide" type="button" id="routeSave" style="margin:8px 0" ${packState.busy ? "disabled" : ""}>${icon("download","i s")}Save my whole route (${rc.length} cities)</button>
+      <div class="sect"><h2>On the route</h2></div><div class="packs">${rc.map(row).join("")}</div><div class="sect"><h2>Other cities</h2></div>` : ""}
+    <div class="packs">${cities.slice(rc.length).map(row).join("")}</div>
     <div class="sect"><h2>Back up your trip</h2></div>
     <p class="note">Your saved places, spending, stay dates, your look and your documents live only on this phone, and iPhone can clear website data it thinks you don't use. Save a backup file now and then (to Files, iCloud Drive or by emailing it to yourself).</p>
     <p class="note"><b>Last backup:</b> ${S.lastBackup ? agoText(S.lastBackup) : "never"}</p>
@@ -289,6 +318,7 @@ TOOL_PAGES.offline = root => {
     <p class="note" style="margin-top:10px">The backup doesn't include your Google key. Keep the file private: it lists where you're staying and copies of your documents.</p>
   </div>`;
   storageLine();
+  const rs = $("#routeSave"); if (rs) rs.onclick = () => saveRoute(root);
   $("#packPh").onclick = () => { S.packPhotos = S.packPhotos === false; persist(); renderPage(); };
   root.querySelectorAll("[data-pack]").forEach(b => b.onclick = async () => {
     const name = b.closest("[data-city]").dataset.city, city = PLACE_DESTS.find(c => c[0] === name);

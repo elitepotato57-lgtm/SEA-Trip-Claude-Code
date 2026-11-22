@@ -820,6 +820,11 @@ test("experiment lost-share: the WhatsApp text carries a Google Maps link to whe
   ok(/no location/.test(A.frSosText(null)));
 });
 
+test("experiment route-save: the route's cities, in trip order, each one that can be saved for offline", () => {
+  const r = A.routeCities().map(c => c[0]);
+  eq(r[0], "Bangkok"); ok(r.length >= 10 && r.indexOf("Chiang Mai") < r.indexOf("Hanoi"), r.join(", "));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
