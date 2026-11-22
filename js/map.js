@@ -249,7 +249,7 @@ const Heading = {
     if (this.watchId != null && (!high || this.high)) return;
     this.stopWatch(); this.high = !!high;
     this.watchId = navigator.geolocation.watchPosition(pos => {
-      const c = pos.coords;
+      const c = pos.coords; geoKeep(c);
       userLoc = {lat:c.latitude, lng:c.longitude, acc:c.accuracy};
       if (locStatus !== "ok" && locStatus !== "outside"){ const cc = countryAt(userLoc.lat, userLoc.lng); locStatus = cc ? "ok" : "outside"; }
       // the direction of travel only means something when actually moving (faster than about 5 km/h)

@@ -274,9 +274,12 @@ const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 // iPhones often never mark the words as final and can keep listening, so: stop after a short silence (or as soon as the words
 // are final), and if nothing was marked final, use the last words heard. onDone is called once.
 const LISTEN_QUIET_MS = 1400;
+// one recogniser for the whole visit: iPhones tend to ask about the microphone for each new one
+let recOne = null;
 function listen(onText, onDone){
   if (!SpeechRec) return false;
-  const rec = new SpeechRec();
+  const rec = recOne || (recOne = new SpeechRec());
+  try { rec.abort(); } catch(e){}
   rec.lang = "en-GB"; rec.interimResults = true; rec.maxAlternatives = 1; rec.continuous = false;
   let final = "", heard = "", quiet = null, done = false;
   const finish = (text, err) => { if (done) return; done = true; clearTimeout(quiet); onDone(text, err); };

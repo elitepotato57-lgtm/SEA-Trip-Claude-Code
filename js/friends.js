@@ -215,6 +215,7 @@ let frHere = null, frGpsId = null, frGpsErr = "", frLast = null, frTimer = null,
 function frGpsStart(){
   if (frGpsId != null || typeof navigator === "undefined" || !navigator.geolocation) return;
   frGpsId = navigator.geolocation.watchPosition(p => {
+    if (typeof geoKeep === "function") geoKeep(p.coords);
     frHere = {lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, at:frNow()}; frGpsErr = "";
     frSendNow(false).catch(() => {}); paintFriendsLive();
   }, e => { frGpsErr = e && e.code === 1 ? "denied" : "unavailable"; paintFriendsLive(); }, {enableHighAccuracy:true, maximumAge:30e3, timeout:30e3});
@@ -962,6 +963,7 @@ async function frSosSend(){
   if (!ids.length) throw new Error("Add your mates in Friends first");
   await frAllowPhone().catch(() => {});
   let here = frMeHere();
+  if (!here && typeof geoFresh === "function" && geoFresh()) here = geoFresh();
   if (!here && typeof navigator !== "undefined" && navigator.geolocation) here = await new Promise(r => navigator.geolocation.getCurrentPosition(p => r({lat:p.coords.latitude, lng:p.coords.longitude}), () => r(null), {enableHighAccuracy:true, timeout:8000, maximumAge:60e3}));
   const body = {t:{".sv":"timestamp"}, n:f.name || "A friend", ...(here ? {lat:+here.lat.toFixed(5), lng:+here.lng.toFixed(5)} : {}), ...(f.callLink ? {cl:f.callLink} : {})};
   frSosHere = here || null;

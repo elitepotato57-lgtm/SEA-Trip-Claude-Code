@@ -884,6 +884,18 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
       ok(!!r && made.stopped, "listening was stopped after the pause"); eq(got, "nearest toilet"); eq(texts.slice(-1)[0], "nearest toilet");
     });
   }
+  // asking once: a recent position is shared instead of asking the phone again, and one microphone recogniser is reused
+  {
+    let asks = 0, made = 0;
+    const nav = {onLine:true, language:"en-GB", userAgent:"node", geolocation:{getCurrentPosition:(ok) => { asks++; ok({coords:{latitude:13.75, longitude:100.5, accuracy:20}}); }, watchPosition:() => 1, clearWatch(){}}};
+    function FakeRec(){ made++; this.start = () => {}; this.stop = () => {}; this.abort = () => {}; }
+    const G = load(undefined, {navigator:nav, webkitSpeechRecognition:FakeRec});
+    G.locate(false); G.locate(false); G.locate(true, null, true);
+    G.listen(() => {}, () => {}); G.listen(() => {}, () => {});
+    test("permissions: the phone is asked for its location once, then the recent position is reused; one microphone recogniser", () => {
+      eq(asks, 1); ok(G.geoFresh() && G.geoFresh().lat === 13.75); eq(made, 1);
+    });
+  }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");
