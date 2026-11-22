@@ -89,6 +89,7 @@ function connectors(node, key){
     notes:[`About ${Math.round(x.km)} km by road`, "This stretch isn’t in the saved network yet, so the time is a rough estimate"], src:[], verified:false}));
   return legs;
 }
+EXPERIMENTS.push({id:"tp-fastest", n:"Transport: true fastest journey", d:"Always keeps the quickest journey, even when one of its legs has no saved price, so the Fastest badge is right."});
 const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0];
 // the quickest possible time from every stop to the destination (Dijkstra, backwards)
 function timeTo(adj, to){
@@ -145,11 +146,14 @@ function planTrips(fromN, toN){
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
   const best = Math.min(...trips.map(t => t.mid));
+  // experiment: the truly fastest journey is always kept, even when a leg on it has no saved price
+  const quickest = exp("tp-fastest") ? trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b) : null;
   trips = trips.filter(t => t.mid <= best * 2.5 + 2);
   const priced = trips.filter(t => !core(t));
   const keepUnpriced = new Set(trips.filter(t => core(t) && t.mid <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.mid - b.mid)).slice(0, 3));
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
     : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
+  if (quickest && !trips.includes(quickest)) trips.push(quickest);
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
   const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;
@@ -218,6 +222,21 @@ function tripCard(t, idx){
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
   </div>`;
 }
+EXPERIMENTS.push({id:"tp-legnames", n:"Transport: clearer leg names", d:"Local rides are named by their stop (“To Thong Sala Pier”), and “Bus, Bus, minivan or taxi” reads “Bus, minivan or taxi”."});
+// a leg's title in the journey sheet. Experiment tp-legnames: a local ride at either end is named by the pier, station or
+// bus stop it takes you to (or from), instead of "Koh Phangan → Koh Phangan"
+function legTitle(t, k){
+  const L = t.legs[k], plain = `${NODE[L.from].n} → ${NODE[L.to].n}`;
+  if (!exp("tp-legnames")) return plain;
+  const local = L.o.mode === "Local ride" || (L.o.mode === "Taxi" && !(L.o.src || []).length);
+  if (!local) return plain;
+  const nx = t.legs[k + 1], pv = t.legs[k - 1];
+  if (nx && L.to[0] !== "@"){ const s = stationOf(nx.from === nx.o.a ? nx.o.da : nx.o.db); return `To ${s && s.lat != null ? s.n : NODE[L.to].n}`; }
+  if (pv && L.from[0] !== "@"){ const s = stationOf(pv.to === pv.o.b ? pv.o.db : pv.o.da); return `From ${s && s.lat != null ? s.n : NODE[L.from].n} to ${NODE[L.to].n}`; }
+  return NODE[L.from].n === NODE[L.to].n ? `Around ${NODE[L.to].n}` : plain;
+}
+// "Bus" and "Bus, minivan or taxi" together read "Bus, Bus, minivan or taxi": drop the mode when the operator already says it
+const legKind = o => exp("tp-legnames") && o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -227,15 +246,15 @@ function tripSheetHTML(t){
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
     const lp = o.p ? withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
     return `<div class="leg"><span class="li legn" style="--lc:${LEG_COLS[k % LEG_COLS.length]}"><i>${k + 1}</i>${icon(MODE_IC[o.mode] || "bus", "i s")}</span><div>
-      <b>${esc(NODE[L.from].n)} → ${esc(NODE[L.to].n)}</b>
-      <div class="m">${esc(o.mode)}${o.op ? ", " + esc(o.op) : ""}</div>
+      <b>${esc(legTitle(t, k))}</b>
+      <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
       ${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
   const a = NODE[t.legs[0].from].n, b = NODE[t.legs[t.legs.length - 1].to].n;
-  const notes = t.legs.flatMap(L => L.o.notes.map(n => `${NODE[L.from].n} → ${NODE[L.to].n}: ${n}`));
+  const notes = t.legs.flatMap((L, k) => L.o.notes.map(n => `${legTitle(t, k)}: ${n}`));
   const srcs = t.legs.flatMap(L => L.o.src || []);
   return `<div class="sheet-head"><h2 id="trip-title" style="margin:0">${esc(a)} → ${esc(b)}</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
     <div class="trip open">

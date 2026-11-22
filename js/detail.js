@@ -329,7 +329,7 @@ function watchCardPhotos(root){
   const fill = async slot => {
     const it = findPlace(slot.dataset.ph); if (!it || slot.dataset.done) return;
     slot.dataset.done = "1";
-    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src) slot.dataset.nophoto = "1"; return; }
+    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src){ slot.dataset.nophoto = "1"; if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim"); } return; }
     const img = new Image(); img.alt = ""; img.decoding = "async";
     let cur = src, tries = 0;
     img.onerror = async () => {
@@ -337,6 +337,7 @@ function watchCardPhotos(root){
       const next = tries++ < 3 ? await photoAfterFail(it, cur) : null;
       if (next && slot.isConnected){ cur = next; img.dataset.fb = ""; cph[it.id] = {src:next, at:Date.now(), g:false, gTried:true}; cphSave(); img.src = next; return; }
       img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
+      if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim");
     };
     img.onload = () => { if (!img.parentNode) slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(cur) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
     img.src = src;
@@ -416,6 +417,62 @@ function bookingBlock(it){
 }
 
 /* ---------- the details sheet ---------- */
+/* Experiment driver-card (from TRAVELLER-IDEAS.md): on a gaff with a Thai or Lao name or address, a button opens a full-screen
+   card with them in big script, white on black so it reads in a dark taxi. Tap anywhere to close. */
+EXPERIMENTS.push({id:"driver-card", n:"Show this to the driver", d:"On a gaff with a Thai or Lao name or address: a full-screen card in big script, readable in a dark taxi."});
+const localScript = s => /[\u0e00-\u0eff]/.test(s || "");
+const driverOK = it => exp("driver-card") && it && it.c === "gaff" && (localScript(it.nt) || localScript(it.ad));
+function openDriverCard(it){
+  const lao = /[\u0e80-\u0eff]/.test((it.nt || "") + (it.ad || "")), lang = lao ? "lo" : "th";
+  const el = document.createElement("div"); el.className = "driver-card"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Show this to the driver");
+  el.innerHTML = `<div class="dc-in">${lao ? "" : `<div class="dc-ask" lang="th">กรุณาไปที่นี่</div>`}
+    ${localScript(it.nt) ? `<div class="dc-name" lang="${lang}">${esc(it.nt)}</div>` : ""}
+    ${localScript(it.ad) ? `<div class="dc-addr" lang="${lang}">${esc(it.ad)}</div>` : ""}
+    <div class="dc-en">${esc(it.n)}${it.area || it.city ? ", " + esc(it.area || it.city) : ""}</div>
+    ${it.ph ? `<a class="btn" href="tel:${esc(it.ph)}" style="margin-top:14px">${icon("phone","i s")}Call the hostel</a>` : ""}
+    <div class="dc-close">Tap anywhere to close</div></div>`;
+  el.onclick = e => { if (!e.target.closest("a")) el.remove(); };
+  document.body.appendChild(el);
+}
+/* Experiment plan-here: "Plan a journey here" on every place, and the main button when the place is over 20 km away. */
+EXPERIMENTS.push({id:"plan-here", n:"Plan a journey here", d:"Every place’s details get “Plan a journey here”; over 20 km away, it’s the main button instead of Directions."});
+const farAway = (it, ref) => !!ref && dist(ref, it) > 20;
+/* Experiment detail-buttons: one main Directions button (Google or Apple Maps, picked once in Settings), small Save, Share,
+   Satellite and Show on map buttons, and the distance in the subtitle instead of its own box. Share uses the phone's share sheet. */
+EXPERIMENTS.push({id:"detail-buttons", n:"Place details: one main button", d:"One Directions button (Google or Apple Maps, chosen in Settings), small Save, Share and Satellite buttons, distance in the subtitle."});
+const dirLink = it => S.mapsApp === "apple" ? L_apple(it) : L_dir(it);
+async function shareIt(it){
+  const url = L_maps(it), text = `${it.n}, ${it.area || it.city}`;
+  try { if (navigator.share){ await navigator.share({title:it.n, text, url}); return; } } catch(e){ if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(`${text}: ${url}`); toast("Link copied"); } catch(e){ toast("Couldn’t share from here"); }
+}
+function detailActions(it, ref){
+  if (exp("detail-buttons")){
+    const far = exp("plan-here") && farAway(it, ref);
+    return `<div class="actions dt2">
+      ${far ? `<button class="btn primary wide" type="button" id="dtPlan">${icon("route")}Plan a journey here</button><a class="btn wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`
+        : `<a class="btn primary wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`}
+      <div class="dt-small">
+        <button class="btn small" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark","i s")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
+        <button class="btn small" type="button" id="dtShare">${icon("share","i s")}Share</button>
+        <a class="btn small" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers","i s")}Satellite</a>
+        <button class="btn small" type="button" id="dtMap">${icon("map","i s")}On the map</button>
+        ${it.c === "move" || exp("plan-here") ? (far ? "" : `<button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`) : ""}
+        ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn small" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext","i s")}Reviews</a>`}
+      </div></div>`;
+  }
+  const planAll = exp("plan-here"), far = planAll && farAway(it, ref), planBtn = it.c === "move" || planAll;
+  return `<div class="actions">
+    <a class="btn ${far ? "" : "primary"}" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
+    ${far ? `<button class="btn primary" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+    <a class="btn" href="${esc(L_apple(it))}" target="_blank" rel="noopener">${icon("nav")}Apple Maps</a>
+    <button class="btn" type="button" id="dtMap">${icon("map")}Show on map</button>
+    <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
+    ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext")}Read reviews</a>`}
+    <a class="btn" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers")}Satellite view</a>
+    ${planBtn && !far ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+  </div>`;
+}
 const WIFI_TXT = {1:"Yes", 2:"Free", 3:"For customers", 4:"Paid"};
 const socialLink = (v, base) => /^https?:/.test(v) ? v : base + v.replace(/^@/, "");
 const monthName = ym => { const m = /^(\d{4})-(\d{2})/.exec(ym || ""); return m ? `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m[2] - 1]} ${m[1]}` : ym; };
@@ -470,7 +527,7 @@ function openDetail(id){
   if (it.atm) facts.push(fact("ATM", "Yes"));
   if (it.wc) facts.push(fact("Wheelchair access", {yes:"Yes", limited:"Limited", no:"No"}[it.wc]));
   if (it.rel) facts.push(fact("Faith", esc(it.rel.replace(/_/g, " "))));
-  if (km) facts.push(fact("Distance", km));
+  if (km && !exp("detail-buttons")) facts.push(fact("Distance", km));
   // the name in the local script (Thai, or Lao in Laos, where the map shows the English name): show it to a driver
   const ntLang = /[\u0e80-\u0eff]/.test(it.nt || "") ? ["lo", "Lao"] : ["th", "Thai"];
   if (it.nt && /[\u0e00-\u0eff]/.test(it.nt)) facts.push(fact(`Name in ${ntLang[1]} (show a driver)`, `<span lang="${ntLang[0]}" style="font-size:17px">${esc(it.nt)}</span> <button class="btn small" type="button" id="sayName" style="margin-left:6px">${icon("speaker","i s")}Say it</button>${ntLang[0] === "th" ? `<div class="note">Sounds roughly like: ${esc(thaiRom.text(it.nt, "easy"))}</div>` : ""}`, true));
@@ -486,27 +543,22 @@ function openDetail(id){
     const rel = D.routes.filter(r => r.a.includes(it.city) || r.b.includes(it.city));
     if (rel.length) body += `<h4>Saved routes</h4><ul class="known">${rel.map(r => `<li>${esc(r.a)} → ${esc(r.b)}, ${esc(r.mode.toLowerCase())}${r.p ? `, ${esc(withGBP(routeLocal(r), r.p, r.cur))}` : ""}</li>`).join("")}</ul>`;
   }
+  if (driverOK(it)) body += `<button class="btn wide" type="button" id="dtDriver" style="margin-top:12px">${icon("car","i s")}Show this to the driver</button>`;
   if (it.c === "gaff") body += bookingBlock(it);
-  body += `<div class="actions">
-    <a class="btn primary" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
-    <a class="btn" href="${esc(L_apple(it))}" target="_blank" rel="noopener">${icon("nav")}Apple Maps</a>
-    <button class="btn" type="button" id="dtMap">${icon("map")}Show on map</button>
-    <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
-    ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext")}Read reviews</a>`}
-    <a class="btn" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers")}Satellite view</a>
-    ${it.c === "move" ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
-  </div>`;
+  body += detailActions(it, ref);
   if (it.ap) body += `<p class="note">The pin is approximate. Directions goes to the real address.</p>`;
   if (it.cur_) body += `<div class="srcs">${it.verified ? `Checked ${esc(it.chk)}. Sources: ${it.src.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}` : "Not checked yet. Prices are typical, not looked up, so confirm on the day."}${it.osmid ? ". Location and contact details from OpenStreetMap." : ""}</div>`;
   else body += `<div class="srcs">From OpenStreetMap${it.ts ? `, last edited ${esc(monthName(it.ts))}` : ""}${it.cd ? `, checked on site ${esc(it.cd)}` : ""}. © OpenStreetMap contributors. ${L_osm(it) ? `<a href="${esc(L_osm(it))}" target="_blank" rel="noopener">See or fix this listing</a>` : ""}</div>`;
 
   openSheet(`<div class="sheet-head"><div><span class="kind"><span class="dot"></span>${esc(kindLabel(it))}${it.cur_ && it.c === "cool" && it.t.length > 1 ? `, ${esc(it.t.slice(1).join(", ").toLowerCase())}` : ""}</span>
-      <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}</div></div>
+      <h2 id="sheet-title">${esc(it.n)}</h2>${romName(it) ? `<div class="rom">${esc(romName(it))} (approximate English spelling)</div>` : ""}<div class="note">${esc(it.area || it.city)}${D.countries[it.cc] ? ", " + esc(D.countries[it.cc].name) : ""}${km && exp("detail-buttons") ? ` · ${esc(km)}` : ""}</div></div>
       <button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>${body}`, "sheet-title", `--c:${col}`);
   highlightPin(it);
   const sayBtn = $("#sayName"); if (sayBtn) sayBtn.onclick = () => speak(it.nt, ntLang[0]);
   const sayAd = $("#sayAddr"); if (sayAd) sayAd.onclick = () => speak(it.ad, "th");
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
+  const shr = $("#dtShare"); if (shr) shr.onclick = () => shareIt(it);
+  const drv = $("#dtDriver"); if (drv) drv.onclick = () => openDriverCard(it);
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   if (wantsSurf(it)) fillSurf(it);
   const box0 = $("#photoBox");

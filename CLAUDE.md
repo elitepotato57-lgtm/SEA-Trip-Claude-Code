@@ -12,6 +12,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   a file's top-level code may only use things from files loaded before it.
 - `js/data.js`: `GEO`, `D` (~290 KB trip data, one line) and `MAP_STYLE`. Edit with a script, never by hand.
 - `js/core.js`: helpers, icons (`IC`), saved state `S` (+ `S_DEFAULTS`: only keys listed there are saved), money, `VERSION`.
+- **Experiments** (Dylan, 22 Nov 2026): changes to try on a developer phone, each behind its own switch in Tools › Developer ›
+  Experiments, **off for everyone by default**; with a switch off the app must behave exactly as before. `exp(id)` (core.js) reads
+  localStorage `sea-exp-v1` (`{"*":true}` = all on, used by the test run); each experiment adds itself to `EXPERIMENTS` next to its
+  code and gets an `x-<id>` class on `<html>`. Current ones: tp-fastest, tp-legnames, en-towns, lost-share, statusfade, map-onerow,
+  tools-groups, help-btn, plan-here, detail-buttons, gaff-dates, notes-once (`explain(key, html)`), slim-cards, daylight
+  (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, remove its switch.
 - `js/design.js`: the Design Lab (floating panel, palette tab on the left edge). Applies `S.design` as CSS custom
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
@@ -90,7 +96,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Country-specific parts: price tables (`PRICE_TABLES` in `js/estimate.js`), phrasebooks (`js/tools.js`), guide and emergency
   numbers (`js/tools-more.js`), destinations (`D.cities`, `DEST_NOTE`). The app follows `S.country`.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
-- `tests/`: `unit.js` (logic, in Node), `smoke.js` (phone-size browser run), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
+- `tests/`: `run-all.js` (what `npm test` runs: unit and smoke with experiments off, then again with `SEA_EXP=all`), `unit.js` (logic, in Node), `smoke.js` (phone-size browser run; `EXPON` when all on), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
   cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet), `check-new.js` (Map button, Boozer, typical photos, journey sheet).
 
 ## Rules
@@ -109,7 +115,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   per-phone daily allowance (`G_DAILY`: photo 30, details 25, vision 15). Google photos are never stored beyond a day or saved offline (Google's terms).
 - Documents stay on the phone (IndexedDB) and are read on the phone. Never send them to a server.
 - **Standing permission from Dylan (given 17 Nov 2026), for while he's travelling with only his phone:** once a change is done,
-  merge it straight into `main` and push, so it goes live, **but only if `npm test` passes in full**. Work on a branch first,
+  merge it straight into `main` and push, so it goes live, **but only if `npm test` passes in full** (it runs everything twice: experiments off, then all on). Work on a branch first,
   then merge into `main` (don't rewrite `main`'s history). If any test fails and you can't fix it, don't merge: push the branch,
   open a PR and tell Dylan in plain English what's wrong. After merging, tell him it's live and to close and reopen the app twice.
   If he asks to undo a change, revert its commit on `main` (a new commit; never force-push).

@@ -99,6 +99,10 @@ function makeArt(){
 }
 const artOf = it => `var(--art-${grpOfItem(it)})`;
 const artBadge = it => `<span class="ph-badge">${icon(kindIcon(it))}${esc(kindLabel(it))}</span>`;
+/* Experiment slim-cards: a place with no real photo gets a slim card (name, kind and price) instead of a full-size drawing.
+   Decided straight away when no photo is likely (and no Google key); otherwise once the photo lookup comes back empty. */
+EXPERIMENTS.push({id:"slim-cards", n:"Slim cards without photos", d:"Places with no real photo get a slim card (name, kind, price) instead of a big drawing."});
+const slimFirst = it => exp("slim-cards") && !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
 function placeCard(it, pt){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v);
   const km = pt && !pt.none ? dist(pt, it) : null;
@@ -133,7 +137,7 @@ function placeCard(it, pt){
     if (it.ac && it.c === "gaff") tags.push('<span class="tag">Air con</span>');
     if (it.x || it.wd) tags.push('<span class="tag pick">Notable</span>');
   }
-  return `<article class="card" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
+  return `<article class="card${slimFirst(it) ? " slim" : ""}" data-open="${esc(it.id)}" role="button" tabindex="0" style="--c:${col}">
     <div class="ph" data-ph="${esc(it.id)}" style="background-image:${artOf(it)}">${artBadge(it)}</div>
     <div class="body"><h3>${esc(it.n)}</h3>${kr != null ? `<div class="rate">${starsHTML(kr)}</div>` : ""}${rev ? `<div class="rev">“${esc(rev.t)}” <small>${esc(rev.by ? rev.by + ", " : "")}Google review</small></div>` : ""}${romName(it) ? `<div class="rom">${esc(romName(it))}</div>` : ""}
       <div class="where2">${esc(kindLabel(it))} · ${esc(it.area || it.city)}</div>
@@ -217,7 +221,7 @@ function paintListBody(cat){
   let html = "";
   const whereTxt = pt.none ? "" : st.radius ? ` within ${st.radius} km of ${S.focus ? S.focus.n : "you"}` : ` near ${S.focus ? S.focus.n : "you"}`;
   html += `<p class="note" style="margin-top:10px"><b style="color:var(--ink)">${items.length.toLocaleString("en-GB")}${run.more ? "+" : ""}</b> ${items.length === 1 ? "place" : "places"}${esc(whereTxt)}. <span id="listStatus"></span></p>`;
-  if (st.sort === "top" && !pt.none && items.length) html += `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`;
+  if (st.sort === "top" && !pt.none && items.length) html += explain("list-order", `<p class="note" style="margin-top:4px">Researched and well-known places first, then the nearest. Change the order in Filters.</p>`);
   if (chip && chip.note) html += `<p class="note" style="margin-top:4px">${esc(chip.note)}</p>`;
   if (st.open) html += `<p class="note" style="margin-top:4px">Open now only counts places whose opening hours are known (Thailand time). Places with unknown hours are left out.</p>`;
   if (pt.none) html += `<div class="callout">${icon("pin")}<div><b>Pick a place to see everything nearby.</b> You’re seeing the researched places only.<div class="row" style="margin-top:8px"><button class="btn small primary" type="button" data-where>Choose a place</button></div></div></div>`;
@@ -239,7 +243,18 @@ function paintListBody(cat){
   watchCardPhotos(body); paintSurf(body);
 }
 const MAX_GUESTS = 30;
+/* Experiment gaff-dates: check-in, check-out and guests fold into one "Add dates · 2 guests" button that opens them */
+EXPERIMENTS.push({id:"gaff-dates", n:"Gaffs: dates in one button", d:"Check-in, check-out and guests fold into one “Add dates · 2 guests” button that opens them."});
+const shortDay = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
 function stayStrip(){
+  const inner = stayStrip0();
+  if (!exp("gaff-dates")) return inner;
+  const p = stayParams(), g = +S.stay.guests || 2;
+  const label = p.ok ? `${shortDay(S.stay.cin)} – ${shortDay(S.stay.cout)} · ${g} guest${g === 1 ? "" : "s"}` : `Add dates · ${g} guest${g === 1 ? "" : "s"}`;
+  return `<details class="stay-fold" ${ui.stayOpen ? "open" : ""}><summary class="btn">${icon("calendar","i s")}${esc(label)}${icon("chevd","i xs")}</summary>${inner}</details>`;
+}
+if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("toggle", e => { if (e.target && e.target.classList && e.target.classList.contains("stay-fold")) ui.stayOpen = e.target.open; }, true);
+function stayStrip0(){
   const s = S.stay, t = todayISO();
   return `<div class="stay">
     <label class="field">Check-in<input type="date" id="st-in" min="${t}" value="${esc(s.cin)}"></label>
@@ -247,7 +262,7 @@ function stayStrip(){
     <label class="field">Guests<select id="st-g">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${+s.guests === n ? "selected" : ""}>${n}</option>`).join("")}<option value="more" ${+s.guests > 8 ? "selected" : ""}>8+</option></select></label>
     <label class="field" ${+s.guests > 8 ? "" : "hidden"} id="st-gn-wrap">How many?<input type="number" id="st-gn" inputmode="numeric" min="9" max="${MAX_GUESTS}" value="${+s.guests > 8 ? +s.guests : 9}"></label>
   </div>
-  <p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`;
+  ${explain("stay-dates", `<p class="note" style="margin-top:6px">${stayParams().ok ? `${stayParams().nights} night${stayParams().nights === 1 ? "" : "s"}, ${stayParams().guests} guest${stayParams().guests === 1 ? "" : "s"}. ` : "Add dates to carry them over to the booking sites. "}Live prices and availability are confirmed by the booking site, not by this app.</p>`)}`;
 }
 function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");

@@ -25,6 +25,18 @@ const TOOLS = [
 const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport", "developer"];
 const toolsInOrder = () => TOOLS.filter(t => !t.hidden).sort((a, b) => ((TOOL_ORDER.indexOf(a.id) + 1) || 99) - ((TOOL_ORDER.indexOf(b.id) + 1) || 99));
 const TOOL_PAGES = {};          // id -> {render(root), title}; filled in by each tool below
+/* Experiment tools-groups: no tiles that repeat other buttons (Transport is a tab, Settings and Saved are in the header,
+   Wi-Fi and the Essentials grid are on the map, Deals' free things are Activities' Free filter, the Trip assistant answers in the
+   map search). What's left is grouped: Right now, Our trip, Read up. */
+EXPERIMENTS.push({id:"tools-groups", n:"Tools: fewer tiles, in groups", d:"Hides tiles that repeat other buttons (Transport, Settings, Saved, Wi-Fi, Essentials, Deals, assistant) and groups the rest."});
+const TOOL_GROUPS = [["Right now", ["emergency", "friends", "translate", "currency", "weather"]], ["Our trip", ["docs", "offline", "discover", "developer"]], ["Read up", ["guide"]]];
+function toolsGroupedHTML(){
+  const extra = {offline:{id:"offline", l:"Offline & backup", d:"Save cities for no signal, back up", ic:"download", href:"#tools/offline"},
+    discover:{id:"discover", l:"Discover", d:"Destinations at a glance", ic:"compass", href:"#discover"}};
+  const byId = id => extra[id] || TOOLS.find(t => t.id === id && !t.hidden);
+  return TOOL_GROUPS.map(([g, ids]) => { const ts = ids.map(byId).filter(Boolean); return ts.length ? `<div class="sect"><h2>${g}</h2></div>
+    <div class="tgrid tgroup">${ts.map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="${t.href || "#tools/" + t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>` : ""; }).join("");
+}
 function renderTools(){
   const root = $("#pageview"), sub = ui.sub;
   if (sub === "transport"){ root.innerHTML = transportPage(); bindTransport(); return; }
@@ -32,11 +44,12 @@ function renderTools(){
   const [page, arg] = (sub || "").split("?");
   if (page && TOOL_PAGES[page]){ TOOL_PAGES[page](root, arg || ""); return; }
   const c = D.countries[S.country];
+  if (exp("tools-groups")){ root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page tools-grouped">${toolsGroupedHTML()}</div>`; return; }
   root.innerHTML = hero({title:"Tools", sub:`Backpacker toolkit for ${c.name}`, img:HERO_IMG.tools}) + `<div class="page">
     <div class="tgrid">${toolsInOrder().map((t, i) => `<a class="tool ${i % 2 ? "alt" : ""}" href="#tools/${t.id}"><span class="ti">${icon(t.ic)}</span><span><b>${t.l}</b><small>${t.d}</small></span></a>`).join("")}</div>
     <div class="sect"><h2>Essentials nearby</h2><a href="#map" id="t-essmap">View on map</a></div>
     <div class="egrid">${["laundry","atm","pharmacy","water","shop","supermarket","sim","hospital"].map(id => { const e = ESS_BY_ID[id]; return `<button class="ebtn" type="button" data-ess="${id}">${icon(e.ic)}${e.l.replace(" and minimarts", "")}</button>`; }).join("")}</div>
-    <p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>
+    ${explain("tools-ess", `<p class="note" style="margin-top:8px">Opens the map on that service around ${esc(focusPt().none ? c.name : focusLabel())}.</p>`)}
     <div class="sect"><h2>App</h2></div>
     <div class="tgrid"><a class="tool" href="#saved"><span class="ti">${icon("bookmark")}</span><span><b>Saved places</b><small>${Object.keys(S.saved).length} saved on this phone</small></span></a>
       <a class="tool alt" href="#tools/settings"><span class="ti">${icon("cog")}</span><span><b>Settings</b><small>Location, rates, data</small></span></a>
@@ -379,6 +392,11 @@ function setupPage(){
     <p class="note">${frCfg() ? (frState().on ? `Sharing your location with ${Object.values(frState().list).filter(x => x.share).length} of ${Object.keys(frState().list).length} friends.` : "You aren’t sharing your location.") + " Choose who sees you, one by one." : "Not switched on yet (needs a free Firebase project, see FIREBASE-SETUP.md)."}</p>
     <a class="btn small" href="#tools/friends" style="margin-top:8px">${icon("users","i s")}Friends and sharing</a>
   </section>
+  ${exp("detail-buttons") ? `<section class="block"><h2>Directions open in</h2>
+    <div class="seg" role="group" aria-label="Maps app for directions" style="margin-top:6px"><button type="button" data-mapsapp="google" aria-pressed="${S.mapsApp !== "apple"}">Google Maps</button><button type="button" data-mapsapp="apple" aria-pressed="${S.mapsApp === "apple"}">Apple Maps</button></div></section>` : ""}
+  ${exp("daylight") ? `<section class="block"><h2>Light look in the daytime</h2>
+    <p class="note">Easier to read in bright sun: the light look from 7am to 6pm, the dark one in the evening. Changes when the app next opens.</p>
+    <button class="switch" type="button" id="dayLook" aria-pressed="${S.dayLook === true}" style="margin-top:6px"><i></i>Light look during the day</button></section>` : ""}
   <section class="block"><h2>Funny mode</h2>
     <p class="note">For the lads: Tommy says hello when the app opens, China talks back when you tap it on the map, and Ben waves when you open Friends.</p>
     <button class="switch" type="button" id="funnyOn" aria-pressed="${S.funny === true}" style="margin-top:6px"><i></i>Funny mode</button>
@@ -411,6 +429,8 @@ function bindSetup(){
   root.querySelectorAll("[data-cmode]").forEach(b => b.onclick = () => { S.countryMode = b.dataset.cmode; persist(); if (S.countryMode === "auto") locate(true); renderPage(); });
   root.querySelectorAll("[data-country]").forEach(b => b.onclick = () => setCountry(b.dataset.country, true));
   $("#relocate").onclick = () => locate(true);
+  const dl = $("#dayLook"); if (dl) dl.onclick = () => { S.dayLook = S.dayLook !== true; persist(); renderPage(); toast(S.dayLook ? "Light look in the daytime: from the next time the app opens" : "Off"); };
+  root.querySelectorAll("[data-mapsapp]").forEach(b => b.onclick = () => { S.mapsApp = b.dataset.mapsapp; persist(); renderPage(); toast(`Directions open in ${S.mapsApp === "apple" ? "Apple" : "Google"} Maps`); });
   $("#funnyOn").onclick = () => { if (typeof funnySet === "function") funnySet(S.funny !== true); else { S.funny = S.funny !== true; persist(); } toast(S.funny ? "Funny mode on. Close and reopen the app for Tommy." : "Funny mode off"); renderPage(); };
   const ga = $("#gkask"); if (ga) ga.onclick = () => gkAsk().then(() => toast("Asked: you’ll get Google photos once they say yes"), e => toast(e.message === "permission" ? "Firebase refused it: the developer needs to re-publish the rules" : "No signal? Try again"));
   $("#gkeySave").onclick = () => { S.gkey = $("#gkey").value.trim(); persist(); gReady = null; toast(S.gkey ? "Key saved on this phone" : "Key removed"); renderPage(); };

@@ -863,3 +863,44 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .fp-bang.b4{bottom:-14px;left:-12px;animation-delay:.3s}.fp-bang.b5{bottom:-18px;left:calc(50% - 17px)}.fp-bang.b6{bottom:-14px;right:-12px;animation-delay:.15s}
 @keyframes fpBang{from{transform:scale(.85) rotate(-10deg)}to{transform:scale(1.15) rotate(10deg)}}
 @media (prefers-reduced-motion:reduce){.fp-bang{animation:none}}
+/* experiment statusfade: a dark fade behind the clock on every page, and behind the map's search bar and chips */
+:root{--fade:18,20,23}
+:root[data-look="paper"]{--fade:243,234,215}
+html.x-statusfade body::before{content:"";position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 18px);z-index:1300;pointer-events:none;
+  background:linear-gradient(rgba(var(--fade),.96),rgba(var(--fade),.8) 65%,rgba(var(--fade),0))}
+html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:absolute;left:-10px;right:-10px;top:calc(-8px - env(safe-area-inset-top,0px));bottom:-26px;z-index:-1;pointer-events:none;
+  background:linear-gradient(rgba(var(--fade),.9),rgba(var(--fade),.72) 55%,rgba(var(--fade),0))}
+/* experiment map-onerow: the floating List / Map button */
+.map-listbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--mb-lift,0px));z-index:7;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(28,31,36,.96);color:var(--ink);font:inherit;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+:root[data-look="paper"] .map-listbtn{background:rgba(251,245,232,.97)}
+#mapview:has(#mapBottom .preview) .map-listbtn,#mapview:has(#mapBottom .near) .map-listbtn{display:none}
+/* experiment help-btn */
+.help-btn{color:#fff!important;background:#C2453A!important;border-color:#C2453A!important}
+.help-sheet .tel{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.help-sheet .tel small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1))}
+/* experiment detail-buttons */
+.actions.dt2{display:grid;gap:8px}
+.dt-small{display:flex;flex-wrap:wrap;gap:6px}
+/* experiment gaff-dates */
+.stay-fold>summary{list-style:none;display:flex;width:auto;max-width:100%;justify-content:flex-start}
+.stay-fold>summary::-webkit-details-marker{display:none}
+.stay-fold>summary .i.xs{margin-left:auto}
+.stay-fold[open]>summary{margin-bottom:8px}
+/* experiment notes-once: the (i) that opens an explainer note again */
+.info-i{display:inline-grid;place-items:center;width:22px;height:22px;margin:4px 0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:700 13px/1 Georgia,serif;font-style:italic;padding:0}
+.info-i[aria-expanded="true"]{color:var(--ink)}
+/* experiment slim-cards: no photo, no big drawing */
+.card.slim .ph{display:none}
+.card.slim .body{padding-right:56px}
+.card.slim .blurb,.card.slim .tags{display:none}
+/* experiment daylight: stronger contrast for small grey text (night look; Paper Atlas gets darker greys) */
+html.x-daylight:not([data-look="paper"]){--muted:#C9C9CB;--faint:#ADAEAF;--placeholder:#B4B5B6}
+html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
+/* experiment driver-card: big Thai or Lao script, white on black */
+.driver-card{position:fixed;inset:0;z-index:4000;background:#000;color:#fff;display:grid;place-items:center;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px));overflow-y:auto}
+.dc-in{width:100%;max-width:560px;text-align:center}
+.dc-ask{font-size:28px;color:#FFD400;margin-bottom:18px}
+.dc-name{font-size:clamp(34px,11vw,56px);font-weight:700;line-height:1.25;word-break:break-word}
+.dc-addr{font-size:clamp(22px,7vw,34px);line-height:1.4;margin-top:16px;word-break:break-word}
+.dc-en{font-size:16px;color:#BDBDBD;margin-top:20px}
+.dc-close{font-size:13px;color:#8A8A8A;margin-top:26px}

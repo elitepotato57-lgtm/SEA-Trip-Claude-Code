@@ -781,6 +781,57 @@ test("funny mode: China is found from the built-in outline; only a tap inside Ch
   } finally { A.S.funny = false; }
 });
 
+/* ---------- experiments (Tools › Developer › Experiments) ---------- */
+const EXPON = process.env.SEA_EXP === "all";
+test("experiments: every one is off unless switched on on this phone; each has a name and a one-line description", () => {
+  ok(A.EXPERIMENTS.every(x => x.id && x.n && x.d && !/\n/.test(x.d)), "names and descriptions");
+  eq(new Set(A.EXPERIMENTS.map(x => x.id)).size, A.EXPERIMENTS.length, "no two share an id");
+  ok(A.EXPERIMENTS.every(x => A.exp(x.id) === EXPON), EXPON ? "the test run switches them all on" : "all off for a normal phone");
+  const P = load(); P.expSet("demo", true); ok(P.exp("demo")); P.expSet("demo", false); ok(!P.exp("demo"));
+});
+
+test("experiment tp-fastest: Koh Phangan to Quy Nhon keeps the truly fastest journey (a flight to Nha Trang) and badges it", () => {
+  const P = load(), c = P.D.cities.find(c => c[0] === "Quy Nhon"), to = {n:c[0], lat:c[1], lng:c[2]};
+  P.expSet("tp-fastest", false); const off = P.planTrips(P.hubNode("phangan"), to).find(t => t.fastest);
+  P.expSet("tp-fastest", true); const all = P.planTrips(P.hubNode("phangan"), to), on = all.find(t => t.fastest);
+  ok(on.mid <= Math.min(...all.map(t => t.mid)) && on.mid < off.mid - 3, `fastest ${on.mid} h, was ${off.mid} h`);
+  ok(on.legs.some(L => L.o.mode === "Flight" && L.to === "nhatrang"), "flies into Nha Trang");
+});
+
+test("experiment tp-legnames: a local ride is named by its pier, and no “Bus, Bus, minivan or taxi”", () => {
+  const P = load(), c = P.D.cities.find(c => c[0] === "Quy Nhon");
+  P.expSet("tp-fastest", true); P.expSet("tp-legnames", true);
+  const t = P.planTrips({n:"Koh Phangan", lat:9.71, lng:100.02}, {n:c[0], lat:c[1], lng:c[2]})[0];
+  eq(P.legTitle(t, 0), "To Thong Sala Pier");
+  ok(t.legs.every(L => !/^(\w+), \1/i.test(P.legKind(L.o))), t.legs.map(L => P.legKind(L.o)).join(" / "));
+  P.expSet("tp-legnames", false); eq(P.legTitle(t, 0), "Koh Phangan → Koh Phangan", "off: as before");
+});
+
+test("experiment en-towns: Khmer and Lao town names become English (Kampot, not កំពត); off, as before", () => {
+  const P = load(), row = [1, 10.61, 104.18, "restaurant", "X", 0, {}], areas = [["ភូមិសុវណ្ណសាគរ, កំពត", "កំពត"]];
+  P.expSet("en-towns", true); const on = P.osmPlace(row, areas, "food", "KH");
+  P.expSet("en-towns", false); const off = P.osmPlace(row, areas, "food", "KH");
+  eq([on.city, on.area, off.city], ["Kampot", "Kampot", "កំពត"]);
+  P.expSet("en-towns", true); eq(P.osmPlace([2, 13.75, 100.5, "restaurant", "Y", 0, {}], [["Pathum Wan", "Bangkok"]], "food", "TH").city, "Bangkok", "Latin names untouched");
+});
+
+test("experiment lost-share: the WhatsApp text carries a Google Maps link to where you are", () => {
+  eq(A.frSosText({lat:9.71234567, lng:100.0123456}), "I’m lost, I’m here: https://www.google.com/maps/search/?api=1&query=9.71235,100.01235");
+  ok(/no location/.test(A.frSosText(null)));
+});
+
+test("experiment route-save: the route's cities, in trip order, each one that can be saved for offline", () => {
+  const r = A.routeCities().map(c => c[0]);
+  eq(r[0], "Bangkok"); ok(r.length >= 10 && r.indexOf("Chiang Mai") < r.indexOf("Hanoi"), r.join(", "));
+});
+
+test("experiment driver-card: offered only on gaffs with a Thai or Lao name or address", () => {
+  const P = load(); P.expSet("driver-card", true);
+  const here = P.D.places.find(p => p.id && p.nt === "โรงแรมเฮีย");
+  ok(P.driverOK(here)); ok(!P.driverOK({c:"gaff", n:"No Thai", nt:"", ad:"12 Main St"})); ok(!P.driverOK({c:"munch", nt:"ร้าน"}));
+  P.expSet("driver-card", false); ok(!P.driverOK(here), "off: no button");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

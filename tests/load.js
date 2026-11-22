@@ -11,6 +11,7 @@ function fakeElement(){
 }
 function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "map", "ask", "tools", "camera", "tools-more", "ask-more", "split", "friends", "games", "funny", "offline", "docs", "detail"], extra = {}){
   const store = new Map();
+  if (process.env.SEA_EXP === "all") store.set("sea-exp-v1", JSON.stringify({"*":true}));       // the experiments test run
   const ctx = {
     console, setTimeout, clearTimeout, setInterval, clearInterval, URL, URLSearchParams, Intl, Date, Math, JSON, Promise,
     performance:{now:() => Date.now()},

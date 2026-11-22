@@ -100,7 +100,7 @@ function applyDesign(){
     st.colorScheme = clum(bg) > .45 ? "light" : "dark";
   } else { appVars.forEach(k => st.removeProperty(k)); st.colorScheme = ""; }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = app ? app.bg : (S.look === "paper" ? "#F3EAD7" : "#121417");
+  if (meta) meta.content = app ? app.bg : (lookPaper() ? "#F3EAD7" : "#121417");
 
   // section colours
   LAB_GROUPS.forEach(g => setv("--" + g, d.cols && isHex(d.cols[g]) ? d.cols[g] : null));
