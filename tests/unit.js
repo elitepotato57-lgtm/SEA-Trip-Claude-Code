@@ -756,6 +756,34 @@ test("every Malaysian and new Indonesian destination has a hub the planner can r
   for (const e of A.D.net.edges.filter(e => e.myid && e.verified)) ok(e.src.length && e.src.every(s => /^https:\/\//.test(s[1])), `${e.a}–${e.b}: a researched leg needs sources`);
 });
 
+/* ---------- "top 5 temples" in the map search (js/ask.js) ---------- */
+test("top N questions: any number, any ranking word, any kind of place, and a destination", () => {
+  const q = (t, ...want) => { const a = A.parseTopN(t); ok(a, t + ": not understood"); if (a) eq([a.n, a.rank, a.kind], want, t); return a; };
+  q("top 5 temples", 5, "top", "do"); q("worst 3 bars in Pai", 3, "worst", "do"); q("cheapest 3 hostels", 3, "cheap", "stay");
+  q("5 most expensive restaurants near me", 5, "dear", "food"); q("most expensive 10 munch", 10, "dear", "food"); q("best 5 laundries", 5, "top", "ess");
+  q("2 nearest supermarkets", 2, "near", "ess"); q("show me four waterfalls", 4, "top", "do"); q("top 5 hot springs", 5, "top", "do"); q("top 3 gaffs", 3, "top", "stay");
+  eq(A.parseTopN("top 5 hot springs").kinds, ["hotspring"]);
+  eq(A.parseTopN("top 3 gaffs in Chiang Mai").dest.n, "Chiang Mai");
+  eq(A.parseTopN("top 3 gaffs").kinds, null, "gaffs means every kind of stay, not just hostels");
+  eq(A.parseTopN("5 most expensive restaurants").title, "5 most expensive restaurants");
+  eq(A.parseTopN("top 100 bars").n, 25, "at most 25");
+  for (const t of ["10 km to the beach", "what is 5 km away", "top 5", "bus to Pai at 5", "nearest toilet"]) eq(A.parseTopN(t), null, t);
+});
+test("top N ranking: rated first for top, only rated places for worst, prices (researched or estimated) for cheapest", () => {
+  const P = (id, o) => Object.assign({id, n:id, cc:"TH", lat:13.7, lng:100.5, c:"cool", g:"do", k:"attraction"}, o);
+  const L = [{p:P("near"), km:0.2}, {p:P("rated", {r:9}), km:3}, {p:P("bad", {r:4}), km:2}, {p:P("known", {wd:"Q1"}), km:1}];
+  eq(A.rankTop(L, "top", 2).items.map(x => x.p.id), ["rated", "known"]);
+  eq(A.rankTop(L, "near", 1).items[0].p.id, "near");
+  const w = A.rankTop(L, "worst", 3); eq(w.items.map(x => x.p.id), ["bad", "rated"]); ok(/Only 2/.test(w.note));
+  const H = [{p:P("dorm", {c:"gaff", g:"stay", k:"hostel"}), km:1}, {p:P("cur", {c:"gaff", g:"stay", k:"hotel", p:[200], cur:"THB"}), km:2}];
+  eq(A.rankTop(H, "cheap", 2).items.map(x => x.p.id), ["cur", "dorm"], "฿200 beats a ฿250–600 dorm estimate");
+  eq(A.rankTop(H, "dear", 1).items[0].p.id, "dorm");
+});
+test("the list's distance can be measured from any trip destination", () => {
+  const h = A.distFromField();
+  ok(/Where I am now/.test(h) && /<optgroup label="Thailand">/.test(h) && /value="Chiang Mai"/.test(h) && /value="Kuala Lumpur"/.test(h));
+});
+
 /* ---------- games (js/games.js) ---------- */
 test("Four in a row: four across, up or diagonal wins; a counter drops to the lowest free row", () => {
   const W = A.C4_W, b = r => ".".repeat(42).split("");

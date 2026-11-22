@@ -28,7 +28,9 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.
 - `js/estimate.js`: food types and typical-price **estimates** (`foodType`, `estPrice`, `priceBand`), known ratings.
   OpenStreetMap has no ratings and only researched hostels do, so the map filters on price, not stars.
-- `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages.
+- `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages. Their Filters have
+  "Measured from" (`distFromField`): the distance is from where you are or any trip destination (it sets the same `S.focus` as the place button).
+  Rows that scroll sideways (`.scroller`, `.map-chips`, the price rows) never scroll up and down (`overflow-y:hidden`).
 - `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
@@ -77,6 +79,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   photos of each kind (`img/kind/`, `KIND_PHOTO`) are switched off with `SHOW_TYPICAL = false` in `js/detail.js`. A card or sheet photo
   that won't load moves on (Google › free photo › the drawing, `photoAfterFail`); Google gets 8 s per card. Place field `ph` is a phone number; a stored photo is `pic`.
 - `js/ask.js`: questions in the map search, typed or spoken ("nearest toilet", "cheap noodles near me"): rule-based, no AI.
+  "Top 5 temples", "cheapest 3 hostels", "worst 3 bars in Pai", "10 most expensive restaurants" (`parseTopN`, `rankTop`, `goTop`): any number
+  (max 25), ranking word and kind of place, optionally "in <destination>"; the answer goes on the map as numbered pins only (`ui.mapPick`,
+  source `pick`, strip `pickBar` at the bottom), and a place's details sheet gets Back to all N / previous / next (`pickNavHTML`). Any map chip clears it.
+  "Worst" ranks only rated places; cheapest/most expensive use the researched price, else the estimate.
   `js/ask-more.js`: what a tuk-tuk/taxi should cost (`fareEstimates`, est. from the Bangkok meter and researched app fares), how long, how far,
   and "I'm hungover / got the shits" (`REMEDIES` per country, with sources; also the guide's "Hangover and the shits" section).
 - `js/transport.js`: journey planner over `D.net` (Thailand, Cambodia, Vietnam, Laos, Singapore, Malaysia and Indonesia; the newer

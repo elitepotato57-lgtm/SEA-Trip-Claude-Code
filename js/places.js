@@ -443,7 +443,7 @@ function surfNear(pt, cc){
   return near.length ? near : SURF.filter(p => p.cc === cc);
 }
 function findPlace(id){
-  return CUR_BY_ID[id] || Places.byId.get(id) || (S.saved[id] && S.saved[id].snap) || null;
+  return CUR_BY_ID[id] || Places.byId.get(id) || (S.saved[id] && S.saved[id].snap) || (ui.mapPick && ui.mapPick.byId[id]) || null;
 }
 
 /* ---------- opening hours (OpenStreetMap format) ---------- */

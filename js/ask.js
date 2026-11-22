@@ -139,6 +139,7 @@ function askTitle(a){
 }
 /* a plain category word ("atm", "hostel", "food") gets an answer row too; a place name like "Wat Pho" doesn't */
 function askOffer(text){
+  const tn = parseTopN(text); if (tn) return {a:{kind:"more", title:tn.title}, first:true, top:true};      // "top 5 temples": straight onto the map
   const mi = typeof moreIntent === "function" ? moreIntent(text) : null; if (mi) return {a:mi, first:true};       // costs, times, distances, feeling rough (js/ask-more.js)
   const n = nearestIntent(text); if (n) return {a:n, first:true, nearest:true};
   const a = parseAsk(text); if (!a) return null;
@@ -295,4 +296,201 @@ function listen(onText, onDone){
   rec.onend = () => finish((final || heard).trim());
   try { rec.start(); } catch(e){ return false; }
   return rec;
+}
+
+/* ---------- "top 5 temples", "cheapest 3 hostels", "worst 3 bars in Pai", "10 most expensive restaurants near me" ----------
+   Any number (1 to 25) with a ranking word, and any kind of place. The answer goes straight onto the map as numbered pins (only
+   those), with a strip along the bottom to jump between them; a place's details sheet has Back / previous / next, so the
+   question never has to be asked again (Dylan, 23 Nov 2026). Prices rank by the researched price, else the estimate. */
+const TOP_NUMW = {one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, eleven:11, twelve:12, fifteen:15, twenty:20, "a dozen":12};
+const TOP_NUM = "(\\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|a dozen)";
+const TOP_RANKS = [["dear", "most expensive|priciest|dearest|poshest|fanciest|most pricey"], ["cheap", "cheapest|least expensive|most affordable|cheap"],
+  ["worst", "worst rated|lowest rated|worst|lowest|shittest|crappiest"], ["near", "nearest|closest"], ["top", "top rated|best rated|highest rated|top|best|most popular|greatest|finest"]];
+const TOP_UNIT = /^\s*(km|kms|k|kilomet|mile|min|minute|hour|hr|baht|thb|dollar|usd|pound|gbp|quid|ringgit|rm|dong|kip|rupiah|star|night|day|person|people|guest)/;
+const TOP_STAY_KINDS = new Set(["hostel","hotel","guesthouse","resort","bungalow","apartment","motel","campsite","hut"]);
+const TOP_FOOD_KINDS = new Set(["restaurant","cafe","fastfood","foodcourt","bakery","dessert","market"]);
+const TOP_MOVE_KINDS = new Set(["airport","train","metro","bus","ferry","carrental","scooter","bike","taxi"]);
+const TOP_ESS_KINDS = new Set(["laundry","atm","bank","exchange","pharmacy","hospital","clinic","dentist","police","embassy","immigration","supermarket","convenience","mall","sim","water","toilet","fuel","post","cowork","wifi","luggage"]);
+const topGroupOfKind = k => TOP_STAY_KINDS.has(k) ? "stay" : TOP_FOOD_KINDS.has(k) ? "food" : TOP_MOVE_KINDS.has(k) ? "move" : TOP_ESS_KINDS.has(k) ? "ess" : "do";
+const topPlural1 = l => /s$/.test(l) ? l : /(sh|ch|x)$/.test(l) ? l + "es" : /[^aeiou]y$/.test(l) ? l.slice(0, -1) + "ies" : l + "s";
+const topPlural = l => { const low = /^[A-Z]{2,}/.test(l) ? l : l.toLowerCase(); return low.split(/ or | and /).map(w => topPlural1(w.trim())).join(" and "); };
+// a kind of place named by the app's own labels ("hot spring", "zoo", "bottle shop", "dentist"), for anything the question words above miss
+function topKindHit(t){
+  for (const [k, v] of Object.entries(KIND)){
+    if (k === "surf") continue;
+    for (const part of v.l.toLowerCase().split(/ or | and /)){
+      const w = part.trim().replace(/é/g, "e"); if (w.length < 3) continue;
+      const re = new RegExp("\\b" + w.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "(s|es)?\\b");
+      if (re.test(t.replace(/é/g, "e"))) return {k, label:v.l};
+    }
+  }
+  return null;
+}
+/* the question, or null: {n, rank, kind, ess?, move?, kinds?, ft?, what, title, maxKm, dest?} (pure: tested in tests/unit.js) */
+function parseTopN(text){
+  const t = normAsk(text);
+  const ranks = TOP_RANKS.map(([id, w]) => `(?:${w})`).join("|");
+  let n = null, rank = null, m, rest = t;
+  const rankOf = w => (TOP_RANKS.find(([id, re]) => new RegExp(`^(?:${re})$`).test(w.trim())) || [null])[0];
+  if ((m = t.match(new RegExp(`\\b(${ranks})\\s+${TOP_NUM}\\b(?!\\s*(?:km|k\\b|min|hour|baht|star))`))) && !TOP_UNIT.test(t.slice(m.index + m[0].length))){ rank = rankOf(m[1]); n = m[2]; rest = t.replace(m[0], " "); }
+  else if ((m = t.match(new RegExp(`\\b${TOP_NUM}\\s+(${ranks})\\b`)))){ n = m[1]; rank = rankOf(m[2]); rest = t.replace(m[0], " "); }
+  else if ((m = t.match(new RegExp(`\\b(?:show|find|give|list|get|what are|which are|tell)(?: me| us)?(?: the)? ${TOP_NUM}\\b`))) && !TOP_UNIT.test(t.slice(m.index + m[0].length))){ n = m[1]; rank = "top"; rest = t.replace(m[0], " "); }
+  if (n == null || !rank) return null;
+  n = /^\d+$/.test(n) ? +n : TOP_NUMW[n];
+  if (!n || n < 1) return null;
+  n = Math.min(n, 25);
+  // where: a trip destination named in the question ("in Chiang Mai") beats where you are
+  let dest = null;
+  if (typeof D !== "undefined") for (const c of D.cities){ const nm = c[0].toLowerCase(); if (rest.includes(" " + nm + " ")){ if (!dest || nm.length > dest[0].length) dest = c; } }
+  if (dest) rest = rest.replace(" " + dest[0].toLowerCase() + " ", " ");
+  const gaffs = /\bgaffs?\b/.test(rest);
+  rest = " " + rest.replace(/\bgaffs?\b/g, "places to stay").replace(/\b(munch(es)?)\b/g, "food").replace(/\s+/g, " ").trim() + " ";
+  let a = parseAsk(rest);
+  const kh = topKindHit(rest);
+  const generic = !a || (a.kind === "do" && !a.kinds) || (a.kind === "stay" && !a.kinds) || (a.kind === "food" && !a.ft && !a.kinds);
+  if (kh && generic && !gaffs){
+    const g = topGroupOfKind(kh.k);
+    a = {kind:g, kinds:[kh.k], cheap:false, best:false, open:false, maxKm:a ? a.maxKm : 10, what:topPlural(kh.label)};
+  }
+  if (!a){
+    if (/\b(places?|spots?|things?|anything|stuff)\b/.test(rest)) a = {kind:"do", kinds:null, cheap:false, best:false, open:false, maxKm:10, what:"things to do"};
+    else return null;
+  }
+  const what = gaffs && a.kind === "stay" && !a.kinds ? "gaffs" : a.kind === "ess" ? topPlural(a.what) : a.what;
+  const title = rank === "top" || rank === "worst" ? `${rank === "top" ? "Top" : "Worst"} ${n} ${what}` : `${n} ${{cheap:"cheapest", dear:"most expensive", near:"nearest"}[rank]} ${what}`;
+  return Object.assign({}, a, {n, rank, what, dest:dest ? {n:dest[0], lat:dest[1], lng:dest[2]} : null, title, maxKm:dest ? Math.max(a.maxKm, 12) : a.maxKm});
+}
+// a price to rank by, in pounds: the researched price, else the middle of the estimate; null when nothing is known
+function topPrice(p){
+  if (p.p && p.p.length) return toGBP(p.p[0], p.cur);
+  const e = estPrice(p); return e ? toGBP((e.lo + e.hi) / 2, e.cur) : null;
+}
+// how good a place looks from what the app knows: its rating (0–5), researched, well known (Wikipedia/Wikidata), and a little for being close
+const topQuality = (p, km) => (knownRating(p) != null ? knownRating(p) / 2 - 2.5 : 0) + (p.cur_ ? 2 : 0) + (p.wd || p.wp || p.x ? 1.5 : 0) - km * 0.08;
+/* rank found places: [{p, km}] in order, plus a note saying what the order is based on (pure: tested in tests/unit.js) */
+function rankTop(list, rank, n){
+  let out = list.slice(), note = "";
+  if (rank === "near") out.sort((x, y) => x.km - y.km);
+  else if (rank === "top"){ out.sort((x, y) => topQuality(y.p, y.km) - topQuality(x.p, x.km) || x.km - y.km); note = "Rated and researched places first, then well-known ones, then the nearest."; }
+  else if (rank === "worst"){
+    out = out.filter(x => knownRating(x.p) != null).sort((x, y) => knownRating(x.p) - knownRating(y.p) || x.km - y.km);
+    note = out.length < n ? `Only ${out.length} place${out.length === 1 ? " has" : "s have"} a rating here, so only ${out.length === 1 ? "it" : "they"} can be ranked worst.` : "Lowest rated first (only places with a rating count).";
+  } else {
+    out = out.map(x => Object.assign({}, x, {gbp:topPrice(x.p)})).filter(x => x.gbp != null).sort((x, y) => (rank === "cheap" ? x.gbp - y.gbp : y.gbp - x.gbp) || x.km - y.km);
+    note = "Ranked by price: the researched price where there is one, otherwise the typical estimate (marked est.).";
+  }
+  return {items:out.slice(0, n), note};
+}
+async function answerTop(text){
+  const a = parseTopN(text); if (!a) return null;
+  const t = normAsk(text), nearMe = /\b(near me|around me|nearby|near here|around here|close by|walking distance)\b/.test(t);
+  const ref = a.dest ? {lat:a.dest.lat, lng:a.dest.lng, n:a.dest.n}
+    : nearMe && userLoc ? {lat:userLoc.lat, lng:userLoc.lng, n:"you", here:true}
+    : S.focus ? {lat:S.focus.lat, lng:S.focus.lng, n:S.focus.n}
+    : userLoc ? {lat:userLoc.lat, lng:userLoc.lng, n:"you", here:true}
+    : (typeof map !== "undefined" && map && mapLoaded) ? {lat:map.getCenter().lat, lng:map.getCenter().lng, n:"the middle of the map"} : null;
+  if (!ref) return {a, err:"noplace"};
+  const grp = {ess:"ess", move:"move", stay:"stay", food:"food", do:"do"}[a.kind];
+  const essKinds = a.ess && ESS_BY_ID[a.ess] ? new Set(ESS_BY_ID[a.ess].kinds) : null;
+  const test = p => {
+    if (essKinds && !essKinds.has(p.k)) return false;
+    if (a.move && MOVE_KIND_TYPE[p.k] !== a.move) return false;
+    if (a.kinds && !a.kinds.includes(p.k)) return false;
+    if (a.ft && foodType(p) !== a.ft) return false;
+    if (a.kind === "do" && !a.kinds && ["bar", "club", "tour", "worship", "liquor"].includes(p.k)) return false;
+    if (p.unnamed || !p.n) return false;
+    return true;
+  };
+  const res = await Places.near(grp, ref, {maxKm:a.maxKm, want:400, test});
+  const cat = {stay:"gaff", food:"munch", do:"cool", move:"move"}[a.kind];
+  const curated = cat ? D.places.filter(p => p.c === cat && test(p) && dist(ref, p) <= a.maxKm) : [];
+  const seen = new Set(), all = [];
+  for (const p of curated.concat(res.items)) if (!seen.has(p.id)){ seen.add(p.id); all.push({p, km:dist(ref, p)}); }
+  const r = rankTop(all, a.rank, a.n);
+  return {a, ref, items:r.items, note:r.note, found:all.length, state:res.state};
+}
+/* ask it, then show the answer on the map */
+let topBusy = false;
+async function goTop(text){
+  if (topBusy) return false; topBusy = true;
+  try {
+    const a0 = parseTopN(text); if (!a0) return false;
+    toast(`Finding the ${a0.title.charAt(0).toLowerCase() + a0.title.slice(1)}…`);
+    let r = null; try { r = await answerTop(text); } catch(e){}
+    if (!r) return false;
+    if (r.err === "noplace"){ toast("Turn on location, pick a place to look around, or say where (e.g. “in Chiang Mai”)"); return false; }
+    if (!r.items.length){
+      toast(r.state === "off" || r.state === "error" ? "Couldn't load places: this needs signal once, or a saved city"
+        : r.a.rank === "worst" ? `None of the ${r.a.what} near ${r.ref.n} have a rating, so they can't be ranked worst`
+        : (r.a.rank === "cheap" || r.a.rank === "dear") && r.found ? `No prices are known for the ${r.a.what} near ${r.ref.n}, so they can't be ranked by price`
+        : `No ${r.a.what} found within ${r.a.maxKm} km of ${r.ref.n}`);
+      return false;
+    }
+    showTopOnMap(r);
+    return true;
+  } finally { topBusy = false; }
+}
+function topWhy(p, rank){
+  if (rank === "cheap" || rank === "dear"){ const loc = itemLocal(p); if (loc) return loc; const e = estPrice(p); return e ? estText(e) : ""; }
+  const r = knownRating(p); if ((rank === "top" || rank === "worst") && r != null) return `${(r / 2).toFixed(1)}★`;
+  return "";
+}
+function showTopOnMap(r){
+  const items = r.items.map(x => x.p);
+  ui.mapPick = {title:r.a.title, where:r.ref.n, rank:r.a.rank, note:r.note, ids:items.map(p => p.id), byId:Object.fromEntries(items.map(p => [p.id, p])),
+    why:Object.fromEntries(r.items.map(x => [x.p.id, [topWhy(x.p, r.a.rank), distShort(x.km)].filter(Boolean).join(" · ")]))};
+  ui.mapSel = null; ui.mapSaved = false; ui.mapSurf = false; ui.mapMode = "map";
+  if (location.hash !== "#map") go("#map");
+  const done = () => {
+    renderMapUI(); drawPick();
+    if (map && items.length){
+      const b = new maplibregl.LngLatBounds(); items.forEach(p => b.extend([p.lng, p.lat]));
+      map.fitBounds(b, {padding:{top:170, bottom:260, left:50, right:70}, maxZoom:16, duration:reduceMotion ? 0 : 600});
+    }
+    if (r.note) toast(r.note);
+  };
+  const start = (k = 0) => {
+    if (!map){ if (k < 40) setTimeout(() => start(k + 1), 100); else done(); return; }
+    if (mapLoaded){ done(); return; }
+    let fired = false; const once = () => { if (!fired){ fired = true; done(); } };
+    map.once("load", () => setTimeout(once, 30)); setTimeout(once, 12000);
+  };
+  setTimeout(start, 60);
+}
+function clearPick(){ ui.mapPick = null; drawPick(); }
+const pickIndex = id => ui.mapPick ? ui.mapPick.ids.indexOf(id) : -1;
+// the numbered pins: only the answer's places, in its order; the one picked is drawn in the accent colour
+function drawPick(){
+  if (typeof map === "undefined" || !map || !mapLoaded || !map.getSource("pick")) return;
+  const P = ui.mapPick;
+  map.getSource("pick").setData(fc(P ? P.ids.map((id, i) => { const p = P.byId[id]; return {type:"Feature", geometry:{type:"Point", coordinates:[p.lng, p.lat]},
+    properties:{id, num:String(i + 1), sel:ui.mapSel === id ? 1 : 0, col:cssv((CAT[p.c] || CAT.ess).v)}}; }).sort((x, y) => x.properties.sel - y.properties.sel) : []));
+}
+// the strip along the bottom of the map: the question, and a numbered button for each answer
+function pickBar(){
+  const P = ui.mapPick; if (!P) return "";
+  return `<div class="pickbar" id="pickbar"><div class="pb-head"><div><b>${esc(P.title)}</b><small>near ${esc(P.where)}</small></div>
+      <button class="icon-btn" type="button" id="pbClose" aria-label="Clear these results">${icon("x","i s")}</button></div>
+    <div class="pb-row scroller" role="group" aria-label="${esc(P.title)}">${P.ids.map((id, i) => { const p = P.byId[id]; return `<button class="chip" type="button" data-pk="${esc(id)}" aria-pressed="${ui.mapSel === id}"><span class="pb-n">${i + 1}</span><span class="pb-t">${esc(p.n)}${P.why[id] ? `<small>${esc(P.why[id])}</small>` : ""}</span></button>`; }).join("")}</div></div>`;
+}
+function bindPickBar(el){
+  const c = el.querySelector("#pbClose"); if (c) c.onclick = () => { clearPick(); ui.mapSel = null; renderMapUI(); };
+  el.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => selectPlace(b.dataset.pk, true));
+  const on = el.querySelector('[data-pk][aria-pressed="true"]'); if (on && on.scrollIntoView) on.scrollIntoView({block:"nearest", inline:"center"});
+}
+// Back / previous / next at the top of a place's details sheet when it's one of the answers
+function pickNavHTML(id){
+  const i = pickIndex(id); if (i < 0) return "";
+  const P = ui.mapPick, N = P.ids.length;
+  return `<div class="pick-nav"><button class="btn small" type="button" data-pn="back">${icon("back","i s")}Back to all ${N}</button>
+    <span class="sp"></span><button class="icon-btn" type="button" data-pn="prev" aria-label="Previous" ${i === 0 ? "disabled" : ""}>${icon("back","i s")}</button><span class="note">${i + 1} of ${N}</span>
+    <button class="icon-btn pn-next" type="button" data-pn="next" aria-label="Next" ${i === N - 1 ? "disabled" : ""}>${icon("back","i s")}</button></div>`;
+}
+function bindPickNav(id){
+  const i = pickIndex(id); if (i < 0) return;
+  const P = ui.mapPick, go2 = j => { const nid = P.ids[j]; if (!nid) return; ui.mapSel = nid; drawPick(); openDetail(nid); };
+  $$("#sheetRoot [data-pn]").forEach(b => b.onclick = () => {
+    if (b.dataset.pn === "back"){ closeDetail(); if (location.hash !== "#map") go("#map"); setTimeout(() => selectPlace(id, true), 80); }
+    else go2(i + (b.dataset.pn === "next" ? 1 : -1));
+  });
 }

@@ -714,6 +714,33 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await c.close();
   }
 
+  // "top 5 temples" in the map search: only those on the map, numbered; details have Back / next; the list's distance from another destination
+  {
+    const {c, pg} = await phoneIn({latitude:13.7466, longitude:100.5393});
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(3000);
+    await pg.fill("#m-q", "top 5 temples"); await pg.waitForTimeout(600);
+    await pg.click("#mapSugs [data-ask]"); await pg.waitForTimeout(6000);
+    const t = await pg.evaluate(() => ({title:ui.mapPick && ui.mapPick.title, n:ui.mapPick ? ui.mapPick.ids.length : 0, chips:document.querySelectorAll("#pickbar [data-pk]").length, others:mapRun.items.length, lit:document.querySelectorAll('#mapChips [data-cat][aria-pressed="true"]').length}));
+    ok(t.title === "Top 5 temples" && t.n === 5 && t.chips === 5 && t.others === 0 && t.lit === 0, "“top 5 temples” shows only those five on the map, numbered " + JSON.stringify(t));
+    await pg.click("#pickbar [data-pk]:nth-child(2)"); await pg.waitForTimeout(800);
+    await pg.click("#preview [data-open]"); await pg.waitForTimeout(800);
+    const second = await pg.evaluate(() => ui.mapPick.ids[1]);
+    ok(await pg.evaluate(() => /2 of 5/.test((document.querySelector(".pick-nav") || {}).textContent || "")), "its details say 2 of 5, with Back and next");
+    await pg.click('[data-pn="next"]'); await pg.waitForTimeout(600);
+    ok(await pg.evaluate(() => /3 of 5/.test(document.querySelector(".pick-nav").textContent) && ui.mapSel === ui.mapPick.ids[2]), "next opens the third");
+    await pg.click('[data-pn="back"]'); await pg.waitForTimeout(1000);
+    const back = await pg.evaluate(() => ({bar:!!document.querySelector("#pickbar"), sheet:!!document.querySelector("#sheetRoot .sheet"), w:document.documentElement.scrollWidth}));
+    ok(back.bar && !back.sheet && back.w <= 393 && second, "Back returns to the five on the map without asking again " + JSON.stringify(back));
+    await pg.click("#mapChips [data-all]"); await pg.waitForTimeout(500);
+    ok(await pg.evaluate(() => !ui.mapPick && !document.querySelector("#pickbar")), "tapping a map chip clears the answer");
+    await pg.goto(BASE + "#activities"); await pg.waitForTimeout(2500);
+    await pg.click("#l-filters"); await pg.waitForTimeout(400);
+    await pg.selectOption("#l-from", "Chiang Mai"); await pg.waitForTimeout(2500);
+    const f = await pg.evaluate(() => ({focus:S.focus && S.focus.n, note:(document.querySelector("#listBody .note") || {}).textContent || "", oy:getComputedStyle(document.querySelector(".pf-row")).overflowY}));
+    ok(f.focus === "Chiang Mai" && /Chiang Mai/.test(f.note) && f.oy === "hidden", "Activities can measure the distance from Chiang Mai; the price row only scrolls sideways " + JSON.stringify(f));
+    await c.close();
+  }
+
   // Malaysia: a new phone in Kuala Lumpur gets Malaysia, ringgit estimates, the Malaysia guide (with the Sabah warning),
   // 999 and the Malay phrasebook; and every Malaysian destination has somewhere to stay, eat and visit nearby
   {
@@ -848,7 +875,18 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   if (pack.photos){
     await page.evaluate(() => { try { localStorage.removeItem("card-photos-v1"); } catch(e){} });
     await page.goto(BASE + "#activities", {timeout:15000}).catch(() => {}); await page.waitForTimeout(4000);
-    ok(await page.evaluate(() => [...document.querySelectorAll("#pageview .card .ph img")].some(i => i.complete && i.naturalWidth > 0 && /wikimedia/.test(i.src))), `landmark photos show offline (${pack.photos} saved)`);
+    // a saved photo shows offline: on a card on screen when one of the saved places is listed, otherwise straight from the saved city
+    // (when Wikimedia only lets a few photos through, none of them may be among the cards on screen)
+    const shown = await page.evaluate(async () => {
+      const onCard = [...document.querySelectorAll("#pageview .card .ph img")].some(i => i.complete && i.naturalWidth > 0 && /wikimedia/.test(i.src));
+      if (onCard) return "card";
+      const listed = [...document.querySelectorAll("#pageview .card[data-open]")].some(c => PACK_PHOTOS.has(c.dataset.open));
+      if (listed) return "listed but not shown";
+      const first = [...PACK_PHOTOS.values()][0];
+      const loads = await new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); i.src = first.s; });
+      return loads ? "saved" : "not saved";
+    });
+    ok(shown === "card" || shown === "saved", `landmark photos show offline (${pack.photos} saved: ${shown})`);
   }
   await ctx.setOffline(false);
 
