@@ -70,7 +70,12 @@ const EDGES = [
   E("han", "ninhbinh", "Train", [2.2, 2.5], null, "VND", "Reunification Express", ["About 2 hours 15 minutes"], [S61V], {da:"hanstn"}),
   E("han", "hue", "Train", [12.5, 13], [569000, 1218000], "VND", "Reunification Express (SE1, SE3)", ["Soft seat 569,000 dong; soft sleeper 1,139,000–1,218,000", "Overnight from Hanoi, arrives in the morning"], [S61V], {da:"hanstn", db:"huestn"}),
   E("hue", "dad", "Train", [2.5, 2.8], null, "VND", "Reunification Express", ["One of the most scenic stretches, over the Hai Van Pass"], [S61V], {da:"huestn", db:"dadstn"}),
-  E("han", "dad", "Train", [15.5, 16.5], [651000, 1294000], "VND", "Reunification Express", ["Soft seat 651,000 dong; soft sleeper up to 1,294,000"], [S61V], {da:"hanstn", db:"dadstn"}),
+  E("han", "dad", "Train", [15.25, 17.7], [651000, 1294000], "VND", "Reunification Express", ["Soft seat 651,000 dong; soft sleeper up to 1,294,000", "Da Nang to Hanoi is a little cheaper: 567,000–1,137,000 dong", "The night trains save a night's accommodation"], [S61V], {da:"hanstn", db:"dadstn", night:true,
+    dep:{han:[["19:20","10:36",1,"SE3"], ["19:45","11:45",1,"SE19"], ["20:50","12:12",1,"SE1"], ["06:00","22:43",0,"SE7"], ["08:55","01:31",1,"SE5"], ["12:50","06:14",1,"SE9"]],
+         dad:[["01:59","19:12",0,"SE6"], ["09:06","04:35",1,"SE10"], ["12:38","04:55",1,"SE4"], ["13:33","05:45",1,"SE2"], ["18:00","11:40",1,"SE20"], ["23:20","16:10",1,"SE8"]]}, depSrc:S61V}),
+  E("sgn", "dad", "Train", [16.7, 19.9], [661000, 1274000], "VND", "Reunification Express", ["Soft seat 661,000 dong; hard sleeper 869,000–1,119,000; soft sleeper 1,227,000–1,274,000", "Da Nang station is about 45 minutes from Hoi An by taxi", "The night trains save a night's accommodation"], [S61V], {da:"sgnstn", db:"dadstn", night:true,
+    dep:{sgn:[["06:00","23:00",0,"SE8"], ["08:40","01:44",1,"SE6"], ["10:15","06:05",1,"SE22"], ["13:20","08:51",1,"SE10"], ["19:25","12:23",1,"SE4"], ["20:35","13:18",1,"SE2"]],
+         dad:[["01:46","20:20",0,"SE5"], ["06:29","03:40",1,"SE9"], ["08:00","04:25",1,"SE21"], ["10:51","05:15",1,"SE3"], ["12:27","05:45",1,"SE1"], ["23:03","17:35",1,"SE7"]]}, depSrc:S61V}),
   E("dad", "hoian", "Taxi", [0.5, 0.75], [350000], "VND", "Taxi (or the yellow bus no. 1, about 1 hour)", ["About 350,000 dong by taxi, depending on bargaining"], [S61V]),
   E("dad", "nhatrang", "Train", [10, 10.5], null, "VND", "Reunification Express", ["Daytime train"], [S61V], {da:"dadstn", db:"ntstn"}),
   E("nhatrang", "sgn", "Train", [8, 8.5], [404000, 869000], "VND", "Reunification Express", ["Soft seat 404,000 dong; soft sleeper up to 869,000"], [S61V], {da:"ntstn", db:"sgnstn"}),
@@ -92,6 +97,23 @@ const EDGES = [
 // flights: these routes are flown, but the time is worked out from the distance and the price is left to check live
 const FLIGHTS = [["bkk", "han"], ["bkk", "sgn"], ["bkk", "rep"], ["bkk", "pnh"], ["bkk", "vte"], ["bkk", "lpq"], ["bkk", "sin"], ["sin", "dps"], ["sin", "jakarta"],
   ["sin", "sgn"], ["sin", "han"], ["sin", "pnh"], ["han", "sgn"], ["han", "dad"], ["sgn", "dad"], ["sgn", "pqc"], ["han", "pqc"], ["han", "lpq"], ["han", "rep"], ["sgn", "nhatrang"], ["han", "nhatrang"], ["cnx", "lpq"], ["bkk", "dad"], ["bkk", "pqc"]];
+// flight fares that were checked (the rest stay "check live"): [low, high] one way, with where they came from
+const AA = r => ["AirAsia: lowest fare each day, Dec 2026–Jan 2027 (seen 23 Nov 2026)", "https://www.airasia.com/flights/from-" + r];
+const VNA = r => ["Vietnam Airlines route page (fares seen Nov 2026)", "https://www.vietnamairlines.com/en-vn/flights-from-" + r];
+const FARES = {
+  "bkk|pnh":[[2321, 8534], "THB", "Thai AirAsia, AirAsia or Thai Lion Air from Don Mueang", ["December fares 2,321–8,534 baht; bags cost extra"], AA("bangkok-don-mueang-dmk-to-phnom-penh-pnh")],
+  "bkk|sgn":[[2824, 11414], "THB", "Thai AirAsia and others from Don Mueang", ["December fares 2,824–11,414 baht; cheapest from mid-December; bags cost extra"], AA("bangkok-don-mueang-dmk-to-ho-chi-minh-city-sgn")],
+  "bkk|han":[[2693, 7271], "THB", "Thai AirAsia and others from Don Mueang", ["Fares 2,693–7,271 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-hanoi-han")],
+  "bkk|dad":[[2395, 4477], "THB", "Thai AirAsia from Don Mueang", ["Fares 2,395–4,477 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-da-nang-dad")],
+  "bkk|lpq":[[3621, 6420], "THB", "Thai AirAsia from Don Mueang", ["Fares 3,621–6,420 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-luang-prabang-lpq")],
+  "bkk|vte":[[3440, 4094], "THB", "Thai AirAsia from Don Mueang", ["Fares 3,440–4,094 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-vientiane-vte")],
+  "bkk|sin":[[3213, 10764], "THB", "Thai AirAsia and others from Don Mueang", ["Fares 3,213–10,764 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-singapore-sin")],
+  "bkk|pqc":[[2265, 5091], "THB", "Thai AirAsia from Don Mueang", ["Fares 2,265–5,091 baht in December and January; bags cost extra"], AA("bangkok-don-mueang-dmk-to-phu-quoc-pqc")],
+  "cnx|lpq":[[4064, 10290], "THB", "AirAsia", ["Fares 4,064–10,290 baht in December and January; bags cost extra"], AA("chiang-mai-cnx-to-luang-prabang-lpq")],
+  "sgn|dad":[[817000], "VND", "Vietnam Airlines or Vietjet", ["Vietnam Airlines from about 817,000 dong one way; busy dates cost more", "About 1 hour 20 minutes in the air, many flights a day"], VNA("ho-chi-minh-city-to-da-nang")],
+  "han|dad":[[849000, 968000], "VND", "Vietnam Airlines or Vietjet", ["Vietnam Airlines from about 849,000 dong one way (968,000 on sample dates)", "1 hour 25 minutes direct"], VNA("da-nang-to-hanoi")],
+  "han|sgn":[[888000, 1610000], "VND", "Vietnam Airlines or Vietjet", ["Vietnam Airlines 888,000–1,610,000 dong one way, depending on the date"], VNA("ho-chi-minh-city-to-hanoi")]
+};
 const km = (a, b) => { const r = Math.PI / 180, x = (b[3] - a[3]) * r * Math.cos((a[2] + b[2]) / 2 * r), y = (b[2] - a[2]) * r; return Math.sqrt(x * x + y * y) * 6371; };
 
 // remove anything added before, then add
@@ -105,8 +127,9 @@ EDGES.forEach(e => { if (!hub(e.a) || !hub(e.b)) throw new Error("no hub " + e.a
 for (const [a, b] of FLIGHTS){
   const A = hub(a), B = hub(b); if (!A || !B) throw new Error("no hub " + a + "/" + b);
   const h = km(A, B) / 760 + 0.35;
-  N.edges.push({a, b, mode:"Flight", dur:[Math.round(h * 4) / 4, Math.round((h + 0.3) * 4) / 4], p:null, cur:"USD", op:"Flights (compare on Google Flights)", da:null, db:null,
-    notes:[`About ${Math.round(km(A, B))} km; flying time estimated from the distance`, "Times and fares change by date: use the flight search button"], src:[], verified:false, asia:1});
+  const f = FARES[a + "|" + b] || FARES[b + "|" + a];
+  N.edges.push({a, b, mode:"Flight", dur:[Math.round(h * 4) / 4, Math.round((h + 0.3) * 4) / 4], p:f ? f[0] : null, cur:f ? f[1] : "USD", op:f ? f[2] : "Flights (compare on Google Flights)", da:null, db:null,
+    notes:(f ? f[3] : []).concat([`About ${Math.round(km(A, B))} km; flying time estimated from the distance`, "Times and fares change by date: use the flight search button"]), src:f ? [f[4]] : [], verified:false, asia:1});
 }
 lines[i] = "const D = " + JSON.stringify(D) + ";" + cr;
 fs.writeFileSync(FILE, lines.join("\n"));
