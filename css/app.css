@@ -934,3 +934,18 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .pick-nav .icon-btn[disabled]{opacity:.35}
 .pick-nav .pn-next .i{transform:scaleX(-1)}
 .field select,.field input{max-width:100%;min-width:0;box-sizing:border-box}   /* long option text (Settings › Testing) never widens the page */
+/* experiment tp-group */
+.grp-price{margin-top:6px;font-size:calc(13px * var(--ts,1))}
+.grp-price small{color:var(--muted)}
+/* experiment tp-saved */
+.sj-row{display:flex;align-items:center;gap:6px;padding:6px 0}
+.sj-open{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--ink);font:inherit;padding:4px 0;min-height:44px}
+.sj-open b{display:block}.sj-open small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1))}
+.sj-next .note{margin-bottom:2px}
+/* experiment tp-border */
+.border-card{margin-top:8px}
+.border-card .known{margin:6px 0}
+.bad-note{color:var(--bad);font-weight:600;margin:6px 0}
+/* experiment tp-sea */
+.sea-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
+.sea-line.warn b{color:var(--warn)}.sea-line.bad b{color:var(--bad)}

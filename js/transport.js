@@ -143,6 +143,17 @@ function planTrips(fromN, toN){
     return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified};
   });
   if (!trips.length) return [];
+  // no silly detours through another country: a trip inside one country stays in it, and a trip between two countries only goes
+  // through a third if that's quicker than every way that doesn't (Bangkok to Pai via Laos, Phnom Penh to Saigon via Singapore)
+  {
+    const ccOf = k => nodeCc(NODE[k]), c0 = ccOf(fk), c1 = ccOf(tk);
+    const third = t => t.legs.some(L => { const c = ccOf(L.to); return c && c !== c0 && c !== c1; });
+    const stay = trips.filter(t => !third(t));
+    if (stay.length){
+      const best = Math.min(...stay.map(t => t.mid));
+      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.mid < best));
+    }
+  }
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
   const best = Math.min(...trips.map(t => t.mid));
@@ -154,6 +165,8 @@ function planTrips(fromN, toN){
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
     : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
   if (quickest && !trips.includes(quickest)) trips.push(quickest);
+  // and no long way round: a trip goes if another is much quicker, no dearer, with no more legs and no more legs without a price
+  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.mid && u.legs.length <= t.legs.length && core(u) <= core(t) && u.pmin <= t.pmin + 0.5));
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
   const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;
@@ -206,6 +219,16 @@ function flightLink(L){
   const a = NODE[L.from].n, b = NODE[L.to].n, d = ui.tp.date && ui.tp.date >= todayISO() ? " on " + ui.tp.date : "";
   return `https://www.google.com/travel/flights?q=${enc(`Flights from ${a} to ${b}${d} one way`)}`;
 }
+/* Experiment tp-group: with more than one person chosen, a journey's price shows per person and for the whole group,
+   in local money and pounds (the saved prices are per person). */
+EXPERIMENTS.push({id:"tp-group", n:"Transport: prices for the group", d:"With 2 or more people chosen, journeys show the price each and for the whole group, in local money and pounds."});
+function groupLine(t){
+  const n = Math.round(+ui.tp.people || 1), tc = tripCur(t);
+  if (!exp("tp-group") || n < 2 || t.unpriced === t.legs.length) return "";
+  const rng = (a, b, f) => f(a) + (b - a > 0.3 ? "–" + f(b).replace(/^[^\d]*/, "") : "");
+  const loc = v => money(inCur(v, tc), tc), gbp = v => "£" + fmtNum(Math.round(v));
+  return `<div class="grp-price">${n} of you: <b>${rng(t.pmin * n, t.pmax * n, loc)}</b> <small>${rng(t.pmin * n, t.pmax * n, gbp)} together, ${rng(t.pmin, t.pmax, gbp)} each${t.unpriced ? ", plus a leg without a saved price" : ""}</small></div>`;
+}
 function tripPrice(t){
   const tc = tripCur(t);
   return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
@@ -216,7 +239,7 @@ function tripCard(t, idx){
   return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${tripPrice(t)}</div></div>
+      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}
     <div class="lchain">${chain}</div>
     <div class="note" style="margin-top:4px">${esc(stops.join(" → "))}</div>
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
@@ -237,6 +260,67 @@ function legTitle(t, k){
 }
 // "Bus" and "Bus, minivan or taxi" together read "Bus, Bus, minivan or taxi": drop the mode when the operator already says it
 const legKind = o => exp("tp-legnames") && o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
+/* Experiment tp-border: a leg that crosses a land border gets a short card: the visa to sort out before, how the crossing
+   goes and what to watch for. Only what gov.uk says for British passports (fetched and checked 23 Nov 2026), with its links. */
+EXPERIMENTS.push({id:"tp-border", n:"Transport: border crossings", d:"Overland legs into another country get a card: the visa to sort first, the crossing, and what to watch for (gov.uk)."});
+const BORDER_CHECKED = "23 Nov 2026";
+const BORDER_IN = {
+  KH:{name:"Cambodia", url:"https://www.gov.uk/foreign-travel-advice/cambodia/entry-requirements", pts:[
+    "You need a visa. Best: an <b>e-visa</b>, applied for at least 4 days ahead on the official site. You can also get one on arrival at land border crossings.",
+    "Tourist visas last 30 days from the day you enter. Make sure your passport is stamped and keep the departure form.",
+    "At land borders, officials or tour companies may ask for unofficial fees or inflate the visa price: know the real price before you go.",
+    "At the more remote crossing points, conditions can be basic."]},
+  VN:{name:"Vietnam", url:"https://www.gov.uk/foreign-travel-advice/vietnam/entry-requirements", pts:[
+    "British passports don’t need a visa for up to <b>45 days</b>.",
+    "Check the date stamped in your passport is 45 days from arrival: immigration won’t change it after you’ve left the land border."]},
+  TH:{name:"Thailand", url:"https://www.gov.uk/foreign-travel-advice/thailand/entry-requirements", pts:[
+    "No visa needed for tourism for up to <b>30 days</b> (since 15 September 2026).",
+    "Fill in the free digital arrival card (TDAC) online within the 3 days before you arrive, for land crossings too."]},
+  LA:{name:"Laos", url:"https://www.gov.uk/foreign-travel-advice/thailand/regional-risks", pts:[
+    "Not all land crossings into Laos are open to foreign nationals, and even where one is open you may need a Lao visa in advance."]}
+};
+// the Thai–Cambodian land border itself: FCDO advises against all but essential travel within 20 km of it (both sides)
+const BORDER_WARN = {"KH|TH":"The UK advises against all but essential travel within 20 km of the Thailand–Cambodia land border, on both sides. Travelling against that advice can invalidate travel insurance: fly instead."};
+function borderCard(t, k){
+  if (!exp("tp-border")) return "";
+  const L = t.legs[k]; if (L.o.mode === "Flight") return "";
+  const a = nodeCc(NODE[L.from]), b = nodeCc(NODE[L.to]);
+  if (!a || !b || a === b) return "";
+  const into = BORDER_IN[b], warn = BORDER_WARN[[a, b].sort().join("|")];
+  return `<div class="callout border-card">${icon("flag")}<div><b>Crossing into ${esc(into ? into.name : (D.countries[b] || {name:b}).name)}</b>
+    ${warn ? `<p class="bad-note">${esc(warn)}</p>` : ""}
+    <ul class="known">${(into ? into.pts : []).map(x => `<li>${x}</li>`).join("")}</ul>
+    <p class="note">From gov.uk, checked ${BORDER_CHECKED}${into ? `: <a href="${esc(into.url)}" target="_blank" rel="noopener">gov.uk travel advice for ${esc(into.name)}</a>` : ""}.</p></div></div>`;
+}
+/* Experiment tp-sea: boat legs show the sea forecast for the travel day (today if no date is picked, up to a week ahead):
+   the highest waves forecast midway (Open-Meteo marine, free, no key), described with the WMO sea-state scale. */
+EXPERIMENTS.push({id:"tp-sea", n:"Transport: sea forecast on boat legs", d:"Ferry legs show the waves forecast for your travel day (Open-Meteo), as calm, slight, moderate or rough."});
+const isBoat = o => /ferry|boat/i.test(o.mode) || /speedboat|longtail/i.test(o.op || "");
+// WMO sea state (code table 3700), by wave height in metres
+const seaState = h => h < 0.1 ? "calm" : h < 0.5 ? "smooth" : h < 1.25 ? "slight" : h < 2.5 ? "moderate" : h < 4 ? "rough" : "very rough";
+const seaCache = {};
+async function seaFor(lat, lng, day){
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)},${day}`;
+  if (!(key in seaCache)) seaCache[key] = getJSON(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&daily=wave_height_max&timezone=auto&start_date=${day}&end_date=${day}&cell_selection=sea`, {timeout:10000})
+    .then(j => { const v = j && j.daily && j.daily.wave_height_max && j.daily.wave_height_max[0]; return isFinite(v) && v != null ? +v : null; }).catch(() => { delete seaCache[key]; return null; });
+  return seaCache[key];
+}
+async function paintSea(t){
+  if (!exp("tp-sea")) return;
+  const day = ui.tp.date && ui.tp.date >= todayISO() ? ui.tp.date : todayISO();
+  if ((new Date(day + "T12:00:00") - new Date(todayISO() + "T12:00:00")) / 864e5 > 6) return;      // the forecast only goes a week ahead
+  t.legs.forEach(async (L, k) => {
+    if (!isBoat(L.o)) return;
+    const a = NODE[L.from], b = NODE[L.to], el = document.querySelector(`#sheetRoot [data-sea="${k}"]`); if (!el) return;
+    el.hidden = false; el.textContent = "Checking the sea…";
+    const h = await seaFor((a.lat + b.lat) / 2, (a.lng + b.lng) / 2, day);
+    if (!el.isConnected) return;
+    if (h == null){ el.textContent = "Sea forecast: needs signal (Open-Meteo)."; return; }
+    const st = seaState(h);
+    el.className = "sea-line" + (h >= 2.5 ? " bad" : h >= 1.25 ? " warn" : "");
+    el.innerHTML = `${icon("waves","i xs")} Sea ${day === todayISO() ? "today" : "on " + esc(fmtDay(day))}: waves up to <b>${h.toFixed(1)} m</b>, ${esc(st)}${h >= 1.25 ? ". Bumpy for small boats: seasickness tablets help, and check with the operator before going" : ""}. <span class="note">Open-Meteo forecast; WMO sea-state scale.</span>`;
+  });
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -249,7 +333,7 @@ function tripSheetHTML(t){
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
+      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
@@ -276,9 +360,39 @@ function tripSheetHTML(t){
 const fmtDay = iso => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {weekday:"short", day:"numeric", month:"short"});
 // the journey map: each leg a line in its own colour (flights dashed), a numbered dot at every stop and the mode's icon halfway
 let legMap = null;
+/* Experiment tp-saved: save a journey from the results (the whole sheet, kept on the phone, so it opens with no signal) and pin
+   one as "our next journey" at the top of Transport. Up to 12 are kept. */
+EXPERIMENTS.push({id:"tp-saved", n:"Transport: saved journeys", d:"Save a journey (it opens offline) and pin one as “our next journey” at the top of Transport."});
+const savedTrips = () => Array.isArray(S.savedTrips) ? S.savedTrips : (S.savedTrips = []);
+function saveTrip(t){
+  const a = NODE[t.legs[0].from].n, b = NODE[t.legs[t.legs.length - 1].to].n, html = tripSheetHTML(t).replace(/<div[^>]*id="legMap"[^>]*><\/div>/, "");
+  const list = savedTrips(), id = "j" + Date.now().toString(36);
+  list.unshift({id, title:`${a} → ${b}`, sub:`${t.legs.map(L => L.o.mode).join(" › ")} · ${fRange(t.dmin, t.dmax)}`, date:ui.tp.date || "", at:Date.now(), pin:!list.some(x => x.pin), html});
+  S.savedTrips = list.slice(0, 12); persist();
+  return id;
+}
+function savedTripsHTML(){
+  const list = savedTrips(); if (!exp("tp-saved") || !list.length) return "";
+  const pin = list.find(x => x.pin), row = x => `<div class="sj-row"><button class="sj-open" type="button" data-sjopen="${esc(x.id)}"><b>${esc(x.title)}</b><small>${esc(x.sub)}${x.date ? " · " + esc(fmtDay(x.date)) : ""}</small></button>
+    <button class="icon-btn" type="button" data-sjpin="${esc(x.id)}" aria-pressed="${!!x.pin}" aria-label="${x.pin ? "Pinned as our next journey" : "Pin as our next journey"}">${icon("bookmark","i s")}</button>
+    <button class="icon-btn" type="button" data-sjdel="${esc(x.id)}" aria-label="Remove ${esc(x.title)}">${icon("trash","i s")}</button></div>`;
+  return `${pin ? `<div class="block sj-next"><div class="note">Our next journey</div>${row(pin)}</div>` : ""}
+    ${list.filter(x => !x.pin).length ? `<details class="block more sj-list"><summary><b>Saved journeys</b> <span class="note">${list.filter(x => !x.pin).length}</span></summary>${list.filter(x => !x.pin).map(row).join("")}</details>` : ""}`;
+}
+function bindSavedTrips(root){
+  root.querySelectorAll("[data-sjopen]").forEach(b => b.onclick = () => { const x = savedTrips().find(y => y.id === b.dataset.sjopen); if (x) openSheet(x.html.replace('id="trip-title"', 'id="trip-title" data-saved="1"') + `<p class="note" style="margin-top:8px">Saved ${esc(typeof agoText === "function" ? agoText(x.at) : "")}: prices and times as they were then.</p>`, "trip-title"); });
+  root.querySelectorAll("[data-sjpin]").forEach(b => b.onclick = () => { savedTrips().forEach(y => y.pin = y.id === b.dataset.sjpin); persist(); renderPage(); });
+  root.querySelectorAll("[data-sjdel]").forEach(b => b.onclick = () => { S.savedTrips = savedTrips().filter(y => y.id !== b.dataset.sjdel); if (S.savedTrips.length && !S.savedTrips.some(y => y.pin)) S.savedTrips[0].pin = true; persist(); renderPage(); });
+}
 function openTripSheet(t){
   if (legMap){ try { legMap.remove(); } catch(e){} legMap = null; }
   openSheet(tripSheetHTML(t), "trip-title");
+  paintSea(t);
+  if (exp("tp-saved")){
+    const head = $("#sheetRoot .sheet-head");
+    if (head){ head.insertAdjacentHTML("afterend", `<button class="btn small" type="button" id="tpSave" style="margin:6px 0 2px">${icon("bookmark","i s")}Save this journey</button>`);
+      $("#tpSave").onclick = () => { saveTrip(t); const b = $("#tpSave"); b.disabled = true; b.textContent = "Saved: it’s at the top of Transport, and opens offline"; }; }
+  }
   const el = $("#legMap"); if (!el || typeof maplibregl === "undefined") { if (el) el.remove(); return; }
   const pts = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k]);
   try {
@@ -330,7 +444,7 @@ function transportPage(){
   const trips = tN && ui.tp.go ? planTrips(fN, tN) : [];
   if (ui.tp.sel >= trips.length) ui.tp.sel = 0;
   ui._trips = trips;
-  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">
+  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">${savedTripsHTML()}
     <div class="block plan">
       <div class="pair">
         <label class="field sfield">From<input id="tp-from" type="search" autocomplete="off" enterkeyhint="search" value="${esc(nodeLabel(fN))}" placeholder="Search a place"><div class="sugs" id="sug-from" hidden></div></label>
@@ -471,6 +585,7 @@ function bindSearch(which){
   inp.onblur = () => setTimeout(() => { box.hidden = true; inp.value = nodeLabel(which === "from" ? fromNode() : ui.tp.to); }, 150);
 }
 function bindTransport(){
+  bindSavedTrips($("#pageview"));
   const root = $("#pageview");
   bindSearch("from"); bindSearch("to");
   $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };

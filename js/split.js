@@ -130,7 +130,7 @@ function splitSummary(){
    It shows on Tools › Split costs (with its own header) and inside Tools › Friends (live groups only). */
 const splitUi = {to:null, by:"", cur:"", what:"", amt:"", key:"", newGroup:false, tab:"tally", mode:"equal", cust:{}, adding:false};
 // the developer phone (Firebase admins/) is the only one that can delete a live group or take someone out of it
-const splitDev = () => typeof frAdmin !== "undefined" && frAdmin === true;
+const splitDev = () => typeof frIsOwner === "function" && frIsOwner();
 const splitWhen = t => t ? new Date(t).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
 const showAmt = gbp => { const lc = splitLocal(); return lc === "GBP" ? `£${Math.abs(gbp).toFixed(2)}` : `${money(niceRound(Math.abs(gbp) * rate(lc), lc), lc)} <small>£${Math.abs(gbp).toFixed(2)}</small>`; };
 const SP_COLORS = ["#7FB2D2", "#F2C14E", "#7FD1AE", "#F28B82", "#A8B8FF", "#E39FF6", "#6FD0E6", "#FFB37A"];

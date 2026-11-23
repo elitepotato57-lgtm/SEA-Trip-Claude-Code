@@ -864,7 +864,7 @@ test("experiments: every one is off unless switched on on this phone; each has a
   ok(A.EXPERIMENTS.every(x => x.id && x.n && x.d && !/\n/.test(x.d)), "names and descriptions");
   eq(new Set(A.EXPERIMENTS.map(x => x.id)).size, A.EXPERIMENTS.length, "no two share an id");
   ok(A.expList().every(x => A.exp(x.id) === EXPON), EXPON ? "the test run switches them all on" : "all off for a normal phone");
-  eq(A.expList().map(x => x.id).sort(), ["detail-buttons", "tools-groups"], "the two still being tried");
+  ok(["detail-buttons", "tools-groups"].every(id => A.expList().some(x => x.id === id)) && A.expList().every(x => !A.EXP_ADOPTED.has(x.id)), "switches: the ones still being tried, never an adopted one");
   ok([...A.EXP_ADOPTED].every(id => A.exp(id)), "the adopted ones are on for everyone");
   const P = load(); P.expSet("demo", true); ok(P.exp("demo")); P.expSet("demo", false); ok(!P.exp("demo"));
 });
@@ -905,6 +905,38 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
   const P = load(); P.expSet("driver-card", true);
   const here = P.D.places.find(p => p.id && p.nt === "โรงแรมเฮีย");
   ok(P.driverOK(here)); ok(!P.driverOK({c:"gaff", n:"No Thai", nt:"", ad:"12 Main St"})); ok(!P.driverOK({c:"munch", nt:"ร้าน"}));
+});
+
+test("transport: no silly detours (Bangkok to Pai via Laos or Phuket, Siem Reap to Phnom Penh via Bangkok), cheaper slow options kept", () => {
+  const P = load(), via = (a, b) => P.planTrips(P.hubNode(a), P.hubNode(b)).map(t => t.legs.map(L => L.to).join(">"));
+  const pai = via("bkk", "pai"), rp = via("rep", "pnh"), cm = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx"));
+  ok(pai.every(r => !/lpq|phuket/.test(r)), pai.join(" / ")); ok(rp.every(r => !/bkk/.test(r)), rp.join(" / "));
+  ok(cm.some(t => t.legs[0].o.mode === "Bus" && t.cheapest), "the Bangkok to Chiang Mai bus is still the cheapest");
+});
+
+test("experiment tp-group: four people see the group total and the price each; one person sees nothing extra", () => {
+  const P = load(); P.expSet("tp-group", true); P.ui.tp.people = 4;
+  const t = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx")).find(x => x.cheapest), line = P.groupLine(t);
+  ok(/4 of you/.test(line) && /together/.test(line) && /each/.test(line) && /฿/.test(line), line);
+  P.ui.tp.people = 1; eq(P.groupLine(t), ""); P.ui.tp.people = 4; P.expSet("tp-group", false); eq(P.groupLine(t), "");
+});
+
+test("experiment tp-saved: a saved journey keeps its whole sheet (no map) for offline, the first is pinned, and the list shows it", () => {
+  const P = load(); P.expSet("tp-saved", true);
+  P.saveTrip(P.planTrips(P.hubNode("bkk"), P.hubNode("cnx"))[0]); P.saveTrip(P.planTrips(P.hubNode("cnx"), P.hubNode("pai"))[0]);
+  const l = P.S.savedTrips;
+  eq(l.map(x => x.title), ["Chiang Mai → Pai", "Bangkok → Chiang Mai"]); eq(l.map(x => x.pin), [false, true]);
+  ok(l.every(x => /trip-title/.test(x.html) && !/id="legMap"/.test(x.html)), "the sheet is kept, without the live map");
+  ok(/Our next journey/.test(P.savedTripsHTML()) && /Saved journeys/.test(P.savedTripsHTML()));
+  P.expSet("tp-saved", false); eq(P.savedTripsHTML(), "");
+});
+
+test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (45 days, gov.uk); flights and same-country legs get none", () => {
+  const P = load(); P.expSet("tp-border", true);
+  const t = P.planTrips(P.hubNode("pnh"), P.hubNode("sgn"))[0], card = P.borderCard(t, 0);
+  ok(/Crossing into Vietnam/.test(card) && /45 days/.test(card) && /gov\.uk/.test(card), card.slice(0, 200));
+  const f = P.planTrips(P.hubNode("bkk"), P.hubNode("rep"))[0]; eq(P.borderCard(f, 0), "", "a flight");
+  const d = P.planTrips(P.hubNode("rep"), P.hubNode("pnh"))[0]; eq(P.borderCard(d, 0), "", "inside Cambodia");
 });
 
 /* tests that need to wait (restoring a backup) run last */
@@ -971,6 +1003,17 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
     G.listen(() => {}, () => {}); G.listen(() => {}, () => {});
     test("permissions: the phone is asked for its location once, then the recent position is reused; one microphone recogniser", () => {
       eq(asks, 1); ok(G.geoFresh() && G.geoFresh().lat === 13.75); eq(made, 1);
+    });
+  }
+  // sea forecast on boat legs: the WMO scale, and the day's highest waves from Open-Meteo marine
+  {
+    let asked = "";
+    const P = load(undefined, {fetch:u => { asked = String(u); return Promise.resolve({ok:true, json:async () => ({daily:{wave_height_max:[1.6]}})}); }});
+    const h = await P.seaFor(9.6, 100.0, "2026-12-01");
+    test("experiment tp-sea: the travel day's highest waves from Open-Meteo marine, described on the WMO sea-state scale", () => {
+      eq(h, 1.6); ok(/marine-api\.open-meteo\.com/.test(asked) && /wave_height_max/.test(asked) && /start_date=2026-12-01/.test(asked), asked);
+      eq([0.3, 0.9, 1.6, 3, 5].map(P.seaState), ["smooth", "slight", "moderate", "rough", "very rough"]);
+      ok(P.isBoat({mode:"Ferry"}) && P.isBoat({mode:"Bus + ferry"}) && !P.isBoat({mode:"Bus"}));
     });
   }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
@@ -1153,7 +1196,15 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
     const stillThere = !!(fb.root.groups[gid] && fb.root.groups[gid].members[me2.uid]);
     await P1.frDb("PUT", `groups/${gid}/members/${me3.uid}`, "Dev");
     const notDevRemove = await P1.liveRemoveMember(gid, me2.uid).then(() => "ok", e => e.status || e.message);
+    // a developer who isn't the owner can't either, once the owner is set; the owner (P3 here) can
+    await P3.frCheckAdmin(); const ownerBefore = P3.frIsOwner();
+    const notOwnerClaim = await P1.frClaimOwner().then(() => "ok", e => e.message);       // P1 isn't a developer
+    await P3.frClaimOwner(); const ownerAfter = P3.frIsOwner();
+    const secondClaim = await P3.frDb("PUT", "owner", me1.uid).then(() => "ok", e => e.message);
     await P3.liveRemoveMember(gid, me2.uid);
+    test("split groups: only the owner's phone, claimed once by a developer, can delete groups or take people out", () => {
+      eq([ownerBefore, notOwnerClaim, ownerAfter, secondClaim], [false, "permission", true, "permission"]);
+    });
     const sansSam = Object.keys(fb.root.groups[gid].members).sort();
     await P2.liveListGroups();
     const samGroups = P2.liveGroupsCached().map(g => g.id);

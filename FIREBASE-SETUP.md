@@ -94,3 +94,11 @@ delete everything › paste › **Publish**). They replace the old Rock Paper Sc
 - `tally`: the Trip tally. Everyone in the app can read it; each phone can only change its own wins.
 
 Until you do, starting a game says "Firebase said no".
+
+## New rules (only Dylan's phone deletes split groups), 23 Nov 2026
+
+1. Re-publish `firebase/database.rules.json` (Realtime Database › Rules › delete everything › paste › **Publish**).
+2. On **your** phone: Tools › Developer › **Owner** › "This is Dylan's phone: make it the owner" (it can only be claimed once).
+
+From then on only your phone can delete a split-costs group or take someone out of one; the database refuses everyone else,
+including other developers. Until step 2 is done, nobody can delete groups.

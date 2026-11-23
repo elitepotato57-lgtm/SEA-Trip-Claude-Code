@@ -22,6 +22,7 @@ function makeFake(){
     if (top === "groups") return p.length >= 2 && !!get(["groups", a, "members", uid]);
     if (top === "mygroups") return a === uid;
     if (top === "admins") return p.length === 2;
+    if (top === "owner") return p.length === 1;
     if (top === "stickerIndex") return true;
     if (top === "stickers") return p.length >= 2;
     if (top === "msgs") return a === uid;
@@ -44,14 +45,15 @@ function makeFake(){
     if (top === "requests") return p.length === 3 && (uid === b || uid === a);
     if (top === "groups"){
       const isMember = !!get(["groups", a, "members", uid]);
-      // members add people; only the developer (admins/) takes people out or deletes the group's name
-      const isAdmin = get(["admins", uid]) === true;
+      // members add people; only the owner (owner/, Dylan's phone) takes people out or deletes the group's name
+      const isAdmin = get(["owner"]) === uid;
       if (p[2] === "members" && p.length === 4) return (isMember && isAdmin) || (isMember && get(p) === undefined && val != null) || (get(["groups", a]) === undefined && p[3] === uid);
       if (p[2] === "n" && p.length === 3) return isMember && (val != null || isAdmin);
       if (p[2] === "items" && p.length === 4) return isMember;
       return false;
     }
     if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));
+    if (top === "owner") return p.length === 1 && get(["owner"]) === undefined && val === uid && get(["admins", uid]) === true;
     if (top === "admins") return p.length === 2 && (get(["admins", uid]) === true || (a === uid && get(["admins"]) === undefined));
     if (top === "stickerIndex" || top === "stickers") return p.length === 2 && get(["admins", uid]) === true && (val == null || top === "stickerIndex" || (val.d && val.d.length < 300000 && val.d.startsWith("data:image/")));
     if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
