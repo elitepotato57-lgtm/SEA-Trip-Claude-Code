@@ -219,6 +219,16 @@ function flightLink(L){
   const a = NODE[L.from].n, b = NODE[L.to].n, d = ui.tp.date && ui.tp.date >= todayISO() ? " on " + ui.tp.date : "";
   return `https://www.google.com/travel/flights?q=${enc(`Flights from ${a} to ${b}${d} one way`)}`;
 }
+/* Experiment tp-group: with more than one person chosen, a journey's price shows per person and for the whole group,
+   in local money and pounds (the saved prices are per person). */
+EXPERIMENTS.push({id:"tp-group", n:"Transport: prices for the group", d:"With 2 or more people chosen, journeys show the price each and for the whole group, in local money and pounds."});
+function groupLine(t){
+  const n = Math.round(+ui.tp.people || 1), tc = tripCur(t);
+  if (!exp("tp-group") || n < 2 || t.unpriced === t.legs.length) return "";
+  const rng = (a, b, f) => f(a) + (b - a > 0.3 ? "–" + f(b).replace(/^[^\d]*/, "") : "");
+  const loc = v => money(inCur(v, tc), tc), gbp = v => "£" + fmtNum(Math.round(v));
+  return `<div class="grp-price">${n} of you: <b>${rng(t.pmin * n, t.pmax * n, loc)}</b> <small>${rng(t.pmin * n, t.pmax * n, gbp)} together, ${rng(t.pmin, t.pmax, gbp)} each${t.unpriced ? ", plus a leg without a saved price" : ""}</small></div>`;
+}
 function tripPrice(t){
   const tc = tripCur(t);
   return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
@@ -229,7 +239,7 @@ function tripCard(t, idx){
   return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${tripPrice(t)}</div></div>
+      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}
     <div class="lchain">${chain}</div>
     <div class="note" style="margin-top:4px">${esc(stops.join(" → "))}</div>
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>

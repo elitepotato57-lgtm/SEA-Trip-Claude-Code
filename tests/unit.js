@@ -914,6 +914,13 @@ test("transport: no silly detours (Bangkok to Pai via Laos or Phuket, Siem Reap 
   ok(cm.some(t => t.legs[0].o.mode === "Bus" && t.cheapest), "the Bangkok to Chiang Mai bus is still the cheapest");
 });
 
+test("experiment tp-group: four people see the group total and the price each; one person sees nothing extra", () => {
+  const P = load(); P.expSet("tp-group", true); P.ui.tp.people = 4;
+  const t = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx")).find(x => x.cheapest), line = P.groupLine(t);
+  ok(/4 of you/.test(line) && /together/.test(line) && /each/.test(line) && /฿/.test(line), line);
+  P.ui.tp.people = 1; eq(P.groupLine(t), ""); P.ui.tp.people = 4; P.expSet("tp-group", false); eq(P.groupLine(t), "");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
