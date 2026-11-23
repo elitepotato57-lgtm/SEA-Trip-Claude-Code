@@ -987,9 +987,27 @@ test("trips: the route keeps accurate points as you move (and every 10 minutes),
   eq(A.trkPlace({t:null}, pts), null);
 });
 test("transport: a price missing a leg says so (so far, + ?, and which leg); a full price doesn't", () => {
-  const t = A.planTrips(A.hubNode("phangan"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
-  ok(/\+ \?/.test(h) && /so far/.test(h) && /Bangkok → Siem Reap flight/.test(h), h);
+  const t = A.planTrips(A.hubNode("ninhbinh"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
+  ok(/\+ \?/.test(h) && /so far/.test(h) && /Hanoi → Siem Reap flight/.test(h), h);
   const full = A.planTrips(A.hubNode("bkk"), A.hubNode("cnx"))[0]; ok(!/so far|\+ \?/.test(A.tripPrice(full)));
+});
+
+test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen fare makes the total a “from” price, never a range", () => {
+  const E = A.D.net.edges, f = (a, b, m) => E.find(e => e.mode === m && ((e.a === a && e.b === b) || (e.a === b && e.b === a)));
+  eq(f("phangan", "tao", "Ferry").p, [450, 700]); ok(f("phangan", "tao", "Ferry").src.some(s => /lomprayah\.com/.test(s[1])));
+  eq([f("bkk", "tao", "Bus + ferry").p, f("bkk", "tao", "Bus + ferry").cur], [[850, 1550], "THB"]);
+  ok(f("han", "ninhbinh", "Train").src.some(s => /baolau\.com/.test(s[1])));
+  // every "from" price is a flight with a Kiwi.com source and a single fare
+  const low = E.filter(e => e.from);
+  ok(low.length >= 30 && low.every(e => e.mode === "Flight" && e.p.length === 1 && e.cur === "GBP" && e.src.some(s => /kiwi\.com/.test(s[1]))), low.length);
+  const t = A.planTrips(A.hubNode("bkk"), A.hubNode("han")).find(x => x.low && !x.unpriced), h = A.tripPrice(t);
+  ok(/^from /.test(h) && !/–/.test(h.split("<small>")[0]) && /lowest fare seen/.test(h), h);
+  ok(/from /.test(A.tripSheetHTML(t)), "the leg says from too");
+  // the route Dylan flies: every leg of it has a price now
+  const route = ["bkk", "cnx", "pai", "tao", "phangan", "samui", "aonang", "phiphi", "phuket", "rep", "pnh", "sgn", "hoian", "han"].filter(id => A.HUB[id]);
+  const gaps = [];
+  for (let k = 0; k < route.length - 1; k++){ const ts = A.planTrips(A.hubNode(route[k]), A.hubNode(route[k + 1])); if (!ts.some(x => !x.unpriced)) gaps.push(route[k] + ">" + route[k + 1]); }
+  eq(gaps, [], "every stop to the next has at least one fully priced journey");
 });
 
 /* tests that need to wait (restoring a backup) run last */

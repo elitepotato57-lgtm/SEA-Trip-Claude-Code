@@ -98,7 +98,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   out until **Search** is pressed; a journey opens in a sheet with every leg and a map (each leg its own colour, numbered stops, mode icons);
   flight legs link to Google Flights on the chosen date. When a country is added to the map, research its transport too. Its map
   names the `D.cities` that aren't stops (`city-name` layer) and the stops from zoom 4.6.
-  Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.
+  Totals show in the money of the country a journey starts in. `node tools/transport-fares.js` (re-runnable) filled 68 unpriced legs on
+  23 Nov 2026 from Lomprayah's booking API, Baolau (operator fares), Seat 61, Wikivoyage, BusOnlineTicket and Kiwi.com, and added Lomprayah's
+  Bangkok/Hua Hin to Gulf-island bus-and-boat tickets. Kiwi flight fares (`tools/transport-fares-kiwi.json`) are the lowest one-way seen,
+  so those edges have `from:true` and a journey with one shows "from £x" (`t.low` in `tripPrice`), never a range. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.

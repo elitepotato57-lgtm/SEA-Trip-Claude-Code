@@ -90,3 +90,22 @@ Every leg of the route and every pair of neighbouring stops was run through the 
 - **13 Own ideas** (suggested, not built): (a) "Leave by" times on a saved journey, from the planner's journey time plus the
   airport/pier allowance; (b) a "who's booked" tick per person on a saved journey, shared through the live split group, so the
   group knows who still needs a ticket.
+
+## Transport prices (23 Nov 2026, later the same day)
+
+Dylan: "check as many transport routes as you can so we don't have any legs where it doesn't know the price."
+Before: 105 of 240 legs had no saved price (66 flights, 39 overland). After: **40 of 246**, and **every stop on the route to the next
+has at least one fully priced journey** (a unit test now checks this). `node tools/transport-fares.js` holds every value with its source.
+
+| Source | What it gave |
+|---|---|
+| Lomprayah's own booking site (fares for 3, 6 and 15 Dec) | Chumphon, Koh Tao, Koh Phangan and Samui crossings with departure times; **new** bus-and-boat tickets Bangkok → Koh Tao / Koh Phangan / Samui and Hua Hin → Koh Tao |
+| Baolau (fares straight from the operators) | Vientiane → Vang Vieng → Luang Prabang trains; Hanoi → Ninh Binh, Hue → Da Nang, Da Nang → Nha Trang, Saigon → Phan Thiet, Hanoi → Lao Cai; KL → Arau |
+| Seat 61 | Vietnam train classes, Lao Cai → Sapa bus, Phan Thiet → Mui Ne, Jakarta → Yogyakarta |
+| Wikivoyage | Kanchanaburi, Ko Lanta ↔ Phi Phi, Pak Bara, Padang Bai → Gili, Senaru, Merak ferry, Bukit Lawang, Lake Toba, Bukittinggi, Rantepao, Gilimanuk, Bromo, Malacca, Perhentian, Langkawi, Chiang Rai → Huay Xai, **new** Krabi Town ↔ Ao Nang songthaew |
+| BusOnlineTicket | Bangkok → Chumphon, Bangkok → Kanchanaburi, KL → Kuantan, KL → Mersing, Singapore → Mersing, Jerteh → Cherating |
+| Kiwi.com route pages | 35 flights: the lowest one-way fare shown, saved as a **"from"** price (journeys with one say "from £x … check live") |
+
+Still without a price (40): mostly Indonesian domestic flights whose Kiwi pages show no one-way fare, plus Bangkok → Surat Thani and a few
+Malaysia/Laos/Cambodia flights, the Whoosh train, Yogyakarta → Banyuwangi, Surabaya → Malang/Bromo trains, Krabi Town → Railay longtail,
+Lombok airport → Senaru, Bandar Lampung → Bakauheni, Palembang → Pagar Alam and Penang → Langkawi. None of them is on the route.

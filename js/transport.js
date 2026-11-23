@@ -140,7 +140,8 @@ function planTrips(fromN, toN){
       if (o.p){ pmin += toGBP(o.p[0], o.cur); pmax += toGBP(o.p[o.p.length - 1], o.cur); } else unpriced++;
       if (!o.verified) unverified++;
     });
-    return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified};
+    // low: a leg's price is only the lowest fare seen (flights, from Kiwi.com), so the total is a "from" price
+    return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified, low:legs.some(L => L.o.p && L.o.from)};
   });
   if (!trips.length) return [];
   // no silly detours through another country: a trip inside one country stays in it, and a trip between two countries only goes
@@ -236,6 +237,13 @@ function tripPrice(t){
   const tc = tripCur(t);
   if (t.unpriced === t.legs.length) return `<small>Price: check live</small>`;
   const rng = `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}`, gbp = `£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}`;
+  if (t.low){
+    // a flight's price is the lowest fare seen, so the total is only a floor: no range, just "from"
+    const low = `from ${money(inCur(t.pmin, tc), tc)}`, lowG = `from £${fmtNum(t.pmin)}`, fl = t.legs.filter(L => L.o.p && L.o.from).length;
+    const why = `the ${fl === 1 ? "flight is its" : "flights are their"} lowest fare seen, so check live`;
+    if (!t.unpriced) return `${low}<small>${lowG}: ${why}</small>`;
+    return `${low} <span class="plus">+ ?</span><small>${lowG} so far, not counting the ${esc(listAnd(unpricedLegs(t)))} (no saved price); ${why}</small>`;
+  }
   if (!t.unpriced) return `${rng}<small>${gbp}</small>`;
   return `${rng} <span class="plus">+ ?</span><small>${gbp} so far, not counting the ${esc(listAnd(unpricedLegs(t)))} (no saved price)</small>`;
 }
@@ -334,7 +342,7 @@ function tripSheetHTML(t){
   const price = tripPrice(t);
   const legs = t.legs.map((L, k) => {
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
-    const lp = o.p ? withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
+    const lp = o.p ? (o.from ? "from " : "") + withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
     return `<div class="leg"><span class="li legn" style="--lc:${LEG_COLS[k % LEG_COLS.length]}"><i>${k + 1}</i>${icon(MODE_IC[o.mode] || "bus", "i s")}</span><div>
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
