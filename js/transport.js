@@ -143,6 +143,17 @@ function planTrips(fromN, toN){
     return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified};
   });
   if (!trips.length) return [];
+  // no silly detours through another country: a trip inside one country stays in it, and a trip between two countries only goes
+  // through a third if that's quicker than every way that doesn't (Bangkok to Pai via Laos, Phnom Penh to Saigon via Singapore)
+  {
+    const ccOf = k => nodeCc(NODE[k]), c0 = ccOf(fk), c1 = ccOf(tk);
+    const third = t => t.legs.some(L => { const c = ccOf(L.to); return c && c !== c0 && c !== c1; });
+    const stay = trips.filter(t => !third(t));
+    if (stay.length){
+      const best = Math.min(...stay.map(t => t.mid));
+      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.mid < best));
+    }
+  }
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
   const best = Math.min(...trips.map(t => t.mid));
@@ -154,6 +165,8 @@ function planTrips(fromN, toN){
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
     : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
   if (quickest && !trips.includes(quickest)) trips.push(quickest);
+  // and no long way round: a trip goes if another is much quicker, no dearer, with no more legs and no more legs without a price
+  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.mid && u.legs.length <= t.legs.length && core(u) <= core(t) && u.pmin <= t.pmin + 0.5));
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
   const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;

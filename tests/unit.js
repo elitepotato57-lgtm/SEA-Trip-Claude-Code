@@ -907,6 +907,13 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
   ok(P.driverOK(here)); ok(!P.driverOK({c:"gaff", n:"No Thai", nt:"", ad:"12 Main St"})); ok(!P.driverOK({c:"munch", nt:"ร้าน"}));
 });
 
+test("transport: no silly detours (Bangkok to Pai via Laos or Phuket, Siem Reap to Phnom Penh via Bangkok), cheaper slow options kept", () => {
+  const P = load(), via = (a, b) => P.planTrips(P.hubNode(a), P.hubNode(b)).map(t => t.legs.map(L => L.to).join(">"));
+  const pai = via("bkk", "pai"), rp = via("rep", "pnh"), cm = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx"));
+  ok(pai.every(r => !/lpq|phuket/.test(r)), pai.join(" / ")); ok(rp.every(r => !/bkk/.test(r)), rp.join(" / "));
+  ok(cm.some(t => t.legs[0].o.mode === "Bus" && t.cheapest), "the Bangkok to Chiang Mai bus is still the cheapest");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
