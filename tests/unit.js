@@ -939,6 +939,40 @@ test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (
   const d = P.planTrips(P.hubNode("rep"), P.hubNode("pnh"))[0]; eq(P.borderCard(d, 0), "", "inside Cambodia");
 });
 
+test("transport data: Koh Tao to Koh Phangan is priced (450–600 baht), the Reunification Express runs Saigon–Da Nang, and every saved timetable has a source", () => {
+  const e = A.NET.edges.find(x => x.mode === "Ferry" && [x.a, x.b].sort().join() === "phangan,tao");
+  eq(e.p, [450, 600]); ok(e.verified && e.src.length >= 2);
+  const t = A.NET.edges.find(x => x.mode === "Train" && [x.a, x.b].sort().join() === "dad,sgn");
+  ok(t && t.p[0] === 661000 && t.night && t.dep.sgn.length === 6, "Saigon–Da Nang train");
+  A.NET.edges.filter(x => x.dep).forEach(x => { ok(x.depSrc && /^https:/.test(x.depSrc[1]), `${x.a}–${x.b} timetable source`);
+    Object.entries(x.dep).forEach(([h, l]) => { ok(h === x.a || h === x.b, "keyed by one of its ends"); l.forEach(d => ok(/^\d\d:\d\d$/.test(d[0]) && (d[1] === null || /^\d\d:\d\d$/.test(d[1])), JSON.stringify(d))); }); });
+  A.NET.edges.filter(x => x.day).forEach(x => Object.values(x.day).forEach(d => ok(d.src && d.src.length, `${x.a}–${x.b} day card source`)));
+  const pnh = A.planTrips(A.hubNode("tao"), A.hubNode("phangan"));
+  eq(pnh[0].unpriced, 0, "the direct boat now has a price");
+});
+test("experiment tp-times: next departures today from the leg's own end, in local time; every departure on a later date; nothing when switched off", () => {
+  const P = load(); P.expSet("tp-times", true);
+  const t = P.planTrips(P.hubNode("tao"), P.hubNode("phangan"))[0], L = t.legs[0];
+  eq(P.legDeps(L).map(d => d[0]), ["07:00", "09:30", "09:30", "15:30", "17:00"]);
+  const r = P.depsLeft(P.legDeps(L), P.hm("10:00"));
+  eq(r.left.map(d => d[0]), ["15:30", "17:00"]); eq(r.last[0], "17:00");
+  eq(P.clockAt({lat:13.75, lng:100.5}, new Date("2026-12-01T03:15:00Z")), {min:10 * 60 + 15, iso:"2026-12-01"}, "Bangkok is UTC+7");
+  eq(P.clockAt({lat:-8.65, lng:115.2}, new Date("2026-12-01T03:15:00Z")).min, 11 * 60 + 15, "Bali is UTC+8");
+  ok(/saved departures/.test(P.legTimesHTML(L)) && /SiamTickets/.test(P.legTimesHTML(L)) && /not live/.test(P.legTimesHTML(L)));
+  P.ui.tp.date = "2099-01-01"; ok(/5 departures, first <b>07:00<\/b>, last <b>17:00/.test(P.legTimesHTML(L)), P.legTimesHTML(L));
+  const back = P.planTrips(P.hubNode("phangan"), P.hubNode("tao"))[0];
+  eq(P.legTimesHTML(back.legs[0]), "", "no timetable saved for the other direction");
+  P.expSet("tp-times", false); eq(P.legTimesHTML(L), "");
+});
+test("experiment tp-day: the travel-day card says the pier, how early and the luggage limit, with its source", () => {
+  const P = load(); P.expSet("tp-day", true);
+  const L = P.planTrips(P.hubNode("tao"), P.hubNode("phangan"))[0].legs[0], c = P.dayCard(L);
+  ok(/Mae Haad Pier/.test(c) && /Thong Sala/.test(c) && /30 minutes/.test(c) && /20 kg/.test(c) && /siamtickets\.com/.test(c), c.slice(0, 300));
+  const train = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx")).flatMap(t => t.legs).find(x => x.o.mode === "Train");
+  if (train) ok(/Krung Thep Aphiwat/.test(P.dayCard(train)));
+  P.expSet("tp-day", false); eq(P.dayCard(L), "");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

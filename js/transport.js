@@ -321,6 +321,47 @@ async function paintSea(t){
     el.innerHTML = `${icon("waves","i xs")} Sea ${day === todayISO() ? "today" : "on " + esc(fmtDay(day))}: waves up to <b>${h.toFixed(1)} m</b>, ${esc(st)}${h >= 1.25 ? ". Bumpy for small boats: seasickness tablets help, and check with the operator before going" : ""}. <span class="note">Open-Meteo forecast; WMO sea-state scale.</span>`;
   });
 }
+/* Local clock where a leg starts: departure times are local, and Thailand, Cambodia, Vietnam and Laos share UTC+7 while
+   Malaysia, Singapore and central Indonesia are an hour ahead */
+const CC_TZ = {TH:"Asia/Bangkok", KH:"Asia/Phnom_Penh", VN:"Asia/Ho_Chi_Minh", LA:"Asia/Vientiane", MY:"Asia/Kuala_Lumpur", SG:"Asia/Singapore"};
+const tzAt = n => { const cc = nodeCc(n); if (cc === "ID") return n.lng >= 134 ? "Asia/Jayapura" : n.lng >= 114.4 ? "Asia/Makassar" : "Asia/Jakarta"; return CC_TZ[cc] || "Asia/Bangkok"; };
+function clockAt(n, when = new Date()){
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {timeZone:tzAt(n), hour:"2-digit", minute:"2-digit", year:"numeric", month:"2-digit", day:"2-digit", hourCycle:"h23"}).formatToParts(when).map(x => [x.type, x.value]));
+    return {min:(+p.hour % 24) * 60 + +p.minute, iso:`${p.year}-${p.month}-${p.day}`};
+  } catch(e){ return {min:when.getHours() * 60 + when.getMinutes(), iso:todayISO()}; }
+}
+const hm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+/* Experiment tp-times: legs with a saved timetable (D.net edges' dep: {fromHub: [[leaves, arrives, +days, service]]}, from the
+   sources in tools/transport-route.js and tools/transport-asia.js) show the next departures today and the last one, or every
+   departure on the chosen date. A saved baseline, never live. */
+EXPERIMENTS.push({id:"tp-times", n:"Transport: departure times", d:"Ferries, night trains and buses with a saved timetable show today’s next departures and the last one (a saved guide, not live)."});
+function legDeps(L){ const d = L.o.dep && L.o.dep[L.from]; return Array.isArray(d) && d.length ? d.slice().sort((a, b) => hm(a[0]) - hm(b[0])) : null; }
+// {left: departures still to come today, first, last}
+function depsLeft(list, nowMin){ return {left:list.filter(d => hm(d[0]) >= nowMin), first:list[0], last:list[list.length - 1]}; }
+function legTimesHTML(L){
+  if (!exp("tp-times")) return "";
+  const list = legDeps(L); if (!list) return "";
+  const src = L.o.depSrc, now = clockAt(NODE[L.from]), day = ui.tp.date && ui.tp.date > now.iso ? ui.tp.date : null;
+  const fmt = d => `<b>${esc(d[0])}</b>${d[1] ? `–${esc(d[1])}${d[2] ? "<sup>+1</sup>" : ""}` : ""}${d[3] ? " " + esc(d[3]) : ""}`;
+  const r = depsLeft(list, now.min);
+  const head = day ? `On ${esc(fmtDay(day))}: ${list.length} departure${list.length > 1 ? "s" : ""}, first <b>${esc(r.first[0])}</b>, last <b>${esc(r.last[0])}</b>`
+    : r.left.length ? `Next today: ${r.left.slice(0, 3).map(fmt).join(", ")}${r.left.length > 3 ? "…" : ""}. Last one <b>${esc(r.last[0])}</b>` : `No more today. First tomorrow: ${fmt(r.first)}`;
+  return `<div class="dep-line">${icon("clock","i xs")} ${head}</div>
+    <details class="deps"><summary>All ${list.length} saved departures</summary><ul class="known">${list.map(d => `<li>${fmt(d)}</li>`).join("")}</ul></details>
+    <p class="note dep-src">Saved timetable${src ? ` from <a href="${esc(src[1])}" target="_blank" rel="noopener">${esc(src[0])}</a>` : ""}: not live, so check with the operator before you go.</p>`;
+}
+/* Experiment tp-day: what to know on the day, per leg and direction (D.net edges' day: {fromHub: {at, to, early, bag, tips, src}}):
+   which pier, station or office, how early to be there, luggage, and tips, each from its source */
+EXPERIMENTS.push({id:"tp-day", n:"Transport: on the day", d:"Legs show a card for the travel day: which pier, station or office, how early to be there, luggage limits and tips, from the sources."});
+function dayCard(L){
+  if (!exp("tp-day")) return "";
+  const d = L.o.day && L.o.day[L.from]; if (!d) return "";
+  const li = [d.at && `<li><b>Leaves from</b> ${esc(d.at)}</li>`, d.to && `<li><b>Arrives at</b> ${esc(d.to)}</li>`, d.early && `<li><b>Timing</b> ${esc(d.early)}</li>`,
+    d.bag && `<li><b>Luggage</b> ${esc(d.bag)}</li>`].concat((d.tips || []).map(x => `<li>${esc(x)}</li>`)).filter(Boolean);
+  return `<div class="callout day-card">${icon("pin")}<div><b>On the day</b><ul class="known">${li.join("")}</ul>
+    <p class="note">From ${(d.src || []).map(x => `<a href="${esc(x[1])}" target="_blank" rel="noopener">${esc(x[0])}</a>`).join(", ")}.</p></div></div>`;
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -333,7 +374,7 @@ function tripSheetHTML(t){
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
+      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${legTimesHTML(L)}${dayCard(L)}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
