@@ -90,7 +90,25 @@ function connectors(node, key){
   return legs;
 }
 EXPERIMENTS.push({id:"tp-fastest", n:"Transport: true fastest journey", d:"Always keeps the quickest journey, even when one of its legs has no saved price, so the Fastest badge is right."});
-const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0];
+/* Experiment tp-overnight: a night train or sleeper bus is kept as an option even when it's much slower than flying, because the
+   night on board saves a night's gaff. For choosing which journeys to show, up to NIGHT_SLEEP hours of an overnight leg don't
+   count, and the night's gaff it saves (the middle price of our researched hostels where it leaves from) counts towards Cheapest.
+   The times and prices shown are never changed. */
+EXPERIMENTS.push({id:"tp-overnight", n:"Transport: overnight trains and buses", d:"Night trains and sleeper buses are offered even when flying is quicker, marked “saves a night’s gaff, about £X”, and that counts towards Cheapest."});
+const NIGHT_SLEEP = 8;
+let NIGHT_ON = false;          // set by planTrips, so the busy search below doesn't read the switch thousands of times
+// an overnight option: marked night in the data, and (where a timetable is saved) leaving in the evening and arriving the next day
+const nightAny = o => !!o.night && (!o.dep || Object.values(o.dep).some(l => l.some(d => d[2] === 1 && hm(d[0]) >= 17 * 60)));
+const nightLeg = (o, from) => !!o.night && (!o.dep || !o.dep[from] ? nightAny(o) : o.dep[from].some(d => d[2] === 1 && hm(d[0]) >= 17 * 60));
+const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0] - (NIGHT_ON && nightAny(o) ? Math.min(NIGHT_SLEEP, o.dur[0] - 1) : 0);
+const gaffCache = {};
+// a night in a researched hostel near this stop, in pounds: the middle of their lowest prices (null where we have none)
+function gaffNight(id){
+  if (id in gaffCache) return gaffCache[id];
+  const n = NODE[id] || HUB[id];
+  const ps = n ? D.places.filter(p => p.c === "gaff" && p.p && p.p[0] > 0 && dist(p, n) <= 25).map(p => toGBP(p.p[0], p.cur || "THB")).sort((a, b) => a - b) : [];
+  return (gaffCache[id] = ps.length >= 2 ? {gbp:ps[Math.floor(ps.length / 2)], n:ps.length, city:n.n} : null);
+}
 // the quickest possible time from every stop to the destination (Dijkstra, backwards)
 function timeTo(adj, to){
   const best = {[to]:0}, todo = [[0, to]];
@@ -125,6 +143,7 @@ function planTrips(fromN, toN){
   if (!fromN || !toN) return [];
   const fk = fromN.id || "@from", tk = toN.id || "@to";
   if (fk === tk || (!fromN.id && !toN.id && dist(fromN, toN) < .3)) return [];
+  NIGHT_ON = exp("tp-overnight");
   NODE = Object.assign({}, HUB);
   const adj = {}; Object.keys(ADJ).forEach(k => adj[k] = ADJ[k].slice());
   const link = o => { (adj[o.a] = adj[o.a] || []).push({o, to:o.b}); (adj[o.b] = adj[o.b] || []).push({o, to:o.a}); };
@@ -140,7 +159,12 @@ function planTrips(fromN, toN){
       if (o.p){ pmin += toGBP(o.p[0], o.cur); pmax += toGBP(o.p[o.p.length - 1], o.cur); } else unpriced++;
       if (!o.verified) unverified++;
     });
-    return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified};
+    const mid = (dmin + dmax) / 2;
+    // tp-overnight: the nights spent on board, the hours that don't count for choosing, and the gaff they save
+    const nights = NIGHT_ON ? legs.filter(L => nightLeg(L.o, L.from)) : [];
+    const saved = nights.reduce((a, L) => a + ((gaffNight(L.from) || {}).gbp || 0), 0);
+    const eff = mid - nights.reduce((a, L) => a + Math.min(NIGHT_SLEEP, L.o.dur[0] - 1), 0);
+    return {legs, dmin, dmax, mid, pmin, pmax, unpriced, unverified, nights:nights.length, saved, eff, net:pmin - saved};
   });
   if (!trips.length) return [];
   // no silly detours through another country: a trip inside one country stays in it, and a trip between two countries only goes
@@ -151,28 +175,30 @@ function planTrips(fromN, toN){
     const stay = trips.filter(t => !third(t));
     if (stay.length){
       const best = Math.min(...stay.map(t => t.mid));
-      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.mid < best));
+      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.eff < best));
     }
   }
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
+  // (a journey is judged by eff and net, its time and price as tp-overnight counts them, against the others' real time: with the
+  // switch off they're the same as mid and pmin)
   const best = Math.min(...trips.map(t => t.mid));
   // experiment: the truly fastest journey is always kept, even when a leg on it has no saved price
   const quickest = exp("tp-fastest") ? trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b) : null;
-  trips = trips.filter(t => t.mid <= best * 2.5 + 2);
+  trips = trips.filter(t => t.eff <= best * 2.5 + 2);
   const priced = trips.filter(t => !core(t));
-  const keepUnpriced = new Set(trips.filter(t => core(t) && t.mid <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.mid - b.mid)).slice(0, 3));
+  const keepUnpriced = new Set(trips.filter(t => core(t) && t.eff <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.eff - b.eff)).slice(0, 3));
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
-    : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
+    : !priced.some(u => u !== t && u.mid <= t.eff && u.net <= t.net && (u.mid < t.eff || u.net < t.net)));
   if (quickest && !trips.includes(quickest)) trips.push(quickest);
   // and no long way round: a trip goes if another is much quicker, no dearer, with no more legs and no more legs without a price
-  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.mid && u.legs.length <= t.legs.length && core(u) <= core(t) && u.pmin <= t.pmin + 0.5));
+  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.eff && u.legs.length <= t.legs.length && core(u) <= core(t) && u.net <= t.net + 0.5));
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
-  const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;
+  const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.net <= b.net ? a : b) : null;
   trips.forEach(t => { t.fastest = t === fastest; t.cheapest = t === cheapest; });
   trips.sort(ui.tp.sort === "cheap"
-    ? (a, b) => (core(a) - core(b)) || (a.pmin - b.pmin) || (a.mid - b.mid)
+    ? (a, b) => (core(a) - core(b)) || (a.net - b.net) || (a.mid - b.mid)
     : (a, b) => (a.mid - b.mid) || (a.pmin - b.pmin));
   return trips.slice(0, 8);
 }
@@ -229,6 +255,11 @@ function groupLine(t){
   const loc = v => money(inCur(v, tc), tc), gbp = v => "£" + fmtNum(Math.round(v));
   return `<div class="grp-price">${n} of you: <b>${rng(t.pmin * n, t.pmax * n, loc)}</b> <small>${rng(t.pmin * n, t.pmax * n, gbp)} together, ${rng(t.pmin, t.pmax, gbp)} each${t.unpriced ? ", plus a leg without a saved price" : ""}</small></div>`;
 }
+function nightLine(t){
+  if (!exp("tp-overnight") || !t.nights) return "";
+  const g = t.legs.filter(L => nightLeg(L.o, L.from)).map(L => gaffNight(L.from)).filter(Boolean);
+  return `<div class="night-line">${icon("bed","i xs")} Overnight${t.nights > 1 ? ` (${t.nights} nights)` : ""}: saves a night’s gaff${t.saved ? `, about <b>£${fmtNum(Math.round(t.saved))}</b>` : ""}${g.length ? ` <small>(the middle price of ${g[0].n} researched hostels in ${esc(g[0].city)})</small>` : ""}</div>`;
+}
 function tripPrice(t){
   const tc = tripCur(t);
   return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
@@ -239,7 +270,7 @@ function tripCard(t, idx){
   return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}
+      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}${nightLine(t)}
     <div class="lchain">${chain}</div>
     <div class="note" style="margin-top:4px">${esc(stops.join(" → "))}</div>
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
@@ -385,7 +416,7 @@ function tripSheetHTML(t){
     <div class="trip open">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${price}</div></div>
+      <div class="price">${price}</div></div>${nightLine(t)}
     <div class="legmap" id="legMap" role="img" aria-label="Map of the journey, each leg in its own colour"></div>
     <div style="margin-top:8px">${legs}</div>
     ${getThere(firstStn)}

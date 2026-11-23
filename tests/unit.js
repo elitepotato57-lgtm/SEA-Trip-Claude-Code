@@ -973,6 +973,20 @@ test("experiment tp-day: the travel-day card says the pier, how early and the lu
   P.expSet("tp-day", false); eq(P.dayCard(L), "");
 });
 
+test("experiment tp-overnight: the Reunification Express night train is offered Saigon → Hoi An, saves a night's gaff and is Cheapest; switched off, only the flight", () => {
+  const P = load();
+  P.expSet("tp-overnight", false);
+  const off = P.planTrips(P.hubNode("sgn"), P.hubNode("hoian"));
+  ok(off.every(t => !t.legs.some(L => L.o.mode === "Train")) && off.every(t => t.saved === 0 && t.eff === t.mid && t.net === t.pmin), "off: as before");
+  P.expSet("tp-overnight", true);
+  const on = P.planTrips(P.hubNode("sgn"), P.hubNode("hoian")), tr = on.find(t => t.legs.some(L => L.o.mode === "Train"));
+  ok(tr && tr.nights === 1 && tr.saved > 3 && tr.cheapest, "the train, with a night saved");
+  ok(on.find(t => t.fastest).legs.some(L => L.o.mode === "Flight"), "the flight is still the fastest");
+  ok(/saves a night’s gaff, about <b>£\d+/.test(P.nightLine(tr)) && /researched hostels in Ho Chi Minh City/.test(P.nightLine(tr)), P.nightLine(tr));
+  const bc = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx"));
+  ok(bc.some(t => t.legs[0].o.mode === "Flight") && bc.some(t => t.legs[0].o.mode === "Train"), "Bangkok → Chiang Mai keeps the flight and adds the sleeper train");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
