@@ -931,6 +931,14 @@ test("experiment tp-saved: a saved journey keeps its whole sheet (no map) for of
   P.expSet("tp-saved", false); eq(P.savedTripsHTML(), "");
 });
 
+test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (45 days, gov.uk); flights and same-country legs get none", () => {
+  const P = load(); P.expSet("tp-border", true);
+  const t = P.planTrips(P.hubNode("pnh"), P.hubNode("sgn"))[0], card = P.borderCard(t, 0);
+  ok(/Crossing into Vietnam/.test(card) && /45 days/.test(card) && /gov\.uk/.test(card), card.slice(0, 200));
+  const f = P.planTrips(P.hubNode("bkk"), P.hubNode("rep"))[0]; eq(P.borderCard(f, 0), "", "a flight");
+  const d = P.planTrips(P.hubNode("rep"), P.hubNode("pnh"))[0]; eq(P.borderCard(d, 0), "", "inside Cambodia");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

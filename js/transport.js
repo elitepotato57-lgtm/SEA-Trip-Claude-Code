@@ -260,6 +260,38 @@ function legTitle(t, k){
 }
 // "Bus" and "Bus, minivan or taxi" together read "Bus, Bus, minivan or taxi": drop the mode when the operator already says it
 const legKind = o => exp("tp-legnames") && o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
+/* Experiment tp-border: a leg that crosses a land border gets a short card: the visa to sort out before, how the crossing
+   goes and what to watch for. Only what gov.uk says for British passports (fetched and checked 23 Nov 2026), with its links. */
+EXPERIMENTS.push({id:"tp-border", n:"Transport: border crossings", d:"Overland legs into another country get a card: the visa to sort first, the crossing, and what to watch for (gov.uk)."});
+const BORDER_CHECKED = "23 Nov 2026";
+const BORDER_IN = {
+  KH:{name:"Cambodia", url:"https://www.gov.uk/foreign-travel-advice/cambodia/entry-requirements", pts:[
+    "You need a visa. Best: an <b>e-visa</b>, applied for at least 4 days ahead on the official site. You can also get one on arrival at land border crossings.",
+    "Tourist visas last 30 days from the day you enter. Make sure your passport is stamped and keep the departure form.",
+    "At land borders, officials or tour companies may ask for unofficial fees or inflate the visa price: know the real price before you go.",
+    "At the more remote crossing points, conditions can be basic."]},
+  VN:{name:"Vietnam", url:"https://www.gov.uk/foreign-travel-advice/vietnam/entry-requirements", pts:[
+    "British passports don’t need a visa for up to <b>45 days</b>.",
+    "Check the date stamped in your passport is 45 days from arrival: immigration won’t change it after you’ve left the land border."]},
+  TH:{name:"Thailand", url:"https://www.gov.uk/foreign-travel-advice/thailand/entry-requirements", pts:[
+    "No visa needed for tourism for up to <b>30 days</b> (since 15 September 2026).",
+    "Fill in the free digital arrival card (TDAC) online within the 3 days before you arrive, for land crossings too."]},
+  LA:{name:"Laos", url:"https://www.gov.uk/foreign-travel-advice/thailand/regional-risks", pts:[
+    "Not all land crossings into Laos are open to foreign nationals, and even where one is open you may need a Lao visa in advance."]}
+};
+// the Thai–Cambodian land border itself: FCDO advises against all but essential travel within 20 km of it (both sides)
+const BORDER_WARN = {"KH|TH":"The UK advises against all but essential travel within 20 km of the Thailand–Cambodia land border, on both sides. Travelling against that advice can invalidate travel insurance: fly instead."};
+function borderCard(t, k){
+  if (!exp("tp-border")) return "";
+  const L = t.legs[k]; if (L.o.mode === "Flight") return "";
+  const a = nodeCc(NODE[L.from]), b = nodeCc(NODE[L.to]);
+  if (!a || !b || a === b) return "";
+  const into = BORDER_IN[b], warn = BORDER_WARN[[a, b].sort().join("|")];
+  return `<div class="callout border-card">${icon("flag")}<div><b>Crossing into ${esc(into ? into.name : (D.countries[b] || {name:b}).name)}</b>
+    ${warn ? `<p class="bad-note">${esc(warn)}</p>` : ""}
+    <ul class="known">${(into ? into.pts : []).map(x => `<li>${x}</li>`).join("")}</ul>
+    <p class="note">From gov.uk, checked ${BORDER_CHECKED}${into ? `: <a href="${esc(into.url)}" target="_blank" rel="noopener">gov.uk travel advice for ${esc(into.name)}</a>` : ""}.</p></div></div>`;
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -272,7 +304,7 @@ function tripSheetHTML(t){
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
+      ${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
