@@ -1,9 +1,35 @@
 # Traveller ideas: what would make this app better on the road
 
 Written by walking through the trip as a backpacker, day by day, and asking "what would I open the app for right now, and does it help?"
-"Today" means what the app does as of version 2.2.0. Nothing here is built yet; it is a list of ideas to pick from.
+"Today" in the day-by-day sections means what the app did in version 2.2.0, when this was written; the table just below says what has been built since.
 
 Effort: **S** = an evening, **M** = a day or two, **L** = a week or more.
+
+## Where the top 15 stand (23 Nov 2026, version 2.25)
+"Built" means everyone has it; "experiment" means it's built behind a switch in Tools › Developer › Experiments (off until Dylan
+adopts it).
+
+| # | Idea | Now |
+|---|------|-----|
+| 1 | Show-the-driver card | Built (driver-card) |
+| 2 | Export/import trip data | Built (Tools › Offline & backup) |
+| 3 | Save an area for offline | Built (city packs, and "Save my whole route") |
+| 4 | Split costs with mates | Built (Friends › Split, live groups) |
+| 5 | Arrival-night checklist | Experiment **arrival**: "Welcome to <town>" on the first fix in a new stop |
+| 6 | Fair-fare checker | Built for taxis and tuk-tuks in the map search; experiment **fair-price** for beer, massage, scooters, laundry, food |
+| 7 | Symptom and pharmacy phrases | Partly: "hungover / got the shits" remedies per country |
+| 8 | "Meet here" pin | Experiment **meetup** |
+| 9 | Scams card per city | Experiment **headsup** (and in the arrival card) |
+| 10 | Booking links on transport | Built (12Go per leg) |
+| 11 | Sea conditions | Experiment **tp-sea** |
+| 12 | Visa day counter | Experiment **visa-count** |
+| 13 | Temple dress-code badge | Not yet |
+| 14 | Full Moon Party dates | Experiments **events** and **tp-book** |
+| 15 | Claude assistant | Not yet (the plan is below) |
+
+Also from this list: night trains that save a night's gaff (**tp-overnight**), departure times (**tp-times**), the travel-day
+card (**tp-day**), "open now" first late at night (**late-open**), notifications with the app closed (**push**, needs
+PUSH-SETUP.md).
 
 ---
 

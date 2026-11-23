@@ -1,5 +1,19 @@
 # SEA-Trip: progress log
 
+## Latest: improvement pass 2 (23 Nov 2026, versions 2.24–2.25)
+Everything goes straight to `main` once `npm test` passes in full (experiments off, then all on). The detailed log, with
+sources and what was skipped and why, is **IMPROVEMENTS.md**. In short:
+- **Transport data**: Koh Tao → Koh Phangan priced; the Reunification Express (Saigon ⇄ Da Nang ⇄ Hanoi) with times and fares;
+  Vietnam Airlines and AirAsia fares on the flights we'll use; saved timetables for the main ferries, the Bangkok ⇄ Chiang Mai
+  trains and buses and the Chiang Mai → Pai vans (`tools/transport-asia.js`, then `tools/transport-route.js`).
+- **New experiments, all off**: tp-times, tp-day, tp-overnight, tp-book, tp-town (Transport); fair-price, headsup, events,
+  arrival, journal, leave-by, visa-count, meetup (`js/road.js`); map-calm; push (needs PUSH-SETUP.md); late-open.
+- **Tidy**: the old "off" code of the 14 adopted experiments is gone (no change in behaviour).
+
+The older entries below are kept as they were written.
+
+---
+
 Branch `claude/fixes-and-cambodia` (worktree `.claude/worktrees/optimistic-dhawan-3046f6`), stacked on
 `claude/optimistic-dhawan-3046f6` (Indonesia researched layer, pushed). `gh` isn't installed, so PRs need a click.
 Nothing is merged into `main` or deployed. The main checkout (`claude/modules-and-design-lab`) is untouched.
