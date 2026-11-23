@@ -53,6 +53,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
+  ok(await page.evaluate(() => ui.mapCats.size === 0 && !ui.essKinds.size && !document.querySelector('#mapChips .chip[aria-pressed="true"]')), "the app opens on the map with nothing selected");
+  await page.click("#mapChips [data-all]"); await page.waitForTimeout(4000);
   const dbs = await page.evaluate(() => PLACE_DBS.length);
   ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3 * dbs, `each place summary downloads once, for all ${dbs} countries ` + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
@@ -837,7 +839,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
     await c.route(/\/places\/th\/(stay|food|do)\/\d+-\d+-\d+\.json/, async r => { await new Promise(res => setTimeout(res, 6000)); r.continue().catch(() => {}); });
     const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
-    await pg.goto(BASE + "#map"); await pg.waitForTimeout(5000);
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(1500);
+    await pg.click("#mapChips [data-all]"); await pg.waitForTimeout(3500);                                                // the map opens with nothing on: show everything
     await pg.evaluate(() => map.jumpTo({center:[98.9853, 18.7883], zoom:12.5})); await pg.waitForTimeout(2000);        // Chiang Mai: not loaded yet
     const slow = await pg.evaluate(() => ({mode:mapRun.mode, loading:mapRun.loading, drawn:map.queryRenderedFeatures().filter(f => /^cl-circle-|^pt-/.test(f.layer.id)).reduce((s, f) => s + (+f.properties.w || 1), 0)}));
     ok(slow.mode === "detail" && slow.loading && slow.drawn > 1000, "zooming in while places are still downloading keeps the counts on the map, no empty patch " + JSON.stringify(slow));
@@ -889,6 +892,37 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const ts = await page.evaluate(() => ({dep:!!document.querySelector("#sheetRoot .dep-line"), day:/Mae Haad Pier/.test(document.querySelector("#sheetRoot").textContent), w:document.documentElement.scrollWidth}));
     ok(ts.dep && ts.day && ts.w <= 393, "tp-times / tp-day: the Koh Tao boat shows its saved departures and the pier " + JSON.stringify(ts));
     await page.evaluate(() => closeDetail());
+  }
+
+  // Tools › Trips: start a trip, move, end it, add photos (one with its own location, one placed by the time it was taken)
+  {
+    await ctx.setGeolocation({latitude:13.7466, longitude:100.5393});
+    await page.goto(BASE + "#tools/trips"); await page.waitForTimeout(1200);
+    await page.fill("#trkName", "Smoke walk"); await page.click("#trkStart"); await page.waitForTimeout(2500);
+    const t0 = await page.evaluate(() => ({on:S.tripOn, live:(document.querySelector("#trkLive") || {}).textContent || "", end:!!document.querySelector("#trkEnd"), w:document.documentElement.scrollWidth}));
+    // a walk north, a fix every 15 pretend minutes (the clock is moved by changing the time of each fix the page sees)
+    for (let i = 1; i <= 3; i++){ await ctx.setGeolocation({latitude:13.7466 + i * .004, longitude:100.5393}); await page.waitForTimeout(1500); }
+    const n = await page.evaluate(() => trkCur && trkCur.pts.length);
+    ok(t0.on && t0.end && /Since/.test(t0.live) && n >= 3 && t0.w <= 393, "Trips: Start records the route from the GPS as you move " + JSON.stringify({t0, n}));
+    // put the photos' times on the route: the first point's time + a minute (no location in that photo)
+    await page.evaluate(() => { const p = trkCur.pts; const t = Date.UTC(2026, 10, 28, 8, 0); p.forEach((q, i) => q[2] = t - (p.length - 1 - i) * 60e3); return Trk.putTrip(trkCur); });
+    await page.click("#trkEnd"); await page.waitForTimeout(400); await page.click('[data-cfm="1"]'); await page.waitForTimeout(3000);
+    const tp = await page.evaluate(() => ({on:S.tripOn, sub:ui.sub, map:!!document.querySelector("#trkMap canvas"), w:document.documentElement.scrollWidth}));
+    ok(!tp.on && /^trips\?/.test(tp.sub) && tp.map && tp.w <= 393, "Trips: End trip opens the trip with its route on a map " + JSON.stringify(tp));
+    await page.setInputFiles("#trkFiles", [path.join(__dirname, "fixtures", "photo-gps.jpg"), path.join(__dirname, "fixtures", "photo-nogps.jpg")]);
+    await page.waitForTimeout(4000);
+    const ph = await page.evaluate(() => ({pins:document.querySelectorAll("#trkMap .trk-pin").length, off:document.querySelectorAll(".trk-grid .trk-thumb").length, note:document.querySelector("#trkAddNote").textContent}));
+    ok(ph.pins === 2 && ph.off === 0, "Trips: both photos go on the map (one by its own location, one by the route at that time) " + JSON.stringify(ph));
+    await page.click("#trkPh"); await page.waitForTimeout(200);
+    const hid = await page.evaluate(() => [...document.querySelectorAll("#trkMap .trk-pin")].every(m => m.hidden) && S.tripPhotos === false);
+    await page.click("#trkPh"); await page.waitForTimeout(200);
+    ok(hid && await page.evaluate(() => [...document.querySelectorAll("#trkMap .trk-pin")].every(m => !m.hidden)), "Trips: the Photos switch hides and shows them");
+    await page.evaluate(() => document.querySelector("#trkMap .trk-pin").click()); await page.waitForTimeout(500);
+    ok(await page.evaluate(() => { const i = document.querySelector("#sheetRoot .trk-big"); return !!i && /Placed by/.test(document.querySelector("#sheetRoot").textContent); }), "Trips: tapping a photo opens it, saying how it was placed");
+    await page.evaluate(() => closeDetail());
+    await page.goto(BASE + "#tools/trips"); await page.waitForTimeout(1000);
+    ok(await page.evaluate(() => /Smoke walk/.test(document.querySelector(".trk-list").textContent) && !!document.querySelector("#trkStart")), "Trips: the finished trip is listed, and a new one can be started");
+    await ctx.setGeolocation({latitude:13.7466, longitude:100.5393});
   }
 
   // offline: the service worker should already have saved the app

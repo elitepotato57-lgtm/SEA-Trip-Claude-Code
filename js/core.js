@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.25.0";
+const VERSION = "2.26.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -17,7 +17,7 @@ function expState(){
 // Adopted (Dylan, 23 Nov 2026): on for everyone, no longer a switch. Their "off" branches were removed on 23 Nov 2026; the ids stay
 // here so each still puts its x-<id> class on <html> (some CSS hangs off those classes).
 const EXP_ADOPTED = new Set(["tp-fastest", "tp-legnames", "en-towns", "lost-share", "statusfade", "map-onerow", "help-btn", "plan-here",
-  "gaff-dates", "notes-once", "slim-cards", "daylight", "route-save", "driver-card"]);
+  "gaff-dates", "notes-once", "slim-cards", "daylight", "route-save", "driver-card", "push"]);
 function exp(id){ if (EXP_ADOPTED.has(id)) return true; const s = expState(); return s[id] === true || (s["*"] === true && s[id] !== false); }
 // the experiments still to try (the switches in Tools › Developer)
 const expList = () => EXPERIMENTS.filter(x => !EXP_ADOPTED.has(x.id));
@@ -27,7 +27,7 @@ function expSet(id, on){
   expClasses();
 }
 // each experiment also gets a class on <html> (x-<id>), for the ones that are mostly CSS
-EXPERIMENTS.push({id:"statusfade", n:"Fade behind the clock", d:"A dark fade under the phone’s clock on every page, and behind the map’s search bar and chips, so nothing shows through."});
+EXPERIMENTS.push({id:"statusfade", n:"Fade behind the clock", d:"On the map, a dark fade under the phone’s clock and behind the search bar and chips, so nothing shows through."});
 function expClasses(){ try { EXPERIMENTS.forEach(x => document.documentElement.classList.toggle("x-" + x.id, exp(x.id))); } catch(e){} }
 
 /* ---------- helpers ---------- */
@@ -217,7 +217,7 @@ function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {
 // v: the saved-state version (2 = the test location is off unless someone picked one)
 const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
   saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, savedTrips:[], dayLook:false, mapsApp:"google", funny:false,
-  arrived:{}, visits:{}, been:{}, entered:{}};
+  arrived:{}, visits:{}, been:{}, entered:{}, tripOn:"", tripPhotos:true};
 const S_SAVED = loadState();
 let S = Object.assign({}, S_DEFAULTS, S_SAVED);
 // Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.
@@ -242,7 +242,7 @@ const newList = cat => ({radius:0, types:new Set(), sort:DEFAULT_SORT[cat] || "n
 const ui = {
   view:"map", sub:"",
   lists:{gaff:newList("gaff"), munch:newList("munch"), cool:newList("cool")},
-  mapCats:new Set(["gaff","munch","cool"]), essKinds:new Set(), doKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
+  mapCats:new Set(), essKinds:new Set(), doKinds:new Set(), mapMode:"map", basemap:"map", satHelp:false, satChecking:false,
   mapSort:"near", mapFilters:false, mapSurf:false, mapFriends:false, mapPick:null,
   mf:{move:{t:"all"}},      // the map's transport-type filter (maximum prices are in ui.pf, shared with the lists: js/estimate.js)
   mapSel:null, mapQ:"", mapSaved:false,

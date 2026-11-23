@@ -189,3 +189,21 @@ Wikivoyage page (read 23 Nov 2026), Seat 61, AirAsia's Full Moon Party guide and
 - Not done: a full spacing/button-size/corner pass over the older screens. The 23 Nov audit (part 1) found nothing over the
   screen width and every button at 32 px or more, so there was no specific fault to fix, and a broad restyle the week of the
   flight would be a risk for no clear gain.
+
+## Evening of 23 Nov 2026: Dylan's list (merged on top of the phase 4–6 work)
+
+- **Top fade**: only on the map now, and it stops above the search bar (it was misting its top edge, and showed on every page).
+- **Funny mode intro** (Tommy and the key): the video was kept with the app's files, which every update throws away, so after an
+  update it had to download again and gave up after 6 seconds. It now has its own store that updates leave alone, is fetched ahead
+  of time, gets 15 seconds, and also plays when the app comes back after 10+ minutes away (iPhones resume rather than restart).
+- **The app opens on the map with nothing selected.**
+- **Munchies**: Tom slides in from the left and away to the right, no dark box, the line in big text on its own.
+- **Tools › Trips** (new): Start a trip / End trip, the route from the phone's GPS while the app is open (dashed where it was
+  closed), photos from the library placed by their own location or by the route at the time they were taken, a Photos switch.
+- **I'm lost with the app closed**: the phase 5 `push` experiment (Cloudflare worker, PUSH-SETUP.md) is now on for everyone. My own
+  separate version from earlier the same evening was dropped in its favour (both used the same Firebase paths).
+- **Transport prices**: `node tools/transport-fares.js` filled 53 more unpriced legs and added Lomprayah's Bangkok/Hua Hin to Koh Tao,
+  Koh Phangan and Samui tickets: Lomprayah's booking API, Baolau (operator fares), Seat 61, Wikivoyage, BusOnlineTicket, and Kiwi.com
+  for 24 flights (the lowest one-way fare seen, shown as "from £x … check live"). Legs priced by phase 4 were left alone.
+  Left without a price: 38 of 247, none on the route; every stop on the route has a fully priced way to the next (a unit test checks).
+- **Journey cards**: the "so far, not counting…" note wraps instead of running off the card.

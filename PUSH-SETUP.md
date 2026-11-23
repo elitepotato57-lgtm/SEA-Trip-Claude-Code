@@ -4,8 +4,8 @@ What it does: when a mate presses **I'm lost**, sends you a sticker or a **Meet 
 if the app is closed. It costs nothing: Cloudflare's free plan (no card needed) runs a tiny program, the "worker", that passes
 the notification on.
 
-You do this once, on any phone or computer. It takes about 15 minutes. The switch for it (Tools › Developer › Experiments ›
-**Notifications when the app is closed**) stays off until you've done every step.
+You do this once, on any phone or computer. It takes about 15 minutes. Until it's done, Tools › Friends › Notifications says
+"Not set up yet" and alerts pop up only while the app is open.
 
 ## 1. Make a free Cloudflare account
 1. Go to **dash.cloudflare.com/sign-up**, sign up with your email and a password, and confirm the email.
@@ -21,9 +21,8 @@ You do this once, on any phone or computer. It takes about 15 minutes. The switc
 
 ## 3. Make the keys (on your phone, in the app)
 1. Make sure your phone is the developer phone (you typed ELITE POTATO, so Tools › Developer is there).
-2. In Tools › Developer › Experiments, switch on **Notifications when the app is closed** for now (only on your phone).
-3. Open **Tools › Friends**, scroll to **Notifications**, open **Developer: make the notification keys** and tap **Make keys**.
-4. You'll see two boxes: **VAPID_PUBLIC** (one long line) and **VAPID_PRIVATE** (starts with `{`). Copy each one somewhere
+2. Open **Tools › Friends**, scroll to **Notifications**, open **Developer: make the notification keys** and tap **Make keys**.
+3. You'll see two boxes: **VAPID_PUBLIC** (one long line) and **VAPID_PRIVATE** (starts with `{`). Copy each one somewhere
    safe, like a note. They aren't kept by the app, so if you lose them, just make new ones and do steps 4 and 5 again.
 
 ## 4. Give the worker its settings
@@ -60,8 +59,6 @@ Realtime Database › **Rules**, replace everything with the contents of `fireba
 3. In the app: **Tools › Friends › Notifications › Turn on notifications**, and allow them when the phone asks. Everyone does this
    on their own phone.
 4. Test it: ask a mate to send you a sticker while your app is closed.
-
-When it works and you want everyone to have it, tell Claude to adopt the **push** experiment.
 
 ## If something goes wrong
 - "Not set up yet" in the app: step 5 isn't done, or the app hasn't been reopened twice since.

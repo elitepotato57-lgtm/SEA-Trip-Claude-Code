@@ -16,11 +16,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Experiments, **off for everyone by default**; with a switch off the app must behave exactly as before. `exp(id)` (core.js) reads
   localStorage `sea-exp-v1` (`{"*":true}` = all on, used by the test run); each experiment adds itself to `EXPERIMENTS` next to its
   code and gets an `x-<id>` class on `<html>`. Still switches: **tools-groups, detail-buttons, tp-group, tp-saved, tp-border, tp-sea,
-  tp-times, tp-day, tp-overnight, tp-book, tp-town, map-calm, late-open, push, fair-price, headsup, events, arrival, journal,
+  tp-times, tp-day, tp-overnight, tp-book, tp-town, map-calm, late-open, fair-price, headsup, events, arrival, journal,
   leave-by, visa-count, meetup** (IMPROVEMENTS.md says what each does). Adopted for everyone on 23 Nov 2026
   (`EXP_ADOPTED`, `exp()` returns true; their old "off" code was removed the same day, the ids stay for the CSS classes): tp-fastest, tp-legnames,
   en-towns, lost-share, statusfade, map-onerow, help-btn, plan-here, gaff-dates, notes-once (`explain(key, html)`), slim-cards, daylight
-  (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, add it to `EXP_ADOPTED`.
+  (`S.dayLook`, `lookPaper()`), route-save, driver-card, and **push** (Dylan asked for I'm lost to reach closed apps; adopted the
+  same evening, its old "off" code is still in `js/road.js`). Never make one the default unless Dylan says so; to adopt one, add it to `EXP_ADOPTED`.
 - The map keeps the summary counts for any tile whose places are still downloading (`waiting` in `refreshMapData`), so zooming in past
   the counts-to-places switch on slow signal never leaves an empty patch. Voice search (`listen` in js/ask.js) searches after 1.4 s of quiet.
 - Transport extras (experiments): tp-group (`groupLine`), tp-saved (`S.savedTrips`, the whole sheet kept for offline), tp-border
@@ -38,7 +39,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages. Their Filters have
   "Measured from" (`distFromField`): the distance is from where you are or any trip destination (it sets the same `S.focus` as the place button).
   Rows that scroll sideways (`.scroller`, `.map-chips`, the price rows) never scroll up and down (`overflow-y:hidden`).
-- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
+- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type). The app opens on the map with
+  nothing selected (`ui.mapCats` starts empty; Dylan, 23 Nov 2026). The statusfade fade is on the map only and stops above the search bar.
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
   Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
@@ -64,9 +66,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Each game shows its rules the first time (`gm-seen`), and from the ? button.
 - Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozas** (id `boozer`, no explainer toast): bars,
   pubs, clubs and bottle shops (kind `liquor`, added to built folders by `node tools/osm/add-booze.js`; extract.py keeps them now).
-- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch pops up `img/tom-fried.jpg`,
+- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch slides `img/tom-fried.jpg` across (no box, big text),
   Nightlife `img/tom-aid-ping.png` with a half-second two-tone alarm (Web Audio, `funnyAlarm`) and flashing yellow exclamation marks. On start `media/tommy.mp4`
-  plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
+  plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away; it also plays when the app comes back after 10+ minutes away
+  (iPhones often resume rather than restart). `media/` is kept in its own cache (`sea-trip-media-v1` in sw.js) so updates don't throw the video away. Tapping China on the main map
   (`funnyMapTap`, called from the map's click handler; GEO's China, which stops at 30°N, plus a coarse Natural Earth outline north of that) plays
   `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
   `media/ben-wave.mp4` by `python3 tools/ben-sprite.py` (flood-fills the black from the edges, so his navy jumper stays), animated with CSS `steps()`.
@@ -98,11 +101,20 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   out until **Search** is pressed; a journey opens in a sheet with every leg and a map (each leg its own colour, numbered stops, mode icons);
   flight legs link to Google Flights on the chosen date. When a country is added to the map, research its transport too. Its map
   names the `D.cities` that aren't stops (`city-name` layer) and the stops from zoom 4.6.
-  Totals show in the money of the country a journey starts in. `js/tools.js`: Tools hub, currency, translator, Settings.
+  Totals show in the money of the country a journey starts in. `node tools/transport-fares.js` (re-runnable, fills gaps only, never
+  overwrites a saved price) priced 53 more legs on 23 Nov 2026 from Lomprayah's booking API, Baolau (operator fares), Seat 61, Wikivoyage,
+  BusOnlineTicket and Kiwi.com, and added Lomprayah's Bangkok/Hua Hin to Gulf-island bus-and-boat tickets. Kiwi flight fares
+  (`tools/transport-fares-kiwi.json`) are the lowest one-way seen, so those edges have `from:true` and a journey with one shows
+  "from £x" (`t.low` in `tripPrice`), never a range. `js/tools.js`: Tools hub, currency, translator, Settings.
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
 - `js/docs.js`: Tools › Documents.
+- `js/trips.js`: Tools › Trips (Dylan, 23 Nov 2026): Start a trip / End trip records the phone's own GPS while the app is open
+  (`trkKeep`: 40 m or 10 min; stretches with the app closed are dashed, `trkSegments`); after it, photos picked from the library go
+  on the trip's map by their own EXIF location, else by the route's position at the time they were taken (`exifRead`, `trkPlace`),
+  with a Photos switch (`S.tripPhotos`). Everything in IndexedDB `sea-trip-trips`, on the phone only. `S.tripOn` = the trip recording.
+  Different from the journal experiment in js/road.js (places marked "Been here").
 - `js/road.js` (after detail.js): life on the road, all experiments: Tools › Fair price (`FAIR`, `fairAnswer`), Heads-ups (`HEADSUP`,
   scams per route stop), Events (`EVENTS`, Full Moon Parties from `FULL_MOONS`), Trip journal (`S.been`, `S.visits`, `wrapped()`),
   Visa countdown (`VISA_DAYS`, `S.entered`); the arrival card (`openArrival`, once per stop, `S.arrived`); Leave by on a journey;

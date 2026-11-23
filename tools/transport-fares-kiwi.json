@@ -1,0 +1,142 @@
+{
+ "cnx-phuket": {
+  "gbp": 78,
+  "url": "https://www.kiwi.com/en/cheap-flights/chiang-mai-thailand/phuket-city-thailand/"
+ },
+ "bkk-han": {
+  "gbp": 65,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/hanoi-vietnam/"
+ },
+ "bkk-sgn": {
+  "gbp": 64,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/ho-chi-minh-city-vietnam/"
+ },
+ "bkk-rep": {
+  "gbp": 78,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/siem-reap-cambodia/"
+ },
+ "bkk-pnh": {
+  "gbp": 51,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/phnom-penh-cambodia/"
+ },
+ "bkk-vte": {
+  "gbp": 78,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/vientiane-laos/"
+ },
+ "bkk-lpq": {
+  "gbp": 85,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/luang-prabang-laos/"
+ },
+ "bkk-sin": {
+  "gbp": 78,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/singapore-singapore/"
+ },
+ "sin-dps": {
+  "gbp": 72,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/denpasar-indonesia/"
+ },
+ "sin-jakarta": {
+  "gbp": 69,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/jakarta-indonesia/"
+ },
+ "sin-sgn": {
+  "gbp": 72,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/ho-chi-minh-city-vietnam/"
+ },
+ "sin-han": {
+  "gbp": 107,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/hanoi-vietnam/"
+ },
+ "han-sgn": {
+  "gbp": 44,
+  "url": "https://www.kiwi.com/en/cheap-flights/hanoi-vietnam/ho-chi-minh-city-vietnam/"
+ },
+ "han-dad": {
+  "gbp": 25,
+  "url": "https://www.kiwi.com/en/cheap-flights/hanoi-vietnam/da-nang-vietnam/"
+ },
+ "sgn-dad": {
+  "gbp": 25,
+  "url": "https://www.kiwi.com/en/cheap-flights/ho-chi-minh-city-vietnam/da-nang-vietnam/"
+ },
+ "sgn-pqc": {
+  "gbp": 27,
+  "url": "https://www.kiwi.com/en/cheap-flights/ho-chi-minh-city-vietnam/phu-quoc-vietnam/"
+ },
+ "han-pqc": {
+  "gbp": 23,
+  "url": "https://www.kiwi.com/en/cheap-flights/hanoi-vietnam/phu-quoc-vietnam/"
+ },
+ "sgn-nhatrang": {
+  "gbp": 20,
+  "url": "https://www.kiwi.com/en/cheap-flights/ho-chi-minh-city-vietnam/nha-trang-vietnam/"
+ },
+ "han-nhatrang": {
+  "gbp": 20,
+  "url": "https://www.kiwi.com/en/cheap-flights/hanoi-vietnam/nha-trang-vietnam/"
+ },
+ "bkk-dad": {
+  "gbp": 54,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/da-nang-vietnam/"
+ },
+ "bkk-kul": {
+  "gbp": 83,
+  "url": "https://www.kiwi.com/en/cheap-flights/bangkok-thailand/kuala-lumpur-malaysia/"
+ },
+ "sin-kul": {
+  "gbp": 51,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/kuala-lumpur-malaysia/"
+ },
+ "sin-penang": {
+  "gbp": 51,
+  "url": "https://www.kiwi.com/en/cheap-flights/singapore-singapore/penang-malaysia/"
+ },
+ "kul-penang": {
+  "gbp": 23,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/penang-malaysia/"
+ },
+ "kul-langkawi": {
+  "gbp": 27,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/langkawi-malaysia/"
+ },
+ "kul-kotabharu": {
+  "gbp": 19,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/kota-bharu-malaysia/"
+ },
+ "kul-kuching": {
+  "gbp": 59,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/kuching-malaysia/"
+ },
+ "kul-kk": {
+  "gbp": 73,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/kota-kinabalu-malaysia/"
+ },
+ "kul-jakarta": {
+  "gbp": 58,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/jakarta-indonesia/"
+ },
+ "kul-dps": {
+  "gbp": 53,
+  "url": "https://www.kiwi.com/en/cheap-flights/kuala-lumpur-malaysia/denpasar-indonesia/"
+ },
+ "jakarta-yogya": {
+  "gbp": 32,
+  "url": "https://www.kiwi.com/en/cheap-flights/jakarta-indonesia/yogyakarta-indonesia/"
+ },
+ "jakarta-sorong": {
+  "gbp": 145,
+  "url": "https://www.kiwi.com/en/cheap-flights/jakarta-indonesia/sorong-indonesia/"
+ },
+ "dps-labuanbajo": {
+  "gbp": 38,
+  "url": "https://www.kiwi.com/en/cheap-flights/denpasar-indonesia/labuan-bajo-indonesia/"
+ },
+ "lop-labuanbajo": {
+  "gbp": 79,
+  "url": "https://www.kiwi.com/en/cheap-flights/praya-indonesia/labuan-bajo-indonesia/"
+ },
+ "dps-surabaya": {
+  "gbp": 26,
+  "url": "https://www.kiwi.com/en/cheap-flights/denpasar-indonesia/surabaya-indonesia/"
+ }
+}

@@ -1,11 +1,12 @@
 // Keeps the app working offline, but always shows the newest version when there's signal.
-const APP = "sea-trip-app-v2-34";        // the app itself: bump this name when the files below change
+const APP = "sea-trip-app-v2-35";        // the app itself: bump this name when the files below change
 const TILES = "sea-trip-tiles-v2";      // street-map and satellite tiles you have already looked at
 const PLACES = "sea-trip-places-v1";    // the parts of the places database you have already opened
+const MEDIA = "sea-trip-media-v1";      // funny mode's video and sounds: kept across updates, so the intro never has to download again
 const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
   "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/estimate.js", "./js/shell.js", "./js/lists.js", "./js/map.js", "./js/ask.js",
-  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/road.js", "./js/boot.js",
+  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/trips.js", "./js/detail.js", "./js/road.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css", "./vendor/pdfjs/pdf.min.mjs", "./vendor/pdfjs/pdf.worker.min.mjs",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg", "./img/ben-wave.png", "./img/tom-fried.jpg", "./img/tom-aid-ping.png",
   // typical photos for places that have none of their own (js/detail.js KIND_PHOTO), so toilets and ATMs show one offline too
@@ -25,7 +26,7 @@ self.addEventListener("install", e => {
 });
 
 self.addEventListener("activate", e => {
-  const keep = [APP, TILES, PLACES, PACKS];
+  const keep = [APP, TILES, PLACES, PACKS, MEDIA];
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => !keep.includes(k)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
@@ -116,6 +117,7 @@ self.addEventListener("fetch", e => {
     e.respondWith(isIndex ? netFirst(req, TILES) : cacheFirst(req, TILES, MAX_TILES));
     return;
   }
+  if (same && /\/media\//.test(url.pathname)){ e.respondWith(savedThenFresh(req, MEDIA, true)); return; }
   if (same && /\/places\//.test(url.pathname)){ e.respondWith(savedThenFresh(req, PLACES, true)); return; }
   if (!same && !SAVE.test(url.hostname)) return;      // weather, exchange rates, translation and Google always go straight to the internet
   // icons, the map engine, header photos, fonts and sight photos

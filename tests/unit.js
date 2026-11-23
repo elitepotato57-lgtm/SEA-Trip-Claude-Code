@@ -684,7 +684,7 @@ test("split costs: custom amounts must add up to the total, and they change who 
 test("Tools: the order Dylan asked for, and Split costs only in Friends", () => {
   // the life-on-the-road tools (js/road.js) are experiments: their tiles come after the others, and only when switched on
   const road = ["fair", "headsup", "events", "journal", "visa"], ids = A.toolsInOrder().map(t => t.id);
-  eq(ids.filter(id => !road.includes(id)), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
+  eq(ids.filter(id => !road.includes(id)), ["friends", "translate", "currency", "emergency", "docs", "trips", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
   eq(ids.filter(id => road.includes(id)), process.env.SEA_EXP === "all" ? road : []);
 });
 test("questions: costs, journey times, distances", () => {
@@ -1011,9 +1011,56 @@ test("experiment tp-town: getting around the stop you're heading to (else where 
   ok(Object.keys(P.TOWN).every(k => P.HUB[k]), "every town is a stop in the planner");
   ["bkk", "cnx", "pai", "tao", "phangan", "samui", "aonang", "phuket", "rep", "pnh", "hoian", "han"].forEach(k => ok(P.TOWN[k], "route stop " + k));
 });
+test("trips: when and where a photo was taken is read from it (both byte orders), or nothing if it has none", () => {
+  const fs = require("fs"), ab = f => { const b = fs.readFileSync(require("path").join(__dirname, "fixtures", f)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); };
+  const g = A.exifRead(ab("photo-gps.jpg")), n = A.exifRead(ab("photo-nogps.jpg"));
+  eq([new Date(g.t).toISOString(), g.lat, g.lng], ["2026-11-28T07:30:00.000Z", 13.7563, 100.5018]);
+  eq([new Date(n.t).toISOString(), n.lat, n.lng], ["2026-11-28T08:00:00.000Z", undefined, undefined]);
+  // an iPhone-style (big-endian) EXIF block: date, time zone and a position in the southern and western halves
+  const bytes = [], u16 = v => bytes.push(v >> 8 & 255, v & 255), u32 = v => { u16(v >>> 16); u16(v & 65535); }, str = s => [...s].forEach(c => bytes.push(c.charCodeAt(0)));
+  str("MM"); u16(42); u32(8);
+  // IFD0 at 8: 2 entries (Exif pointer, GPS pointer)
+  u16(2); u16(0x8769); u16(4); u32(1); u32(38); u16(0x8825); u16(4); u32(1); u32(100); u32(0);
+  // Exif IFD at 38: DateTimeOriginal (20 bytes at 68), OffsetTimeOriginal (7 bytes at 88)
+  while (bytes.length < 38) bytes.push(0);
+  u16(2); u16(0x9003); u16(2); u32(20); u32(68); u16(0x9011); u16(2); u32(7); u32(88); u32(0);
+  while (bytes.length < 68) bytes.push(0); str("2026:12:01 09:15:30"); bytes.push(0);
+  str("-03:00"); bytes.push(0);
+  while (bytes.length < 100) bytes.push(0);
+  // GPS IFD at 100: S, 8° 30' 0", W, 115° 15' 0" (rationals at 154 and 178)
+  u16(4); u16(1); u16(2); u32(2); str("S"); bytes.push(0, 0, 0); u16(2); u16(5); u32(3); u32(154); u16(3); u16(2); u32(2); str("W"); bytes.push(0, 0, 0); u16(4); u16(5); u32(3); u32(178); u32(0);
+  while (bytes.length < 154) bytes.push(0);
+  [[8, 1], [30, 1], [0, 1], [115, 1], [15, 1], [0, 1]].forEach(([a, b]) => { u32(a); u32(b); });
+  const tiff = bytes, app1 = [0xFF, 0xE1, (tiff.length + 8) >> 8, (tiff.length + 8) & 255, 0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
+  const jpg = new Uint8Array([0xFF, 0xD8, ...app1, 0xFF, 0xDA, 0, 2]);
+  const be = A.exifRead(jpg.buffer);
+  eq([new Date(be.t).toISOString(), be.lat, be.lng], ["2026-12-01T12:15:30.000Z", -8.5, -115.25]);
+  eq(A.exifRead(new Uint8Array([0x89, 0x50, 0x4E, 0x47]).buffer), {}, "a PNG has none");
+});
+test("trips: the route keeps accurate points as you move (and every 10 minutes), dashes across a stretch with the app closed, and places photos", () => {
+  const t0 = Date.UTC(2026, 10, 28, 7, 0), min = 60e3;
+  eq(A.trkKeep(null, {lat:13.75, lng:100.5, acc:500, at:t0}), false, "too rough");
+  eq(A.trkKeep(null, {lat:13.75, lng:100.5, acc:20, at:t0}), true, "the first good fix");
+  const last = [13.75, 100.5, t0];
+  eq(A.trkKeep(last, {lat:13.7501, lng:100.5, acc:10, at:t0 + min}), false, "11 m on, a minute later");
+  eq(A.trkKeep(last, {lat:13.7505, lng:100.5, acc:10, at:t0 + min}), true, "55 m on");
+  eq(A.trkKeep(last, {lat:13.75, lng:100.5, acc:10, at:t0 + 10 * min}), true, "standing still for 10 minutes");
+  const pts = [[13.75, 100.50, t0], [13.76, 100.50, t0 + 10 * min], [13.77, 100.50, t0 + 20 * min], [13.90, 100.60, t0 + 140 * min], [13.91, 100.60, t0 + 150 * min]];
+  const seg = A.trkSegments(pts);
+  eq(seg.map(s => [s.gap, s.c.length]), [[false, 3], [true, 2], [false, 2]]);
+  const st = A.trkStats({start:t0, end:t0 + 150 * min, pts});
+  if (!(st.km > 3 && st.km < 3.5)) throw new Error("the gap's straight line isn't counted as travelled: " + st.km);
+  eq(A.trkPlace({glat:1, glng:2, t:t0}, pts), {lat:1, lng:2, how:"gps"}, "the photo's own location first");
+  const mid = A.trkPlace({t:t0 + 5 * min}, pts);
+  eq([mid.how, +mid.lat.toFixed(3)], ["time", 13.755], "halfway between two points");
+  eq(A.trkPlace({t:t0 + 80 * min}, pts), null, "taken while the app was closed, far from both ends");
+  eq(A.trkPlace({t:t0 + 30 * min}, pts).lat, 13.77, "10 minutes after the last point before the gap");
+  eq(A.trkPlace({t:t0 - 2 * 3600e3}, pts), null, "two hours before the trip");
+  eq(A.trkPlace({t:null}, pts), null);
+});
 test("transport: a price missing a leg says so (so far, + ?, and which leg); a full price doesn't", () => {
-  const t = A.planTrips(A.hubNode("phangan"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
-  ok(/\+ \?/.test(h) && /so far/.test(h) && /Bangkok → Siem Reap flight/.test(h), h);
+  const t = A.planTrips(A.hubNode("ninhbinh"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
+  ok(/\+ \?/.test(h) && /so far/.test(h) && /Hanoi → Siem Reap flight/.test(h), h);
   const full = A.planTrips(A.hubNode("bkk"), A.hubNode("cnx"))[0]; ok(!/so far|\+ \?/.test(A.tripPrice(full)));
 });
 
@@ -1078,6 +1125,27 @@ test("experiment late-open: after 10 pm open places come first, then unknown hou
   eq(P.openFirst(items).map(x => x.id), ["open1", "open2", "unk1", "unk2", "shut1", "shut2"]);
   eq(P.openFirst(items, 3).map(x => x.id), ["open1", "unk1", "shut1", "shut2", "open2", "unk2"], "only the first few are reordered: far places stay far down");
   eq([22, 23, 0, 4, 5, 12, 21].map(h => P.lateNow(new Date(2026, 11, 1, h, 30))), [true, true, true, true, false, false, false]);
+});
+
+test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen fare makes the total a “from” price, never a range", () => {
+  const E = A.D.net.edges, f = (a, b, m) => E.find(e => e.mode === m && ((e.a === a && e.b === b) || (e.a === b && e.b === a)));
+  // a price saved from another source first is left alone; the gaps filled here say where they came from
+  ok(f("phangan", "tao", "Ferry").p.length && f("phangan", "tao", "Ferry").src.length);
+  ok(f("cjm", "tao", "Ferry").p.length && f("cjm", "tao", "Ferry").src.length);
+  eq([f("bkk", "tao", "Bus + ferry").p, f("bkk", "tao", "Bus + ferry").cur], [[850, 1550], "THB"]);
+  ok(f("han", "ninhbinh", "Train").src.some(s => /baolau\.com/.test(s[1])));
+  // every "from" price is a flight with a Kiwi.com source and a single fare
+  const low = E.filter(e => e.from);
+  ok(low.length >= 20 && low.every(e => e.mode === "Flight" && e.p.length === 1 && e.cur === "GBP" && e.src.some(s => /kiwi\.com/.test(s[1]))), low.length);
+  const lf = low.find(e => A.HUB[e.a] && A.HUB[e.b]);
+  const t = A.planTrips(A.hubNode(lf.a), A.hubNode(lf.b)).find(x => x.low && !x.unpriced), h = A.tripPrice(t);
+  ok(/^from /.test(h) && !/–/.test(h.split("<small>")[0]) && /lowest fare seen/.test(h), h);
+  ok(/from /.test(A.tripSheetHTML(t)), "the leg says from too");
+  // the route Dylan flies: every leg of it has a price now
+  const route = ["bkk", "cnx", "pai", "tao", "phangan", "samui", "aonang", "phiphi", "phuket", "rep", "pnh", "sgn", "hoian", "han"].filter(id => A.HUB[id]);
+  const gaps = [];
+  for (let k = 0; k < route.length - 1; k++){ const ts = A.planTrips(A.hubNode(route[k]), A.hubNode(route[k + 1])); if (!ts.some(x => !x.unpriced)) gaps.push(route[k] + ">" + route[k + 1]); }
+  eq(gaps, [], "every stop to the next has at least one fully priced journey");
 });
 
 /* tests that need to wait (restoring a backup) run last */
@@ -1336,11 +1404,11 @@ test("experiment late-open: after 10 pm open places come first, then unknown hou
       const P4 = load(undefined, {SEA_FIREBASE:cfg.SEA_FIREBASE, SEA_PUSH:{url:pushUrl, key:"B" + "x".repeat(86)},
         fetch:(u, o) => String(u).startsWith(pushUrl) ? (calls.push({u:String(u), o}), Promise.resolve({ok:true, status:200, json:async () => ({ok:true})})) : fb.fetch(u, o)});
       P4.S.friends.name = "Tester"; await P4.frMe(); P4.S.friends.list = {[me1.uid]:{n:"Dylan"}};
-      P4.expSet("push", false); await P4.frSendSticker(me1.uid, stk); const before = calls.length;
-      P4.expSet("push", true); await P4.frSendSticker(me1.uid, stk); await new Promise(r => setTimeout(r, 50));
+      // adopted for everyone (Dylan, 23 Nov 2026): no switch any more, every phone with the worker set up notifies
+      await P4.frSendSticker(me1.uid, stk); await new Promise(r => setTimeout(r, 50));
       const noCfg = load(undefined, {}); noCfg.expSet("push", true);
-      test("experiment push: with it on and set up, a sticker asks the worker to notify the friend (with the sender's token); not set up, it says so", () => {
-        eq(before, 0, "switched off: no notification");
+      test("push (adopted): set up, a sticker asks the worker to notify the friend (with the sender's token); not set up, it says so", () => {
+        ok(P4.exp("push") && noCfg.exp("push"), "on for everyone");
         eq(calls.length, 1); eq(calls[0].u, pushUrl + "/send"); eq(JSON.parse(calls[0].o.body), {to:me1.uid, kind:"msg"}); ok(/^Bearer h\./.test(calls[0].o.headers.Authorization));
         ok(P4.pushCfg() && !noCfg.pushCfg()); ok(/Not set up yet/.test(noCfg.pushHTML()) && /PUSH-SETUP\.md/.test(noCfg.pushHTML()));
       });
