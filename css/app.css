@@ -978,3 +978,6 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .trk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px}
 .trk-thumb{aspect-ratio:1;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
 .trk-big{display:block;width:100%;max-height:62vh;object-fit:contain;border-radius:12px;margin:6px 0 8px;background:#000}
+/* journey cards: the note under a price ("so far, not counting…", "lowest fare seen") wraps instead of running off the card */
+.trip .sum .price{max-width:58%;min-width:0}
+.trip .price small{white-space:normal;overflow-wrap:anywhere}
