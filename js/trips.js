@@ -260,7 +260,11 @@ async function trkTripPage(root, id){
       ${t.end ? `<button class="btn danger" type="button" id="trkDel">${icon("trash","i s")}Delete trip</button>` : `<button class="btn danger" type="button" id="trkEnd2">${icon("check","i s")}End trip</button>`}
     </div>
   </div>`;
-  $("#trkPh").onclick = () => { S.tripPhotos = !showPh; persist(); $("#trkPh").setAttribute("aria-pressed", String(S.tripPhotos)); trkMarkers.forEach(m => m.getElement().hidden = !S.tripPhotos); };
+  $("#trkPh").onclick = () => {
+    S.tripPhotos = S.tripPhotos === false; persist();
+    $("#trkPh").setAttribute("aria-pressed", String(S.tripPhotos));
+    trkMarkers.forEach(m => { const el = m.getElement(); if (el.classList.contains("trk-pin")) el.hidden = !S.tripPhotos; });
+  };
   $("#trkFiles").onchange = async e => {
     const files = [...e.target.files]; if (!files.length) return;
     $("#trkAddNote").textContent = `Adding ${files.length} photo${files.length === 1 ? "" : "s"}…`;
@@ -287,6 +291,8 @@ function trkDrawMap(t, onMap){
       attributionControl:false, dragRotate:false, pitchWithRotate:false, touchPitch:false});
   } catch(err){ el.remove(); return; }
   trkMap.__trip = t.id;
+  // no signal for the street map: the route and photos still show on a plain background (no error)
+  trkMap.on("error", () => {});
   trkMap.addControl(new maplibregl.AttributionControl({compact:true, customAttribution:"© OpenStreetMap"}));
   trkMap.on("load", () => {
     trkMap.addSource("trk", {type:"geojson", data:trkRouteFC(t.pts)});
