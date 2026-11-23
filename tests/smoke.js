@@ -876,6 +876,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
       const r = await page.evaluate(() => ({t:document.querySelector("#pageview").textContent, w:document.documentElement.scrollWidth}));
       ok(re.test(r.t) && r.w <= 393, name + " " + JSON.stringify({w:r.w}));
     }
+    // map-calm: zoomed out over Thailand, stays, food and activities are only the researched places, and the map says so
+    await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
+    await page.evaluate(() => map.jumpTo({center:[100.5, 13.75], zoom:6})); await page.waitForTimeout(3000);
+    const mc = await page.evaluate(() => ({calm:mapRun.calm, mode:mapRun.mode, txt:(document.querySelector("#mapStatusTxt") || {}).textContent || "", n:mapRun.shown}));
+    ok(mc.calm && mc.n > 0 && /researched places/.test(mc.txt), "map-calm: zoomed out shows our researched places, and says so " + JSON.stringify(mc));
     await page.evaluate(() => openArrival("bkk", HUB.bkk)); await page.waitForTimeout(1500);
     const ar = await page.evaluate(() => ({t:document.querySelector("#sheetRoot").textContent, w:document.documentElement.scrollWidth}));
     ok(/Welcome to Bangkok/.test(ar.t) && /Airport Rail Link/.test(ar.t) && /ATM/.test(ar.t) && ar.w <= 393, "arrival: Welcome to Bangkok, the airport train, the nearest ATM " + JSON.stringify({w:ar.w}));

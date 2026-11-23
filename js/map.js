@@ -363,6 +363,7 @@ function cellWeight(g, c, ek){
   if (g === "move" && ui.mf.move.t !== "all") return Object.entries(c.counts).reduce((a, [k, n]) => a + (moveKindOk(k) ? n : 0), 0);
   return c.total;
 }
+EXPERIMENTS.push({id:"map-calm", n:"Map: calmer when zoomed out", d:"Zoomed out, stays, food and activities show only our researched places (grouped by category) instead of count bubbles everywhere, until you zoom in."});
 function refreshMapData(){
   if (!map || !mapLoaded) return;
   const t0 = performance.now();
@@ -371,7 +372,7 @@ function refreshMapData(){
   const bb = [b.getWest() - padLng, b.getSouth() - padLat, b.getEast() + padLng, b.getNorth() + padLat];
   const inBB = p => p.lng >= bb[0] && p.lng <= bb[2] && p.lat >= bb[1] && p.lat <= bb[3];
   const feats = [], items = [], hidden = {};
-  let loading = false, summaryMode = false, total = 0;
+  let loading = false, summaryMode = false, total = 0, calm = false;
   if (ui.mapSaved){
     savedPlaces().forEach(p => { feats.push(featOf(p)); if (inBB(p)) items.push(p); });
   } else {
@@ -401,7 +402,16 @@ function refreshMapData(){
           summaryMode = true;
           // Each category is added up on its own, so the counts keep their colours.
           const gz = Math.min(13, Math.floor(z) + 5);
+          // experiment map-calm: zoomed out, stays, food and activities show only our researched places (already drawn above),
+          // clustered by category, instead of count bubbles everywhere; a category with no researched place in view keeps its counts
+          const calmSkip = new Set();
+          if (exp("map-calm")){
+            const have = new Set(curatedForMap().filter(inBB).map(p => grpOfItem(p)));
+            ["stay", "food", "do"].forEach(g => { if (have.has(g)) calmSkip.add(g); });
+            calm = calmSkip.size > 0;
+          }
           for (const g of groups){
+            if (calmSkip.has(g)) continue;
             const sums = new Map();
             for (const c of cells[g]){
               const w = cellWeight(g, c, ek);
@@ -455,6 +465,7 @@ function refreshMapData(){
   }
   const seenI = new Set();
   mapRun.items = items.filter(p => !seenI.has(p.id) && seenI.add(p.id));
+  mapRun.calm = calm;
   mapRun.mode = summaryMode ? "summary" : "detail"; mapRun.loading = loading; mapRun.total = total; mapRun.shown = uniq.length; mapRun.hidden = hidden;
   if (!loading) mapRun.failed = false;             // everything this view needs is here, so any earlier failure is behind us
   window.__mapStats.setData++; window.__mapStats.features = uniq.length; window.__mapStats.lastMs = Math.round(performance.now() - t0);
@@ -469,6 +480,7 @@ function renderMapStatus(){
   else if (mapRun.failed && !ui.mapSaved && activeGroups().length) txt = "Some places couldn’t load. Check your signal, then move the map";
   // no running count of places (it only took up room): this spot speaks up only when something needs saying
   else if (mapRun.mode !== "summary" && !mapRun.loading && mapFilterOn() && !mapRun.items.length) txt = "Nothing here matches. Try another price or zoom out";
+  else if (mapRun.calm) txt = "Zoomed out: just our researched places. Zoom in for everything";
   const el = $("#mapStatusTxt"); if (el){ el.textContent = txt; el.hidden = !txt; }
 }
 
