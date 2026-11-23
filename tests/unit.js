@@ -921,6 +921,16 @@ test("experiment tp-group: four people see the group total and the price each; o
   P.ui.tp.people = 1; eq(P.groupLine(t), ""); P.ui.tp.people = 4; P.expSet("tp-group", false); eq(P.groupLine(t), "");
 });
 
+test("experiment tp-saved: a saved journey keeps its whole sheet (no map) for offline, the first is pinned, and the list shows it", () => {
+  const P = load(); P.expSet("tp-saved", true);
+  P.saveTrip(P.planTrips(P.hubNode("bkk"), P.hubNode("cnx"))[0]); P.saveTrip(P.planTrips(P.hubNode("cnx"), P.hubNode("pai"))[0]);
+  const l = P.S.savedTrips;
+  eq(l.map(x => x.title), ["Chiang Mai → Pai", "Bangkok → Chiang Mai"]); eq(l.map(x => x.pin), [false, true]);
+  ok(l.every(x => /trip-title/.test(x.html) && !/id="legMap"/.test(x.html)), "the sheet is kept, without the live map");
+  ok(/Our next journey/.test(P.savedTripsHTML()) && /Saved journeys/.test(P.savedTripsHTML()));
+  P.expSet("tp-saved", false); eq(P.savedTripsHTML(), "");
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

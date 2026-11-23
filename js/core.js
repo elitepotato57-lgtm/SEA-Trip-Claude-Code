@@ -215,7 +215,7 @@ const LS_KEY = "sea-trip-app-v1";
 function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } }
 // v: the saved-state version (2 = the test location is off unless someone picked one)
 const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
-  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, dayLook:false, mapsApp:"google", funny:false};
+  saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, savedTrips:[], dayLook:false, mapsApp:"google", funny:false};
 const S_SAVED = loadState();
 let S = Object.assign({}, S_DEFAULTS, S_SAVED);
 // Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.

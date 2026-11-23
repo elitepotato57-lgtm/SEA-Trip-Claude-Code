@@ -299,9 +299,38 @@ function tripSheetHTML(t){
 const fmtDay = iso => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {weekday:"short", day:"numeric", month:"short"});
 // the journey map: each leg a line in its own colour (flights dashed), a numbered dot at every stop and the mode's icon halfway
 let legMap = null;
+/* Experiment tp-saved: save a journey from the results (the whole sheet, kept on the phone, so it opens with no signal) and pin
+   one as "our next journey" at the top of Transport. Up to 12 are kept. */
+EXPERIMENTS.push({id:"tp-saved", n:"Transport: saved journeys", d:"Save a journey (it opens offline) and pin one as “our next journey” at the top of Transport."});
+const savedTrips = () => Array.isArray(S.savedTrips) ? S.savedTrips : (S.savedTrips = []);
+function saveTrip(t){
+  const a = NODE[t.legs[0].from].n, b = NODE[t.legs[t.legs.length - 1].to].n, html = tripSheetHTML(t).replace(/<div[^>]*id="legMap"[^>]*><\/div>/, "");
+  const list = savedTrips(), id = "j" + Date.now().toString(36);
+  list.unshift({id, title:`${a} → ${b}`, sub:`${t.legs.map(L => L.o.mode).join(" › ")} · ${fRange(t.dmin, t.dmax)}`, date:ui.tp.date || "", at:Date.now(), pin:!list.some(x => x.pin), html});
+  S.savedTrips = list.slice(0, 12); persist();
+  return id;
+}
+function savedTripsHTML(){
+  const list = savedTrips(); if (!exp("tp-saved") || !list.length) return "";
+  const pin = list.find(x => x.pin), row = x => `<div class="sj-row"><button class="sj-open" type="button" data-sjopen="${esc(x.id)}"><b>${esc(x.title)}</b><small>${esc(x.sub)}${x.date ? " · " + esc(fmtDay(x.date)) : ""}</small></button>
+    <button class="icon-btn" type="button" data-sjpin="${esc(x.id)}" aria-pressed="${!!x.pin}" aria-label="${x.pin ? "Pinned as our next journey" : "Pin as our next journey"}">${icon("bookmark","i s")}</button>
+    <button class="icon-btn" type="button" data-sjdel="${esc(x.id)}" aria-label="Remove ${esc(x.title)}">${icon("trash","i s")}</button></div>`;
+  return `${pin ? `<div class="block sj-next"><div class="note">Our next journey</div>${row(pin)}</div>` : ""}
+    ${list.filter(x => !x.pin).length ? `<details class="block more sj-list"><summary><b>Saved journeys</b> <span class="note">${list.filter(x => !x.pin).length}</span></summary>${list.filter(x => !x.pin).map(row).join("")}</details>` : ""}`;
+}
+function bindSavedTrips(root){
+  root.querySelectorAll("[data-sjopen]").forEach(b => b.onclick = () => { const x = savedTrips().find(y => y.id === b.dataset.sjopen); if (x) openSheet(x.html.replace('id="trip-title"', 'id="trip-title" data-saved="1"') + `<p class="note" style="margin-top:8px">Saved ${esc(typeof agoText === "function" ? agoText(x.at) : "")}: prices and times as they were then.</p>`, "trip-title"); });
+  root.querySelectorAll("[data-sjpin]").forEach(b => b.onclick = () => { savedTrips().forEach(y => y.pin = y.id === b.dataset.sjpin); persist(); renderPage(); });
+  root.querySelectorAll("[data-sjdel]").forEach(b => b.onclick = () => { S.savedTrips = savedTrips().filter(y => y.id !== b.dataset.sjdel); if (S.savedTrips.length && !S.savedTrips.some(y => y.pin)) S.savedTrips[0].pin = true; persist(); renderPage(); });
+}
 function openTripSheet(t){
   if (legMap){ try { legMap.remove(); } catch(e){} legMap = null; }
   openSheet(tripSheetHTML(t), "trip-title");
+  if (exp("tp-saved")){
+    const head = $("#sheetRoot .sheet-head");
+    if (head){ head.insertAdjacentHTML("afterend", `<button class="btn small" type="button" id="tpSave" style="margin:6px 0 2px">${icon("bookmark","i s")}Save this journey</button>`);
+      $("#tpSave").onclick = () => { saveTrip(t); const b = $("#tpSave"); b.disabled = true; b.textContent = "Saved: it’s at the top of Transport, and opens offline"; }; }
+  }
   const el = $("#legMap"); if (!el || typeof maplibregl === "undefined") { if (el) el.remove(); return; }
   const pts = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k]);
   try {
@@ -353,7 +382,7 @@ function transportPage(){
   const trips = tN && ui.tp.go ? planTrips(fN, tN) : [];
   if (ui.tp.sel >= trips.length) ui.tp.sel = 0;
   ui._trips = trips;
-  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">
+  let html = hero({title:"Transport", sub:"Search anywhere, see every way to get there"}) + `<div class="page">${savedTripsHTML()}
     <div class="block plan">
       <div class="pair">
         <label class="field sfield">From<input id="tp-from" type="search" autocomplete="off" enterkeyhint="search" value="${esc(nodeLabel(fN))}" placeholder="Search a place"><div class="sugs" id="sug-from" hidden></div></label>
@@ -494,6 +523,7 @@ function bindSearch(which){
   inp.onblur = () => setTimeout(() => { box.hidden = true; inp.value = nodeLabel(which === "from" ? fromNode() : ui.tp.to); }, 150);
 }
 function bindTransport(){
+  bindSavedTrips($("#pageview"));
   const root = $("#pageview");
   bindSearch("from"); bindSearch("to");
   $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };

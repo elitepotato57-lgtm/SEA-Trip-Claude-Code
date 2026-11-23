@@ -937,3 +937,8 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 /* experiment tp-group */
 .grp-price{margin-top:6px;font-size:calc(13px * var(--ts,1))}
 .grp-price small{color:var(--muted)}
+/* experiment tp-saved */
+.sj-row{display:flex;align-items:center;gap:6px;padding:6px 0}
+.sj-open{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--ink);font:inherit;padding:4px 0;min-height:44px}
+.sj-open b{display:block}.sj-open small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1))}
+.sj-next .note{margin-bottom:2px}
