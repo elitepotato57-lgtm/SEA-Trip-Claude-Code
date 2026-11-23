@@ -4,6 +4,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 const ROOT = path.resolve(__dirname, "..");
 const TYPES = {".html":"text/html; charset=utf-8", ".js":"text/javascript; charset=utf-8", ".css":"text/css; charset=utf-8",
@@ -19,7 +20,13 @@ function start(port = 8765){
     if (!file.startsWith(ROOT)){ res.writeHead(403); return res.end(); }
     fs.readFile(file, (err, buf) => {
       if (err){ res.writeHead(404); return res.end("not found"); }
-      res.writeHead(200, {"Content-Type": TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-cache"});
+      const type = TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
+      // compressed like GitHub Pages does, so timings in tests match the real site
+      if (/text|javascript|json|svg/.test(type) && /\bgzip\b/.test(req.headers["accept-encoding"] || "") && buf.length > 1024){
+        res.writeHead(200, {"Content-Type":type, "Cache-Control":"no-cache", "Content-Encoding":"gzip", "Vary":"Accept-Encoding"});
+        return res.end(zlib.gzipSync(buf, {level:6}));
+      }
+      res.writeHead(200, {"Content-Type":type, "Cache-Control":"no-cache"});
       res.end(buf);
     });
   });
