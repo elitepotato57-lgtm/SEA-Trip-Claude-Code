@@ -888,7 +888,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const shown = await page.evaluate(async () => {
       const onCard = [...document.querySelectorAll("#pageview .card .ph img")].some(i => i.complete && i.naturalWidth > 0 && /wikimedia/.test(i.src));
       if (onCard) return "card";
-      const listed = [...document.querySelectorAll("#pageview .card[data-open]")].some(c => PACK_PHOTOS.has(c.dataset.open));
+      // only cards on screen (or just below it) load their photo, so a saved place further down the list doesn't count
+      const listed = [...document.querySelectorAll("#pageview .card[data-open]")].some(c => PACK_PHOTOS.has(c.dataset.open) && c.getBoundingClientRect().top < innerHeight + 900);
       if (listed) return "listed but not shown";
       const first = [...PACK_PHOTOS.values()][0];
       const loads = await new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); i.src = first.s; });
