@@ -160,3 +160,16 @@ Wikivoyage page (read 23 Nov 2026), Seat 61, AirAsia's Full Moon Party guide and
 - Fair prices for SIM cards in Thailand and Vietnam, massages in Vietnam, laundry in Vietnam: the pages read didn't give one.
 - Heads-ups for Pai, Ao Nang, Koh Phi Phi, Ho Chi Minh City, Da Nang and Hoi An: Wikivoyage's "Stay safe" sections for those
   either had no scam or couldn't be fetched (Wikivoyage rate-limited the session for Koh Phi Phi and Ho Chi Minh City).
+
+## Pass 2, Phase 2 leftovers (23 Nov 2026)
+- **push** (experiment, off): notifications when the app is closed, for "I'm lost", stickers and meet-ups. A free Cloudflare
+  Worker (`push/worker.js`) sends them with standard Web Push (encrypted to the phone, signed with the app's own key; WebCrypto
+  only, no paid service). It reads the friend's notification address with the sender's own Firebase login, so the database rules
+  decide who may notify whom (new `push/` and `pushok/` rules: a phone lets its own friends notify it). The words are fixed in the
+  worker, so nothing else can be sent through it, and it stores nothing. **Dylan's steps are in PUSH-SETUP.md**; until
+  `window.SEA_PUSH` is in `config.js` the app just says "not set up yet". Tested in Node: a pretend phone decrypts what the worker
+  sends, the signature verifies, a stranger is refused. It can't be tried on a real iPhone from here.
+- **map-calm** (experiment, off): zoomed out, stays, food and activities show only our researched places, clustered by category,
+  instead of count bubbles everywhere, and the map says so; zoom in for everything. A category with no researched place in view
+  (most of Laos, say) keeps its counts, so the map is never blank. (One bubble per destination was the other option; it would have
+  needed a new kind of layer that mixes the category colours, which breaks the colour rule.)
