@@ -969,3 +969,4 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .town-list li .i{color:var(--move);flex:none;margin-top:2px}
 .town-list b{display:block}
 .town-list span{color:var(--muted);font-size:calc(13.5px * var(--ts,1))}
+.price .plus{font-weight:700;color:var(--warn)}

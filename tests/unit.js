@@ -1008,6 +1008,11 @@ test("experiment tp-town: getting around the stop you're heading to (else where 
   ok(Object.keys(P.TOWN).every(k => P.HUB[k]), "every town is a stop in the planner");
   ["bkk", "cnx", "pai", "tao", "phangan", "samui", "aonang", "phuket", "rep", "pnh", "hoian", "han"].forEach(k => ok(P.TOWN[k], "route stop " + k));
 });
+test("transport: a price missing a leg says so (so far, + ?, and which leg); a full price doesn't", () => {
+  const t = A.planTrips(A.hubNode("phangan"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
+  ok(/\+ \?/.test(h) && /so far/.test(h) && /Bangkok → Siem Reap flight/.test(h), h);
+  const full = A.planTrips(A.hubNode("bkk"), A.hubNode("cnx"))[0]; ok(!/so far|\+ \?/.test(A.tripPrice(full)));
+});
 
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
