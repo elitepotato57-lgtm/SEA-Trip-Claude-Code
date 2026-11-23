@@ -999,6 +999,16 @@ test("experiment tp-book: Koh Phangan boats near a Full Moon Party and Thai trai
   P.expSet("tp-book", false); eq(P.bookCard(boat), ""); ok(!/Book ahead/.test(P.tripCard(boat, 0)));
 });
 
+test("experiment tp-town: getting around the stop you're heading to (else where you are), from Wikivoyage, with a copy-for-Grab button; nothing switched off", () => {
+  const P = load(); P.expSet("tp-town", true);
+  eq(P.townFor(P.hubNode("bkk"), P.hubNode("cnx")), "cnx"); eq(P.townFor(Object.assign(P.hubNode("pai"), {here:true}), null), "pai");
+  eq(P.townFor({n:"Somewhere", lat:1, lng:1}, null), null);
+  const h = P.townHTML("bkk", "Wat Arun");
+  ok(/Getting around Bangkok/.test(h) && /14 baht/.test(h) && /Rabbit card/.test(h) && /wikivoyage\.org\/wiki\/Bangkok/.test(h) && /Copy “Wat Arun”/.test(h), h.slice(0, 200));
+  ok(Object.keys(P.TOWN).every(k => P.HUB[k]), "every town is a stop in the planner");
+  ["bkk", "cnx", "pai", "tao", "phangan", "samui", "aonang", "phuket", "rep", "pnh", "hoian", "han"].forEach(k => ok(P.TOWN[k], "route stop " + k));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

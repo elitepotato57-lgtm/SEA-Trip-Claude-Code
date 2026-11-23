@@ -428,6 +428,79 @@ function bookCard(t){
   return `<div class="callout book-card${n.some(x => x.r.warn) ? " warn" : ""}">${icon("calendar")}<div><b>When to book</b><ul class="known">${n.map(x => `<li>${esc(x.r.text(x.d))}</li>`).join("")}</ul>
     <p class="note">From ${[...new Map(n.flatMap(x => x.r.src).map(s => [s[1], s])).values()].map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}${n.some(x => x.r.id === "fullmoon") ? ". Party dates can move for Buddhist holidays: check before you go" : ""}.</p></div></div>`;
 }
+/* Experiment tp-town: getting around each stop on our route (metro, boats, songthaews, taxis, scooters, tuk-tuks), from each
+   town's Wikivoyage "Get around" section (read 23 Nov 2026), on Transport for the place you're heading to (or where you are).
+   Grab and Bolt publish no link that fills in a destination, so the button copies the place's name to paste into either app. */
+EXPERIMENTS.push({id:"tp-town", n:"Transport: getting around town", d:"Transport shows how to get around the town you’re heading to (or in): metro, boats, songthaews, taxis, scooters, fair fares, and copies the place for Grab or Bolt."});
+const TOWN = {
+  bkk:{w:"Bangkok", i:[
+    ["train", "BTS Skytrain and MRT metro", "06:00 to midnight. The MRT takes contactless Visa or Mastercard at the gates; the BTS doesn’t yet, so buy a single ticket, a Rabbit card (200 baht, 100 of it to spend; passport needed) or a 150-baht day pass."],
+    ["train", "Airport Rail Link", "Suvarnabhumi to Phaya Thai 45 baht, 27 minutes; to Makkasan (for the MRT) 35 baht."],
+    ["ship", "Chao Phraya Express Boat", "Orange-flag boat 14 baht, every day 06:00–19:00, stopping at Tha Chang for the Grand Palace; Phra Arthit is the pier for Khao San Road. The blue-flag tourist boat is 40 baht (150 for a day pass): touts may say the orange boat isn’t coming, but it runs every 5–20 minutes."],
+    ["car", "Taxis", "Ask for the meter. Hail a moving taxi on the main road, away from the tourist spots, or use Grab or Bolt."],
+    ["car", "Tuk-tuks", "Never get in one that someone else is steering you to, and ignore ‘all-day tours’ for 10 baht: they end at gem and souvenir shops."]]},
+  cnx:{w:"Chiang_Mai", i:[
+    ["bus", "RTC city bus", "Air-conditioned, a few useful routes including the airport: 20 baht, cash to the driver."],
+    ["car", "Red songthaews (rot daeng)", "Shared trucks with no fixed route. The sign says at most 30 baht a person, inside the second ring road."],
+    ["car", "Tuk-tuks", "Rarely under 100 baht, even for a few kilometres."]]},
+  pai:{w:"Pai", i:[
+    ["nav", "On foot", "The town centre is small and easy to walk."],
+    ["car", "Bicycles and scooters", "Bicycles 40–100 baht a day; a 125cc scooter about 100–300 baht a day, with a 2,000–3,000 baht cash deposit or your passport."]]},
+  tao:{w:"Ko_Tao", i:[
+    ["car", "Taxis", "Pickup taxis in Sairee and Mae Haad: at least 300 baht a trip, or about 100 baht each for a bigger group."],
+    ["car", "Scooters", "Some shops keep your passport, then charge for scratches that were already there (mostly on or near the ‘Up Road’ from Mae Haad). Photograph the bike before you ride."]]},
+  phangan:{w:"Ko_Pha_Ngan", i:[
+    ["car", "Songthaews", "200–300 baht a person: bargain, especially for short trips, and share to pay less."],
+    ["car", "Scooters", "About 250 baht a day, 200 for longer rentals. Wear a helmet: the police fine 200 baht."]]},
+  samui:{w:"Ko_Samui", i:[
+    ["car", "Songthaews", "Fixed routes and prices until 18:00: 20–80 baht a person (Na Thon pier to Bophut 50). After 18:00 they work as taxis: agree the price first."],
+    ["car", "Scooters", "120–700 baht a day; a small 125cc shouldn’t be over 200, even at New Year. Rent from a reputable shop."]]},
+  aonang:{w:"Ao_Nang", i:[
+    ["car", "Songthaews", "Around Ao Nang from 20 baht; the white ones to Krabi Town and its bus station are 60 baht."],
+    ["car", "Tuk-tuks", "About 100 baht inside Ao Nang, 400 to Krabi Town (2019 prices: agree first)."],
+    ["car", "Scooters", "150–200 baht for 24 hours."]]},
+  krabi:{w:"Krabi_Town", i:[
+    ["car", "White songthaew to Ao Nang", "60 baht, from near the Vogue department store on Maharaj Road."],
+    ["car", "Taxi", "Bus station to the town centre about 100 baht (4 km)."]]},
+  phuket:{w:"Phuket", i:[
+    ["bus", "Smart Bus", "100 baht a trip wherever you get on and off: the airport to the beaches, and between them."],
+    ["car", "Tuk-tuks", "At least 200 baht; about half as much again at night."],
+    ["car", "Motorbike taxis", "From 20 baht for 1–2 km; drivers wear numbered vests."]]},
+  rep:{w:"Siem_Reap", i:[
+    ["car", "Motodops (motorbike taxis)", "About US$0.50 (2,000 riel) in town, up to double at night or in the rain: agree first. A full day about US$10."],
+    ["car", "Scooters", "From about US$8 a day. Wear a helmet: police checkpoints fine US$15."]]},
+  pnh:{w:"Phnom_Penh", i:[
+    ["car", "Tuk-tuks", "US$2–3 a trip in the city, US$8 to the airport. PassApp tuk-tuks are metered."],
+    ["car", "Motodops", "Riverfront to Central Market about 2,000 riel; more at night."],
+    ["alert", "Bag snatching", "Keep phones and bags in the middle of a tuk-tuk, not on the side by the road."]]},
+  hoian:{w:"Hoi_An", i:[
+    ["car", "Bicycles", "From 20,000 dong a day: the best way round town."],
+    ["car", "Scooters", "About 125,000 dong a day (2018). No motorbikes in the Old Town on the 14th and 15th of each lunar month."]]},
+  dad:{w:"Da_Nang", i:[
+    ["car", "Grab", "Widely used, and its chat translates both ways."],
+    ["car", "Motorbike taxis", "Short hops about 20,000 dong; to the airport about 70,000."],
+    ["car", "Taxis", "Mai Linh and Vinasun are reliable; their meters start by themselves."]]},
+  han:{w:"Hanoi", i:[
+    ["train", "Metro", "8,000–15,000 dong; tap a contactless card or phone at the gates."],
+    ["bus", "Buses", "7,000–12,000 dong; pay the assistant on board."],
+    ["car", "Grab", "The easiest way round: fixed fares, cash or card."],
+    ["car", "Taxis", "Insist on the meter: 20,000 dong for the first 2 km."]]}
+};
+// the stop to describe: where you're heading (if it's one of ours), else where you are
+function townFor(fN, tN){
+  for (const n of [tN, fN]) if (n && n.id && TOWN[n.id]) return n.id;
+  return null;
+}
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; } catch(e){ return false; }
+}
+function townHTML(id, dest){
+  const T = TOWN[id]; if (!T) return "";
+  return `<div class="block town" style="margin-top:18px"><h2>Getting around ${esc(HUB[id].n)}</h2>
+    <ul class="town-list">${T.i.map(x => `<li>${icon(x[0], "i s")}<div><b>${esc(x[1])}</b><span>${esc(x[2])}</span></div></li>`).join("")}</ul>
+    ${dest ? `<button class="btn small" type="button" id="tpCopy" data-copy="${esc(dest)}">${icon("car","i s")}Copy “${esc(dest)}” for Grab or Bolt</button>` : ""}
+    <p class="note" style="margin-top:8px">From <a href="https://en.wikivoyage.org/wiki/${esc(T.w)}" target="_blank" rel="noopener">Wikivoyage: ${esc(T.w.replace(/_/g, " "))}</a>, read 23 Nov 2026. Prices change: agree the fare before you ride.</p></div>`;
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -575,7 +648,9 @@ function transportPage(){
       ext(`https://www.rome2rio.com/s/${enc(fN.n)}/${enc(tN.n)}`, "Search Rome2Rio " + icon("ext","i s")));
   }
   else html += `<p class="note" style="margin:0 0 8px">${trips.length} way${trips.length === 1 ? "" : "s"} to get there. Times and prices are a saved baseline, so confirm live before you pay.</p>` + trips.map(tripCard).join("");
-  html += `<div class="block" style="margin-top:18px"><h2>Getting a ride in town</h2><p class="note" style="margin:2px 0 10px">${esc(D.countries[S.country].name)}, general tips (not price-checked)</p><p style="margin:0">${esc(D.rides[S.country])}</p></div>`;
+  const town = exp("tp-town") ? townFor(fN, tN) : null;
+  if (town) html += townHTML(town, tN && !tN.here ? tN.n : "");
+  else html += `<div class="block" style="margin-top:18px"><h2>Getting a ride in town</h2><p class="note" style="margin:2px 0 10px">${esc(D.countries[S.country].name)}, general tips (not price-checked)</p><p style="margin:0">${esc(D.rides[S.country])}</p></div>`;
   const other = D.routes.filter(r => !r.cc.every(c => c === "TH"));
   html += `<details class="more" style="margin-top:6px"><summary>Saved routes in the other countries (${other.length})</summary><div style="margin-top:10px">${other.map(routeCard).join("")}</div></details></div>`;
   return html;
@@ -693,6 +768,8 @@ function bindSearch(which){
 }
 function bindTransport(){
   bindSavedTrips($("#pageview"));
+  const cp = $("#tpCopy");
+  if (cp) cp.onclick = async () => toast(await copyText(cp.dataset.copy) ? `Copied “${cp.dataset.copy}”: paste it into Grab or Bolt as where you’re going` : "Couldn’t copy: type it into Grab or Bolt");
   const root = $("#pageview");
   bindSearch("from"); bindSearch("to");
   $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };
