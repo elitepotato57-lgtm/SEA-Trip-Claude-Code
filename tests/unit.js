@@ -682,7 +682,10 @@ test("split costs: custom amounts must add up to the total, and they change who 
   eq(A.splitPairs(m), {b:20, c:10}); eq(A.splitBalances({people:m.people, items:m.items}), {a:30, b:-20, c:-10});
 });
 test("Tools: the order Dylan asked for, and Split costs only in Friends", () => {
-  eq(A.toolsInOrder().map(t => t.id), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
+  // the life-on-the-road tools (js/road.js) are experiments: their tiles come after the others, and only when switched on
+  const road = ["fair", "headsup", "events", "journal", "visa"], ids = A.toolsInOrder().map(t => t.id);
+  eq(ids.filter(id => !road.includes(id)), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
+  eq(ids.filter(id => road.includes(id)), process.env.SEA_EXP === "all" ? road : []);
 });
 test("questions: costs, journey times, distances", () => {
   const f = A.moreIntent("How much should a tuk-tuk cost from where I am to MBK market?");
@@ -1014,6 +1017,60 @@ test("transport: a price missing a leg says so (so far, + ?, and which leg); a f
   const full = A.planTrips(A.hubNode("bkk"), A.hubNode("cnx"))[0]; ok(!/so far|\+ \?/.test(A.tripPrice(full)));
 });
 
+/* ---------- life on the road (js/road.js) ---------- */
+test("experiment fair-price: tuk-tuk 3 km in Bangkok (est.), beer in Chiang Mai, a scooter in Pai, each with its source; nothing made up where there's no source", () => {
+  const P = load(); P.expSet("fair-price", true);
+  const tuk = P.fairAnswer("how much is a tuk-tuk 3 km", P.HUB.bkk);
+  ok(tuk.item.k === "ride" && tuk.lines.some(x => /Tuk-tuk/.test(x.h) && x.est && /3 km/.test(x.t)), JSON.stringify(tuk.lines));
+  const beer = P.fairAnswer("Chang in a bar", P.HUB.cnx); ok(/60 baht/.test(beer.lines[0].t) && /Chiang_Mai/.test(beer.lines[0].src[1]));
+  const sc = P.fairAnswer("scooter a day", P.HUB.pai); ok(sc.lines.length && sc.lines.every(x => /Pai/.test(x.h)) && /100–300 baht/.test(sc.lines[0].t), JSON.stringify(sc.lines));
+  const none = P.fairAnswer("massage an hour", P.HUB.han); eq(none.lines, []); ok(/No sourced price/.test(P.fairHTML(none)));
+  eq(P.fairAnswer("helicopter", P.HUB.bkk), null);
+  ok(P.TOOLS.find(t => t.id === "fair").hidden === false); P.expSet("fair-price", false); ok(P.TOOLS.find(t => t.id === "fair").hidden === true);
+});
+test("experiment headsup: scams for the stops on our route, each a planner stop, from Wikivoyage (gem scam, closed today, jet skis)", () => {
+  const P = load();
+  ok(Object.keys(P.HEADSUP).every(k => P.HUB[k]));
+  const b = P.headsupHTML("bkk"); ok(/gem scam/i.test(b) && /1155/.test(b) && /closed today/.test(b) && /wikivoyage\.org\/wiki\/Bangkok/.test(b));
+  ok(/Jet-ski/.test(P.headsupHTML("phuket")));
+});
+test("experiment events: Full Moon Parties and New Year on the route, past ones marked, moving dates say check before you go", () => {
+  const P = load();
+  ok(P.EVENTS.every(e => /^\d{4}-\d\d-\d\d$/.test(e.d) && e.src.length));
+  const h = P.eventsHTML("2026-12-26");
+  ok(/Full Moon Party/.test(h) && /New Year’s Eve fireworks/.test(h) && /check before you go/.test(h));
+  ok(/ev past"><div class="ev-d">Thu 24 Dec/.test(h), "24 Dec is past on the 26th");
+  ok(P.FULL_MOONS.every(d => P.EVENTS.some(e => e.d === d) || d < "2026-11-27"), "every party on our dates is listed");
+});
+test("experiment arrival: arriving in Bangkok shows the airport train with its price, getting around, a fair fare and the heads-ups", () => {
+  const P = load();
+  eq(P.stopAt({lat:13.75, lng:100.53}), "bkk"); eq(P.stopAt({lat:9.74, lng:100.02}), "phangan"); eq(P.stopAt({lat:0, lng:0}), null);
+  ok(P.intoTown("bkk").some(x => x.mode === "Train" && /45/.test(x.p)));
+  const h = P.arrivalHTML("bkk");
+  ok(/Welcome to Bangkok/.test(h) && /Getting into town/.test(h) && /Getting around/.test(h) && /A fair fare/.test(h) && /gem scam/i.test(h) && /arrNear/.test(h));
+});
+test("experiment journal: been-here places, stops in the order reached, km, countries and nights for Trip wrapped", () => {
+  const P = load(); P.expSet("journal", true);
+  P.S.visits = {bkk:{first:"2026-11-27", days:["2026-11-27", "2026-11-28"]}, cnx:{first:"2026-11-29", days:["2026-11-29"]}, rep:{first:"2027-01-05", days:["2027-01-05"]}};
+  P.S.been = {};
+  ok(P.toggleBeen({id:"x1", n:"Wat Arun", lat:13.74, lng:100.49, cc:"TH", c:"cool"}));
+  const w = P.wrapped();
+  eq(w.stops.map(x => x.id), ["bkk", "cnx", "rep"]); eq(w.nights, 4); eq(w.places, 1); eq(w.countries.sort(), ["KH", "TH"]);
+  ok(w.km > 1000 && w.km < 2000, "Bangkok → Chiang Mai → Siem Reap as the crow flies: " + w.km);
+  ok(!P.toggleBeen({id:"x1"}), "a second tap takes it off");
+});
+test("own ideas: leave-by works back from the next boat (pier check-in and the ride there); visa countdown from the arrival day", () => {
+  const P = load(); P.expSet("leave-by", true);
+  const t = P.planTrips(P.hubNode("tao"), P.hubNode("phangan"))[0];
+  const r = P.leaveBy(t, {lat:10.09, lng:99.83}, P.hm("08:00"));
+  eq([r.dep, r.pre, r.leave], ["09:30", 30, "08:55"]);
+  eq(P.leaveBy(t, {lat:13.75, lng:100.5}, P.hm("08:00")), null, "too far away to say");
+  P.expSet("leave-by", false); eq(P.leaveBy(t, {lat:10.09, lng:99.83}, P.hm("08:00")), null);
+  eq(P.visaLeft("TH", "2026-11-27", "2026-11-27"), {days:30, last:"2026-12-26", left:30});
+  eq(P.visaLeft("VN", "2027-01-10", "2027-02-23").left, 1, "the 45th day is the last one"); eq(P.visaLeft("VN", "2027-01-10", "2027-02-24").left, 0);
+  eq(P.visaLeft("SG", "2027-01-10"), null);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
@@ -1255,6 +1312,14 @@ test("transport: a price missing a leg says so (so far, + ?, and which leg); a f
     test("messages: stickers come from a developer phone, friends send them, only the receiver reads them", () => {
       ok(/^k/.test(stk), stk); eq(notDev, "permission"); eq(stickers2[stk].n, "Cooked");
       eq(inbox[mid].f, me2.uid); eq(inbox[mid].s, stk); eq([forgedMsg, peekMsg], [401, 401]);
+    });
+    // own idea (c), meet-up spot: a friend sends "meet here at 20:00", it lands in your inbox like a sticker, with the spot
+    const sentTo = await P2.meetSend({lat:13.758123456, lng:100.497654321}, "20:00", "Outside the 7-Eleven");
+    const inbox2 = await P1.frDb("GET", `msgs/${me1.uid}`), meet = Object.values(inbox2).find(x => x.s === "meet");
+    test("experiment meetup: a meet-up spot reaches friends under the same rules as stickers, with the time, note and spot", () => {
+      ok(sentTo >= 1, "sent to " + sentTo); ok(meet && meet.f === me2.uid, JSON.stringify(inbox2));
+      eq(meet.m, {lat:13.75812, lng:100.49765, w:"20:00", n:"Outside the 7-Eleven"});
+      const h = P1.meetMsgHTML(meet); ok(/meet at <b>20:00<\/b>, Outside the 7-Eleven/.test(h) && /destination=13\.75812/.test(h), h);
     });
     test("developer mode: typing ELITE POTATO in the map search switches it on and off", () => {
       eq(P1.frDevCode("elite potato"), false); eq(P1.frDevCode(" ELITE  POTATO "), true); eq(P1.S.dev, true); eq(P1.toolsInOrder().slice(-1)[0].id, "developer");

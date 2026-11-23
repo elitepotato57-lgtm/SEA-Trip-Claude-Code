@@ -5,7 +5,7 @@ const PLACES = "sea-trip-places-v1";    // the parts of the places database you 
 const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
   "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/estimate.js", "./js/shell.js", "./js/lists.js", "./js/map.js", "./js/ask.js",
-  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/boot.js",
+  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/road.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css", "./vendor/pdfjs/pdf.min.mjs", "./vendor/pdfjs/pdf.worker.min.mjs",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg", "./img/ben-wave.png", "./img/tom-fried.jpg", "./img/tom-aid-ping.png",
   // typical photos for places that have none of their own (js/detail.js KIND_PHOTO), so toilets and ATMs show one offline too

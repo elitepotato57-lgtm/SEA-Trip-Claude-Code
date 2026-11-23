@@ -9,7 +9,7 @@ function fakeElement(){
     setAttribute(){}, removeAttribute(){}, getAttribute(){ return null; }, appendChild(){}, addEventListener(){}, querySelector(){ return null; },
     querySelectorAll(){ return []; }, innerHTML:"", textContent:""};
 }
-function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "map", "ask", "tools", "camera", "tools-more", "ask-more", "split", "friends", "games", "funny", "offline", "docs", "detail"], extra = {}){
+function load(files = ["data", "core", "design", "places", "estimate", "shell", "lists", "transport", "map", "ask", "tools", "camera", "tools-more", "ask-more", "split", "friends", "games", "funny", "offline", "docs", "detail", "road"], extra = {}){
   const store = new Map();
   if (process.env.SEA_EXP === "all") store.set("sea-exp-v1", JSON.stringify({"*":true}));       // the experiments test run
   const ctx = {

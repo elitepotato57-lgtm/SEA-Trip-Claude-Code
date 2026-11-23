@@ -970,3 +970,20 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .town-list b{display:block}
 .town-list span{color:var(--muted);font-size:calc(13.5px * var(--ts,1))}
 .price .plus{font-weight:700;color:var(--warn)}
+/* life on the road (js/road.js) */
+.fair-chips{gap:6px}
+.fair-row{padding:10px 0;border-top:1px solid var(--line)}
+.fair-row:first-child{border-top:0}
+.hu h3{margin:0 0 4px}
+.ev{display:grid;grid-template-columns:84px 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.ev:first-child{border-top:0}
+.ev.past{opacity:.55}
+.ev-d{font-weight:700;font-size:calc(13px * var(--ts,1))}
+.ev .tag{display:inline-block;margin:4px 6px 0 0}
+.jr-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;margin:8px 0}
+.jr-stats div{background:var(--raised);border-radius:var(--r-s);padding:8px;text-align:center}
+.jr-stats b{display:block;font-size:calc(20px * var(--ts,1))}
+.jr-stats small{color:var(--muted)}
+.visa-left b{color:var(--ok)}
+.visa-left.warn b{color:var(--bad)}
+.leave-by{margin-top:8px}

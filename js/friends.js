@@ -733,6 +733,12 @@ function frMsgPopup(){
   root.querySelector('[data-msg="later"]').onclick = close;
   root.querySelector('[data-msg="open"]').onclick = async () => {
     const box = root.querySelector(".msg-pop"); box.innerHTML = `<p class="note">Opening…</p>`;
+    if (mm.m && typeof meetMsgHTML === "function"){          // a meet-up spot (js/road.js), not a sticker
+      box.innerHTML = meetMsgHTML(mm);
+      delete frMsgs[id]; frDb("DELETE", `msgs/${frMyId()}/${id}`).catch(() => {});
+      box.querySelector('[data-msg="done"]').onclick = close;
+      return;
+    }
     await frLoadStickers().catch(() => {});
     if (!frStickers[mm.s]) await frLoadStickers(true).catch(() => {});
     const st = frStickers[mm.s];
