@@ -532,7 +532,7 @@ function tripSheetHTML(t){
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
       <div class="price">${price}</div></div>${nightLine(t)}
     <div class="legmap" id="legMap" role="img" aria-label="Map of the journey, each leg in its own colour"></div>
-    <div style="margin-top:8px">${legs}</div>${bookCard(t)}
+    ${typeof leaveByHTML === "function" ? leaveByHTML(t) : ""}<div style="margin-top:8px">${legs}</div>${bookCard(t)}
     ${getThere(firstStn)}
     <div class="row" style="margin-top:12px">${t.legs.length > 1 && go12(t.legs[0].from, t.legs[t.legs.length - 1].to) ? ext(go12(t.legs[0].from, t.legs[t.legs.length - 1].to), "Search the whole route on 12Go " + icon("ext","i s")) : ""}${ext(`https://www.rome2rio.com/s/${enc(a)}/${enc(b)}`, "Rome2Rio " + icon("ext","i s"))}</div>
     ${t.legs.some(L => legBook(L)) ? `<p class="note" style="margin-top:6px">12Go shows the real departures and confirms the service, today’s price and seats; these times and prices are a saved guide.${ui.tp.date && t.legs.length > 1 ? " Your date is used for every leg: change it on 12Go if a later leg is the next day." : ""}</p>` : ""}

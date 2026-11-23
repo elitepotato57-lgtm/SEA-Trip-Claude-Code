@@ -132,3 +132,44 @@ then `tools/transport-route.js` (the Thai route), both re-runnable.
 ### Not done in part A, and why
 - Bangkok → Siem Reap fare (above). Cambodian bus departure times: Seat 61's Cambodia page doesn't list them cleanly.
 - Booking pressure around Christmas for flights and ferries: no source gives a number of days, so nothing was added.
+
+## Pass 2, part B: life on the road (23 Nov 2026)
+
+All in `js/road.js` (loaded after `js/detail.js`), every part an experiment, off by default. Facts are from each town's
+Wikivoyage page (read 23 Nov 2026), Seat 61, AirAsia's Full Moon Party guide and gov.uk, named next to each one.
+
+| Switch | What it does |
+|---|---|
+| **fair-price** | Tools › Fair price: type or say "tuk-tuk 3 km", "beer in a bar", "massage", "scooter a day", "laundry", "street food" and get the usual price where you are, with its source. Taxi and tuk-tuk fares reuse the existing estimates (Bangkok meter, Cambodian app fares), marked est. Where no source gives a price (a massage in Vietnam, say) it says so instead of guessing. |
+| **headsup** | Tools › Heads-ups: the known scams at each stop on our route, the one you're in first: the gem scam and "it's closed today" (Bangkok, Chiang Mai), scooter "damage" (Koh Tao), jet-ski "damage" (Phuket), fake and torn dollars (Siem Reap), bag snatching and fake monks (Phnom Penh), taxi meters (Hanoi). |
+| **events** | Tools › Events: Father's Day in Bangkok (5 Dec), Full Moon Parties (24 Dec, 31 Dec countdown, 22 Jan, 22 Feb), Bangkok's New Year fireworks, Hoi An's motorbike-free full-moon nights, and Tết's window. Moving dates say "check before you go"; past ones are greyed. |
+| **arrival** | The first real GPS fix in a new stop opens "Welcome to <town>": the ways in from the airport with their saved prices, getting around, a fair 5 km fare, the nearest ATM, SIM shop and 7-Eleven (from the map data) and the local heads-ups. Once per stop. |
+| **journal** | "Mark as been here" on every place; Tools › Trip journal: a map of the stops reached (in order) and the places been, and **Trip wrapped**: km between stops (as the crow flies), countries, stops, places, nights (each date the app saw you on the road) and the top three game winners from the Trip tally. Stops are only recorded from real GPS, never the pretend location. |
+
+### Item 19: our own three ideas (suggested here first, then built)
+1. **Leave by** (switch `leave-by`): on a journey whose first boat, train or bus has a saved timetable, "Leave by 08:55 to make the
+   09:30": the next departure, minus how early the operator asks you to be there, minus the ride there from where you are
+   (worked out at 25 km/h, marked est.). The thing everyone asks the morning of a travel day.
+2. **Visa countdown** (switch `visa-count`): Tools › Visa countdown: days left in Thailand (30), Cambodia (30, e-visa) and Vietnam
+   (45) from the day you arrived (noted from the first GPS fix in the country; editable, and it says the passport stamp is the
+   one that counts). Overstaying costs a fine every day, and six people lose track.
+3. **Meet-up spot** (switch `meetup`): Friends › Meet up sends every friend "meet at 20:00, outside the 7-Eleven" with the spot;
+   it pops up on their phones like a sticker, with Directions. Uses the existing message rules: nothing to re-publish.
+
+### Not done in part B
+- Fair prices for SIM cards in Thailand and Vietnam, massages in Vietnam, laundry in Vietnam: the pages read didn't give one.
+- Heads-ups for Pai, Ao Nang, Koh Phi Phi, Ho Chi Minh City, Da Nang and Hoi An: Wikivoyage's "Stay safe" sections for those
+  either had no scam or couldn't be fetched (Wikivoyage rate-limited the session for Koh Phi Phi and Ho Chi Minh City).
+
+## Pass 2, Phase 2 leftovers (23 Nov 2026)
+- **push** (experiment, off): notifications when the app is closed, for "I'm lost", stickers and meet-ups. A free Cloudflare
+  Worker (`push/worker.js`) sends them with standard Web Push (encrypted to the phone, signed with the app's own key; WebCrypto
+  only, no paid service). It reads the friend's notification address with the sender's own Firebase login, so the database rules
+  decide who may notify whom (new `push/` and `pushok/` rules: a phone lets its own friends notify it). The words are fixed in the
+  worker, so nothing else can be sent through it, and it stores nothing. **Dylan's steps are in PUSH-SETUP.md**; until
+  `window.SEA_PUSH` is in `config.js` the app just says "not set up yet". Tested in Node: a pretend phone decrypts what the worker
+  sends, the signature verifies, a stranger is refused. It can't be tried on a real iPhone from here.
+- **map-calm** (experiment, off): zoomed out, stays, food and activities show only our researched places, clustered by category,
+  instead of count bubbles everywhere, and the map says so; zoom in for everything. A category with no researched place in view
+  (most of Laos, say) keeps its counts, so the map is never blank. (One bubble per destination was the other option; it would have
+  needed a new kind of layer that mixes the category colours, which breaks the colour rule.)

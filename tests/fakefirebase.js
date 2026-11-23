@@ -28,6 +28,8 @@ function makeFake(){
     if (top === "msgs") return a === uid;
     if (top === "phones") return p.length === 2 && (a === uid || get(["pallow", a, uid]) === true);
     if (top === "pallow" || top === "sos") return a === uid;
+    if (top === "push") return p.length === 2 && (a === uid || get(["pushok", a, uid]) === true);
+    if (top === "pushok") return a === uid;
     if (top === "gkey") return get(["gkeyok", uid]) === true || get(["admins", uid]) === true;
     if (top === "gkeyok") return get(["admins", uid]) === true || (p.length === 2 && a === uid);
     if (top === "gkeyask" || top === "stats") return get(["admins", uid]) === true;
@@ -59,6 +61,8 @@ function makeFake(){
     if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
     if (top === "phones") return p.length === 2 && a === uid && (val == null || (typeof val === "string" && /^\+[0-9]{7,15}$/.test(val)));
     if (top === "pallow") return a === uid;
+    if (top === "push") return p.length === 2 && a === uid && (val == null || (typeof val.endpoint === "string" && val.endpoint.startsWith("https://") && val.endpoint.length < 600 && typeof val.p256dh === "string" && typeof val.auth === "string"));
+    if (top === "pushok") return a === uid && p.length <= 3;
     if (top === "gkey" || top === "gkeyok") return get(["admins", uid]) === true && (top === "gkey" ? p.length === 1 : p.length === 2);
     if (top === "gkeyask") return p.length === 2 && (a === uid || get(["admins", uid]) === true);
     if (top === "stats") return p.length >= 2 && a === uid;
@@ -79,7 +83,8 @@ function makeFake(){
     const u = new URL(url), method = (opts.method || "GET").toUpperCase();
     if (u.hostname === "identitytoolkit.googleapis.com"){
       if (u.searchParams.get("key") !== API_KEY) return json(400, {error:{message:"API key not valid"}});
-      const uid = "u" + (++n), tok = "t" + uid + "-" + n, ref = "r" + uid; tokens[tok] = uid; refresh[ref] = uid;
+      // tokens look like Firebase's (three dot-separated parts, the middle one saying who), so the push worker can read them
+      const uid = "u" + (++n), tok = "h." + Buffer.from(JSON.stringify({user_id:uid})).toString("base64url") + ".s" + n, ref = "r" + uid; tokens[tok] = uid; refresh[ref] = uid;
       return json(200, {localId:uid, idToken:tok, refreshToken:ref, expiresIn:"3600"});
     }
     if (u.hostname === "securetoken.googleapis.com"){

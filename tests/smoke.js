@@ -865,6 +865,32 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await page.click(".driver-card"); await page.evaluate(() => closeDetail());
   }
 
+  // life on the road (js/road.js) and the transport extras, all experiments: each page draws at phone width with its sources
+  if (EXPON){
+    await page.goto(BASE + "#tools/fair"); await page.waitForTimeout(700);
+    await page.fill("#fairQ", "tuk-tuk 3 km"); await page.waitForTimeout(300);
+    const fp = await page.evaluate(() => ({rows:document.querySelectorAll("#fairOut .fair-row").length, est:/est\./.test(document.querySelector("#fairOut").textContent), w:document.documentElement.scrollWidth}));
+    ok(fp.rows >= 1 && fp.est && fp.w <= 393, "fair-price: tuk-tuk 3 km gives the usual fares, marked est. " + JSON.stringify(fp));
+    for (const [pg, re, name] of [["headsup", /gem scam/i, "headsup: the Bangkok gem scam"], ["events", /Full Moon Party/, "events: the Full Moon Parties"], ["visa", /Thailand[\s\S]*30 days/, "visa-count: Thailand 30 days"], ["journal", /Trip wrapped/, "journal: Trip wrapped"]]){
+      await page.goto(BASE + "#tools/" + pg); await page.waitForTimeout(700);
+      const r = await page.evaluate(() => ({t:document.querySelector("#pageview").textContent, w:document.documentElement.scrollWidth}));
+      ok(re.test(r.t) && r.w <= 393, name + " " + JSON.stringify({w:r.w}));
+    }
+    // map-calm: zoomed out over Thailand, stays, food and activities are only the researched places, and the map says so
+    await page.goto(BASE + "#map"); await page.waitForTimeout(2500);
+    await page.evaluate(() => map.jumpTo({center:[100.5, 13.75], zoom:6})); await page.waitForTimeout(3000);
+    const mc = await page.evaluate(() => ({calm:mapRun.calm, mode:mapRun.mode, txt:(document.querySelector("#mapStatusTxt") || {}).textContent || "", n:mapRun.shown}));
+    ok(mc.calm && mc.n > 0 && /researched places/.test(mc.txt), "map-calm: zoomed out shows our researched places, and says so " + JSON.stringify(mc));
+    await page.evaluate(() => openArrival("bkk", HUB.bkk)); await page.waitForTimeout(1500);
+    const ar = await page.evaluate(() => ({t:document.querySelector("#sheetRoot").textContent, w:document.documentElement.scrollWidth}));
+    ok(/Welcome to Bangkok/.test(ar.t) && /Airport Rail Link/.test(ar.t) && /ATM/.test(ar.t) && ar.w <= 393, "arrival: Welcome to Bangkok, the airport train, the nearest ATM " + JSON.stringify({w:ar.w}));
+    await page.evaluate(() => closeDetail());
+    await page.evaluate(() => { const t = planTrips(hubNode("tao"), hubNode("phangan"))[0]; openTripSheet(t); }); await page.waitForTimeout(800);
+    const ts = await page.evaluate(() => ({dep:!!document.querySelector("#sheetRoot .dep-line"), day:/Mae Haad Pier/.test(document.querySelector("#sheetRoot").textContent), w:document.documentElement.scrollWidth}));
+    ok(ts.dep && ts.day && ts.w <= 393, "tp-times / tp-day: the Koh Tao boat shows its saved departures and the pier " + JSON.stringify(ts));
+    await page.evaluate(() => closeDetail());
+  }
+
   // offline: the service worker should already have saved the app
   // (the app only registers its service worker on https, so register it by hand on localhost)
   await page.evaluate(() => Promise.race([navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready), new Promise(r => setTimeout(r, 15000))]));

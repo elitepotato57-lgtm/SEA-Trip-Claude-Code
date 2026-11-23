@@ -5,7 +5,7 @@ const PLACES = "sea-trip-places-v1";    // the parts of the places database you 
 const PACKS = "sea-trip-packs-v1";      // cities saved for offline in Tools > Offline & backup (the page fills it; never trimmed here)
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./config.js",
   "./css/app.css", "./js/data.js", "./js/core.js", "./js/design.js", "./js/places.js", "./js/estimate.js", "./js/shell.js", "./js/lists.js", "./js/map.js", "./js/ask.js",
-  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/boot.js",
+  "./js/transport.js", "./js/tools.js", "./js/camera.js", "./js/tools-more.js", "./js/ask-more.js", "./js/split.js", "./js/friends.js", "./js/games.js", "./js/funny.js", "./js/offline.js", "./js/docs.js", "./js/detail.js", "./js/road.js", "./js/boot.js",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css", "./vendor/pdfjs/pdf.min.mjs", "./vendor/pdfjs/pdf.worker.min.mjs",
   "./img/hero-gaffs.jpg", "./img/hero-munch.jpg", "./img/hero-activities.jpg", "./img/hero-tools.jpg", "./img/hero-discover.jpg", "./img/ben-wave.png", "./img/tom-fried.jpg", "./img/tom-aid-ping.png",
   // typical photos for places that have none of their own (js/detail.js KIND_PHOTO), so toilets and ATMs show one offline too
@@ -120,4 +120,18 @@ self.addEventListener("fetch", e => {
   if (!same && !SAVE.test(url.hostname)) return;      // weather, exchange rates, translation and Google always go straight to the internet
   // icons, the map engine, header photos, fonts and sight photos
   e.respondWith(savedThenFresh(req, APP, same));
+});
+
+// notifications when the app is closed (experiment push; push/worker.js sends them, PUSH-SETUP.md sets it up): show the
+// message, and a tap opens the app (or brings it to the front)
+self.addEventListener("push", e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch(err){}
+  e.waitUntil(self.registration.showNotification(d.title || "SE Asia Trip", {body:d.body || "", tag:d.tag || "trip", renotify:true, icon:"icon-192.png", badge:"icon-192.png", data:{url:d.url || "./"}}));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({type:"window", includeUncontrolled:true}).then(list => {
+    const open = list.find(c => "focus" in c);
+    return open ? open.focus() : self.clients.openWindow(new URL((e.notification.data || {}).url || "./", self.registration.scope).href);
+  }));
 });
