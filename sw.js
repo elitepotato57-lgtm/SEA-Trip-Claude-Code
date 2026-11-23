@@ -121,3 +121,17 @@ self.addEventListener("fetch", e => {
   // icons, the map engine, header photos, fonts and sight photos
   e.respondWith(savedThenFresh(req, APP, same));
 });
+
+// notifications when the app is closed (experiment push; push/worker.js sends them, PUSH-SETUP.md sets it up): show the
+// message, and a tap opens the app (or brings it to the front)
+self.addEventListener("push", e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch(err){}
+  e.waitUntil(self.registration.showNotification(d.title || "SE Asia Trip", {body:d.body || "", tag:d.tag || "trip", renotify:true, icon:"icon-192.png", badge:"icon-192.png", data:{url:d.url || "./"}}));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({type:"window", includeUncontrolled:true}).then(list => {
+    const open = list.find(c => "focus" in c);
+    return open ? open.focus() : self.clients.openWindow(new URL((e.notification.data || {}).url || "./", self.registration.scope).href);
+  }));
+});

@@ -1321,6 +1321,21 @@ test("own ideas: leave-by works back from the next boat (pier check-in and the r
       eq(meet.m, {lat:13.75812, lng:100.49765, w:"20:00", n:"Outside the 7-Eleven"});
       const h = P1.meetMsgHTML(meet); ok(/meet at <b>20:00<\/b>, Outside the 7-Eleven/.test(h) && /destination=13\.75812/.test(h), h);
     });
+    // experiment push: a phone with the worker set up asks it to notify the friend after a sticker or an "I'm lost" alert
+    {
+      const calls = [], pushUrl = "https://sea-trip-push.example.workers.dev";
+      const P4 = load(undefined, {SEA_FIREBASE:cfg.SEA_FIREBASE, SEA_PUSH:{url:pushUrl, key:"B" + "x".repeat(86)},
+        fetch:(u, o) => String(u).startsWith(pushUrl) ? (calls.push({u:String(u), o}), Promise.resolve({ok:true, status:200, json:async () => ({ok:true})})) : fb.fetch(u, o)});
+      P4.S.friends.name = "Tester"; await P4.frMe(); P4.S.friends.list = {[me1.uid]:{n:"Dylan"}};
+      P4.expSet("push", false); await P4.frSendSticker(me1.uid, stk); const before = calls.length;
+      P4.expSet("push", true); await P4.frSendSticker(me1.uid, stk); await new Promise(r => setTimeout(r, 50));
+      const noCfg = load(undefined, {}); noCfg.expSet("push", true);
+      test("experiment push: with it on and set up, a sticker asks the worker to notify the friend (with the sender's token); not set up, it says so", () => {
+        eq(before, 0, "switched off: no notification");
+        eq(calls.length, 1); eq(calls[0].u, pushUrl + "/send"); eq(JSON.parse(calls[0].o.body), {to:me1.uid, kind:"msg"}); ok(/^Bearer h\./.test(calls[0].o.headers.Authorization));
+        ok(P4.pushCfg() && !noCfg.pushCfg()); ok(/Not set up yet/.test(noCfg.pushHTML()) && /PUSH-SETUP\.md/.test(noCfg.pushHTML()));
+      });
+    }
     test("developer mode: typing ELITE POTATO in the map search switches it on and off", () => {
       eq(P1.frDevCode("elite potato"), false); eq(P1.frDevCode(" ELITE  POTATO "), true); eq(P1.S.dev, true); eq(P1.toolsInOrder().slice(-1)[0].id, "developer");
       eq(P1.frDevCode("ELITE POTATO"), true); eq(P1.S.dev, false); ok(!P1.toolsInOrder().some(t => t.id === "developer"), "the Developer tool hides again");
@@ -1403,6 +1418,8 @@ test("own ideas: leave-by works back from the next boat (pier check-in and the r
       ok(!reqsAfter.some(r => r.uid === me2.uid), "old request hidden"); ok(reqsNew.some(r => r.uid === me2.uid), "a new request shows");
     });
   }
+  // notifications when the app is closed: push/worker.js against a pretend phone and the pretend Firebase
+  await require("./push").run(test, ok, eq).catch(e => test("push worker tests ran", () => { throw e; }));
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })();

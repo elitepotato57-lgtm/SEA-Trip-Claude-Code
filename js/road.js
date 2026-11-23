@@ -345,10 +345,11 @@ function meetMsgHTML(mm){
     <div class="note">${esc(frWhen(mm.t))}</div><div class="row"><button class="btn" type="button" data-msg="done">Close</button></div>`;
 }
 const frSosHTMLBase = frSosHTML;
-frSosHTML = function(){ return frSosHTMLBase() + (exp("meetup") ? meetHTML() : ""); };
+frSosHTML = function(){ return frSosHTMLBase() + (exp("meetup") ? meetHTML() : "") + (exp("push") ? pushHTML() : ""); };
 const frSosBindBase = frSosBind;
 frSosBind = function(root){
   frSosBindBase(root);
+  if (exp("push")) pushBind(root);
   const b = exp("meetup") && root.querySelector("#meetGo"); if (!b) return;
   b.onclick = async () => {
     const where = root.querySelector("#meetAt").value;
@@ -360,6 +361,65 @@ frSosBind = function(root){
     b.disabled = false;
   };
 };
+
+/* ---------- notifications when the app is closed (Phase 2 leftover) ----------
+   Experiment push. Each phone that turns it on saves its push address in push/{uid} and lets its friends use it (pushok/{uid});
+   "I'm lost", stickers and meet-ups then ask the worker (push/worker.js, a free Cloudflare Worker) to notify the friend, which
+   reads that address with the sender's own login. Needs window.SEA_PUSH = {url, key} in config.js: PUSH-SETUP.md. On iPhone it
+   only works in the app added to the home screen (iOS 16.4 or later). */
+EXPERIMENTS.push({id:"push", n:"Notifications when the app is closed", d:"Friends › Notifications: “I’m lost”, messages and meet-ups arrive as phone notifications even with the app closed (needs PUSH-SETUP.md done first)."});
+const pushCfg = () => { const c = typeof window !== "undefined" && window.SEA_PUSH; return c && /^https:\/\/[\w.-]+/.test(c.url || "") && /^[\w-]{80,100}$/.test(c.key || "") ? c : null; };
+const pushCan = () => typeof navigator !== "undefined" && "serviceWorker" in navigator && typeof PushManager !== "undefined" && typeof Notification !== "undefined";
+const pushUnb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const pushB64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function pushAllowFriends(){
+  const me = await frMe();
+  await Promise.all(Object.keys(frState().list).map(u => frDb("PUT", `pushok/${me.uid}/${u}`, true).catch(() => {})));
+}
+async function pushOn(){
+  const cfg = pushCfg(); if (!cfg) throw new Error("Notifications aren’t set up yet (PUSH-SETUP.md)");
+  if (await Notification.requestPermission() !== "granted") throw new Error("Notifications are blocked: allow them in the phone’s Settings for this app");
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:pushUnb64(cfg.key)});
+  const j = sub.toJSON(), me = await frMe();
+  await frDb("PUT", `push/${me.uid}`, {endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth});
+  await pushAllowFriends(); lsSet("push-on", true);
+}
+async function pushNotify(to, kind){
+  const cfg = pushCfg(); if (!exp("push") || !cfg) return false;
+  try {
+    const a = await frAuth();
+    const r = await fetch(cfg.url.replace(/\/$/, "") + "/send", {method:"POST", headers:{Authorization:"Bearer " + a.tok, "Content-Type":"application/json"}, body:JSON.stringify({to, kind})});
+    return r.ok;
+  } catch(e){ return false; }
+}
+// the developer phone makes the worker's key pair once (on the phone, never sent anywhere): PUSH-SETUP.md step 3
+async function pushMakeKeys(){
+  const kp = await crypto.subtle.generateKey({name:"ECDSA", namedCurve:"P-256"}, true, ["sign", "verify"]);
+  return {pub:pushB64(await crypto.subtle.exportKey("raw", kp.publicKey)), priv:JSON.stringify(await crypto.subtle.exportKey("jwk", kp.privateKey))};
+}
+function pushHTML(){
+  const cfg = pushCfg(), on = lsGet("push-on", false) && typeof Notification !== "undefined" && Notification.permission === "granted";
+  return `<div class="block push-block"><h2>${icon("alert","i s")}Notifications</h2>
+    ${!cfg ? `<p class="note">Not set up yet: Dylan needs to follow PUSH-SETUP.md once. Until then, alerts and messages pop up only while the app is open.</p>`
+      : !pushCan() ? `<p class="note">This phone can’t get notifications from the app yet. On an iPhone: Share › Add to Home Screen, then open the app from the home screen (iOS 16.4 or later) and come back here.</p>`
+      : on ? `<p>${icon("check","i s")} On: “I’m lost”, messages and meet-ups from your friends arrive even with the app closed.</p>`
+      : `<p class="note">Get “I’m lost”, messages and meet-ups even when the app is closed.</p><button class="btn wide" type="button" id="pushOn">${icon("alert","i s")}Turn on notifications</button>`}
+    ${S.dev ? `<details class="more" style="margin-top:8px"><summary>Developer: make the notification keys</summary><p class="note">Once, for PUSH-SETUP.md step 3. Made on this phone and shown only here.</p><button class="btn small" type="button" id="pushKeys">Make keys</button><div id="pushKeysOut"></div></details>` : ""}</div>`;
+}
+function pushBind(root){
+  if (lsGet("push-on", false)) pushAllowFriends().catch(() => {});        // friends added since are let in too
+  const b = root.querySelector("#pushOn");
+  if (b) b.onclick = async () => { b.disabled = true; try { await pushOn(); toast("Notifications on"); const blk = root.querySelector(".push-block"); if (blk) blk.outerHTML = pushHTML(); pushBind(root); } catch(e){ toast(e.message || "Couldn’t turn them on"); b.disabled = false; } };
+  const k = root.querySelector("#pushKeys");
+  if (k) k.onclick = async () => { const r = await pushMakeKeys(); root.querySelector("#pushKeysOut").innerHTML = `<label class="field">VAPID_PUBLIC<textarea readonly rows="3">${esc(r.pub)}</textarea></label><label class="field">VAPID_PRIVATE (a Secret)<textarea readonly rows="5">${esc(r.priv)}</textarea></label><p class="note">Copy both now: they aren’t kept.</p>`; };
+}
+const frSosSendPushBase = frSosSend;
+frSosSend = async function(){ const n = await frSosSendPushBase(); if (exp("push")) Object.keys(frState().list).forEach(u => pushNotify(u, "sos")); return n; };
+const frSendStickerPushBase = frSendSticker;
+frSendSticker = async function(to, id){ const mid = await frSendStickerPushBase(to, id); if (exp("push")) pushNotify(to, "msg"); return mid; };
+const meetSendBase = meetSend;
+meetSend = async function(spot, w, n){ const k = await meetSendBase(spot, w, n); if (exp("push")) Object.keys(frState().list).forEach(u => pushNotify(u, "meet")); return k; };
 
 // one timer for the arrival card, the journal's stops and the visa dates: boot.js runs it every 30 seconds
 function roadTick(){ try { arrivalCheck(); journalTick(); visaTick(); } catch(e){} }

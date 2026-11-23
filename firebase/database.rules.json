@@ -127,6 +127,19 @@
         ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^\\+[0-9]{7,15}$/))"
       }
     },
+    "push": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('pushok').child($uid).child(auth.uid).val() === true)",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "!newData.exists() || (newData.hasChildren(['endpoint', 'p256dh', 'auth']) && newData.child('endpoint').isString() && newData.child('endpoint').val().beginsWith('https://') && newData.child('endpoint').val().length < 600 && newData.child('p256dh').isString() && newData.child('auth').isString())"
+      }
+    },
+    "pushok": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
     "pallow": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
