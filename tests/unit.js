@@ -1071,6 +1071,14 @@ test("own ideas: leave-by works back from the next boat (pier check-in and the r
   eq(P.visaLeft("SG", "2027-01-10"), null);
 });
 
+test("experiment late-open: after 10 pm open places come first, then unknown hours, then closed, each keeping its order", () => {
+  const P = load(), m = Math.floor(Date.now() / 60000);
+  const mk = (id, open) => ({id, n:id, lat:13.75, lng:100.5, oh:open == null ? null : "Mo-Su 00:00-24:00", _oh:open == null ? undefined : {open, text:""}, _ohAt:m});
+  const items = [mk("shut1", false), mk("unk1"), mk("open1", true), mk("shut2", false), mk("open2", true), mk("unk2")];
+  eq(P.openFirst(items).map(x => x.id), ["open1", "open2", "unk1", "unk2", "shut1", "shut2"]);
+  eq([22, 23, 0, 4, 5, 12, 21].map(h => P.lateNow(new Date(2026, 11, 1, h, 30))), [true, true, true, true, false, false, false]);
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {
