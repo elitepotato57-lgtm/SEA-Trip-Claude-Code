@@ -69,7 +69,7 @@ function fairHTML(a){
 TOOLS.push({id:"fair", l:"Fair price", d:"What things usually cost here", ic:"tag", get hidden(){ return !exp("fair-price"); }});
 TOOL_PAGES.fair = (root, arg) => {
   const at = herePt();
-  root.innerHTML = hero({title:"Fair price", sub:"Is that a fair price? The usual price where you are", back:"#tools"}) + `<div class="page">
+  root.innerHTML = hero({title:"Fair price", sub:"Is that a fair price? The usual price where you are", back:["#tools", "Tools"]}) + `<div class="page">
     <div class="block"><label class="field">What are you paying for?<input id="fairQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="Tuk-tuk 3 km, beer, massage…" value="${esc(decodeURIComponent(arg || ""))}"></label>
       <div class="scroller fair-chips" style="margin-top:8px">${FAIR_EXAMPLES.map(x => `<button class="chip" type="button" data-fq="${esc(x)}">${esc(x)}</button>`).join("")}</div>
       ${typeof listen === "function" ? `<button class="btn small" type="button" id="fairMic" style="margin-top:8px">${icon("speaker","i s")}Say it</button>` : ""}</div>
@@ -112,7 +112,7 @@ function headsupHTML(id, title = true){
 TOOLS.push({id:"headsup", l:"Heads-ups", d:"Scams to know at each stop", ic:"alert", get hidden(){ return !exp("headsup"); }});
 TOOL_PAGES.headsup = root => {
   const here = stopAt(herePt()), ids = ROUTE_STOPS.filter(id => HEADSUP[id]).sort((a, b) => (b === here) - (a === here));
-  root.innerHTML = hero({title:"Heads-ups", sub:"Scams and things to know, stop by stop", back:"#tools"}) + `<div class="page">
+  root.innerHTML = hero({title:"Heads-ups", sub:"Scams and things to know, stop by stop", back:["#tools", "Tools"]}) + `<div class="page">
     ${here && HEADSUP[here] ? `<p class="note">You’re in ${esc(HUB[here].n)}: its heads-ups are first.</p>` : ""}
     ${ids.map(id => `<div class="block">${headsupHTML(id)}</div>`).join("")}
     <p class="note">In trouble in Thailand: Tourist Police 1155. Every country’s numbers are in Tools › Emergency.</p></div>`;
@@ -140,7 +140,7 @@ function eventsHTML(today = todayISO()){
 }
 TOOLS.push({id:"events", l:"Events", d:"Full moons, New Year, festivals", ic:"calendar", get hidden(){ return !exp("events"); }});
 TOOL_PAGES.events = root => {
-  root.innerHTML = hero({title:"Events on our route", sub:"From now to February", back:"#tools"}) + `<div class="page"><div class="block">${eventsHTML()}</div>
+  root.innerHTML = hero({title:"Events on our route", sub:"From now to February", back:["#tools", "Tools"]}) + `<div class="page"><div class="block">${eventsHTML()}</div>
     <p class="note">Only dates a source gives. Full Moon Party dates are set locally and move for Buddhist holidays; lunar dates are worked out from the full moon.</p></div>`;
 };
 
@@ -148,7 +148,8 @@ TOOL_PAGES.events = root => {
 EXPERIMENTS.push({id:"arrival", n:"Arrival mode", d:"The first time you’re in a new stop, a card shows how to get into town, a fair fare, the nearest ATM, SIM shop and 7-Eleven, and the local heads-ups."});
 // the ways into town from an airport hub next to this stop (the saved links, with their prices)
 function intoTown(id){
-  return NET.edges.filter(e => (e.a === id && isAirport(e.b)) || (e.b === id && isAirport(e.a))).map(e => ({mode:e.mode, op:e.op, p:e.p ? rangeText(e.p, e.cur) : null, dur:fRange(e.dur[0], e.dur[1]), from:HUB[isAirport(e.a) ? e.a : e.b].n}));
+  // only the airports that serve this stop (not a flight in from another country's airport hub)
+  return NET.edges.filter(e => e.mode !== "Flight" && ((e.a === id && isAirport(e.b)) || (e.b === id && isAirport(e.a)))).map(e => ({mode:e.mode, op:e.op, p:e.p ? rangeText(e.p, e.cur) : null, dur:fRange(e.dur[0], e.dur[1]), from:HUB[isAirport(e.a) ? e.a : e.b].n}));
 }
 function arrivalHTML(id){
   const into = intoTown(id), fare = fareEstimates(5, HUB[id])[0];
@@ -246,7 +247,7 @@ function drawJournalMap(){
 TOOLS.push({id:"journal", l:"Trip journal", d:"Where we’ve been, and Trip wrapped", ic:"book", get hidden(){ return !exp("journal"); }});
 TOOL_PAGES.journal = root => {
   const w = wrapped(), been = beenList().sort((a, b) => b.t - a.t);
-  root.innerHTML = hero({title:"Trip journal", sub:"Where we’ve been", back:"#tools"}) + `<div class="page">
+  root.innerHTML = hero({title:"Trip journal", sub:"Where we’ve been", back:["#tools", "Tools"]}) + `<div class="page">
     <div class="block jr-wrap"><h2>Trip wrapped</h2>
       <div class="jr-stats"><div><b>${fmtNum(w.km)}</b><small>km between stops</small></div><div><b>${w.countries.length}</b><small>countr${w.countries.length === 1 ? "y" : "ies"}</small></div>
         <div><b>${w.stops.length}</b><small>stops</small></div><div><b>${w.places}</b><small>places been</small></div><div><b>${w.nights}</b><small>nights</small></div></div>
@@ -310,7 +311,7 @@ function visaTick(){
 TOOLS.push({id:"visa", l:"Visa countdown", d:"Days left in each country", ic:"calendar", get hidden(){ return !exp("visa-count"); }});
 TOOL_PAGES.visa = root => {
   const e = S.entered || {};
-  root.innerHTML = hero({title:"Visa countdown", sub:"So nobody overstays", back:"#tools"}) + `<div class="page">
+  root.innerHTML = hero({title:"Visa countdown", sub:"So nobody overstays", back:["#tools", "Tools"]}) + `<div class="page">
     ${Object.entries(VISA_DAYS).map(([cc, v]) => { const r = visaLeft(cc, e[cc]);
       return `<div class="block"><h2>${esc(D.countries[cc].name)}</h2><p>${v[0]} days ${esc(v[1])}.</p>
         <label class="field">Day you arrived<input type="date" data-ent="${cc}" value="${esc(e[cc] || "")}"></label>

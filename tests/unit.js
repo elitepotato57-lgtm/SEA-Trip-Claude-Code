@@ -1045,7 +1045,7 @@ test("experiment events: Full Moon Parties and New Year on the route, past ones 
 test("experiment arrival: arriving in Bangkok shows the airport train with its price, getting around, a fair fare and the heads-ups", () => {
   const P = load();
   eq(P.stopAt({lat:13.75, lng:100.53}), "bkk"); eq(P.stopAt({lat:9.74, lng:100.02}), "phangan"); eq(P.stopAt({lat:0, lng:0}), null);
-  ok(P.intoTown("bkk").some(x => x.mode === "Train" && /45/.test(x.p)));
+  ok(P.intoTown("bkk").some(x => x.mode === "Train" && /45/.test(x.p)) && !P.intoTown("bkk").some(x => x.mode === "Flight"), JSON.stringify(P.intoTown("bkk")));
   const h = P.arrivalHTML("bkk");
   ok(/Welcome to Bangkok/.test(h) && /Getting into town/.test(h) && /Getting around/.test(h) && /A fair fare/.test(h) && /gem scam/i.test(h) && /arrNear/.test(h));
 });

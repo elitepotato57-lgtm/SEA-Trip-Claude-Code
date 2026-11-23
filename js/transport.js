@@ -382,7 +382,7 @@ function legTimesHTML(L){
   const fmt = d => `<b>${esc(d[0])}</b>${d[1] ? `–${esc(d[1])}${d[2] ? "<sup>+1</sup>" : ""}` : ""}${d[3] ? " " + esc(d[3]) : ""}`;
   const r = depsLeft(list, now.min);
   const head = day ? `On ${esc(fmtDay(day))}: ${list.length} departure${list.length > 1 ? "s" : ""}, first <b>${esc(r.first[0])}</b>, last <b>${esc(r.last[0])}</b>`
-    : r.left.length ? `Next today: ${r.left.slice(0, 3).map(fmt).join(", ")}${r.left.length > 3 ? "…" : ""}. Last one <b>${esc(r.last[0])}</b>` : `No more today. First tomorrow: ${fmt(r.first)}`;
+    : r.left.length ? `Next today: ${r.left.slice(0, 3).map(fmt).join(", ")}${r.left.length > 3 ? ` and ${r.left.length - 3} more` : ""}. Last one <b>${esc(r.last[0])}</b>` : `No more today. First tomorrow: ${fmt(r.first)}`;
   return `<div class="dep-line">${icon("clock","i xs")} ${head}</div>
     <details class="deps"><summary>All ${list.length} saved departures</summary><ul class="known">${list.map(d => `<li>${fmt(d)}</li>`).join("")}</ul></details>
     <p class="note dep-src">Saved timetable${src ? ` from <a href="${esc(src[1])}" target="_blank" rel="noopener">${esc(src[0])}</a>` : ""}: not live, so check with the operator before you go.</p>`;
