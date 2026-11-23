@@ -38,12 +38,13 @@ function sortItems(items, how, pt = userLoc){
   return exp("late-open") && how !== "az" && lateNow() ? openFirst(arr) : arr;
 }
 /* Experiment late-open: from 10 pm to 5 am (the phone's own clock), lists and the map's list put places open now first, then
-   those whose hours we don't know, then the closed ones, each group keeping its order. */
+   those whose hours we don't know, then the closed ones, each group keeping its order. Only the first 60 of the list are
+   reordered, so an all-night place in another town (or country) never jumps above the ones near you. */
 EXPERIMENTS.push({id:"late-open", n:"After 10 pm: open places first", d:"From 10 pm to 5 am, lists and the map’s list show places open now first, then unknown hours, then closed ones."});
 const lateNow = (d = new Date()) => d.getHours() >= 22 || d.getHours() < 5;
-function openFirst(arr){
+function openFirst(arr, top = 60){
   const rank = it => { const o = isOpenNow(it); return o ? (o.open ? 0 : 2) : 1; };
-  return arr.map((x, i) => [x, i, rank(x)]).sort((a, b) => a[2] - b[2] || a[1] - b[1]).map(x => x[0]);
+  return arr.slice(0, top).map((x, i) => [x, i, rank(x)]).sort((a, b) => a[2] - b[2] || a[1] - b[1]).map(x => x[0]).concat(arr.slice(top));
 }
 // a researched price in pounds, or the low end of the estimate (in its own currency: rupiah estimates are not baht)
 const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, e.cur || "THB") : null; };
