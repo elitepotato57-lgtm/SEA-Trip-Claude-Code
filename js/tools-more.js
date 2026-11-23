@@ -185,7 +185,7 @@ TOOL_PAGES.wifiList = root => {
 };
 
 /* ---------- Thailand guide ---------- */
-const GUIDE_CHECKED = "10 Nov 2026";
+const GUIDE_CHECKED = "23 Nov 2026";
 const DEST_NOTE = {"Siem Reap":"Town by the temples of Angkor, with Pub Street and the night markets.",
   "Phnom Penh":"Cambodia’s capital on the Mekong: the Royal Palace, the riverside, and the sobering Tuol Sleng and Killing Fields memorials.",
   "Kampot":"Sleepy river town known for pepper farms, Bokor Mountain and sunset boat trips.",
@@ -275,7 +275,7 @@ TOOL_PAGES.guide = root => {
 };
 
 /* Cambodia guide: entry rules, warnings and laws from gov.uk, checked 12 Nov 2026 */
-const GUIDE_KH_CHECKED = "12 Nov 2026";
+const GUIDE_KH_CHECKED = "23 Nov 2026";
 function guideKH(root){
   const src = (label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
   const riel = Math.round(rate("KHR") / rate("USD") / 100) * 100;
