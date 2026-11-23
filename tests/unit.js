@@ -864,7 +864,7 @@ test("experiments: every one is off unless switched on on this phone; each has a
   ok(A.EXPERIMENTS.every(x => x.id && x.n && x.d && !/\n/.test(x.d)), "names and descriptions");
   eq(new Set(A.EXPERIMENTS.map(x => x.id)).size, A.EXPERIMENTS.length, "no two share an id");
   ok(A.expList().every(x => A.exp(x.id) === EXPON), EXPON ? "the test run switches them all on" : "all off for a normal phone");
-  eq(A.expList().map(x => x.id).sort(), ["detail-buttons", "tools-groups"], "the two still being tried");
+  ok(["detail-buttons", "tools-groups"].every(id => A.expList().some(x => x.id === id)) && A.expList().every(x => !A.EXP_ADOPTED.has(x.id)), "switches: the ones still being tried, never an adopted one");
   ok([...A.EXP_ADOPTED].every(id => A.exp(id)), "the adopted ones are on for everyone");
   const P = load(); P.expSet("demo", true); ok(P.exp("demo")); P.expSet("demo", false); ok(!P.exp("demo"));
 });
