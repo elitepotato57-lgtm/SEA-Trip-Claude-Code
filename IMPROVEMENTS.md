@@ -52,3 +52,41 @@ Now there's an **owner** (`owner/` in Firebase): a developer phone claims it onc
 rules only let the owner delete a group's name or take people out, which is what deleting a group needs. The button shows only on the
 owner's phone. Adding people, adding and deleting payments and everything else in Split costs are unchanged.
 **Dylan must re-publish the rules and claim owner on his phone** (FIREBASE-SETUP.md).
+
+### 2. Notifications when the app is closed: not done yet
+Needs a Cloudflare Worker that signs and encrypts Web Push messages, a push handler in the service worker, a subscribe step on
+each phone and PUSH-SETUP.md for Dylan's accounts and keys. It can't be tried end to end from here (no iPhone, no Cloudflare
+account), and a half-built version would be worse than none. Left for a phase of its own.
+
+### 3. Calmer zoomed-out map: not done yet
+One bubble per destination means replacing the per-category clusters at low zoom with a single layer; it touches the busiest code in
+the app (`refreshMapData`), so it was left rather than rushed before the flight.
+
+## Phase 3: transport
+
+### Route check (`node tests/audit-route.js`)
+Every leg of the route and every pair of neighbouring stops was run through the planner. Found:
+| Finding | Done |
+|---|---|
+| **Detours through another country**: Bangkok → Pai via a flight to Luang Prabang (Laos); Siem Reap → Phnom Penh via Bangkok; Phnom Penh → Saigon via Singapore. | Fixed (bug fix): a trip inside one country stays in it; a trip between two countries only goes through a third if that's quicker than every way that doesn't |
+| **The long way round**: Bangkok → Pai via Phuket (5 h slower, an extra unpriced flight). | Fixed: a journey goes if another is at least 30% quicker, no dearer, with no more legs and no more unpriced legs. Cheaper slow options (the Bangkok → Chiang Mai bus, bus + minivan to Pai) stay |
+| **Koh Tao → Koh Phangan direct ferry has no saved price**, so Fastest shows "check live". | Not fixed: needs a sourced fare (Lomprayah / Seatran); 12Go and Rome2Rio can't be read from the test machine |
+| **Ho Chi Minh City → Hoi An → Hanoi only offers unpriced flights**; the Reunification Express trains (the classic way, overnight) aren't in the network. | Not fixed: needs Vietnam Railways or 12Go timetables and fares, which can't be read from here. Top of the list for a session that can reach them |
+| **No land crossing Thailand ↔ Cambodia in the planner**: matches the FCDO advice against travel within 20 km of that border; the Cambodia guide already says so. | – |
+| Fastest / Cheapest badges on the route: all correct after the fixes above. | – |
+
+### Built as experiments (all off; Tools › Developer › Experiments)
+- **tp-group**: with 2+ people chosen, journeys show the group total and the price each, in local money and pounds.
+- **tp-saved**: save a journey from its sheet (kept whole on the phone, so it opens offline) and pin one as "our next journey" at the top of Transport.
+- **tp-border**: overland legs into another country get a card from gov.uk: the visa to sort first, the stamp to check, unofficial fees to watch for (the Thailand–Cambodia land border warning too).
+- **tp-sea**: boat legs show the waves forecast for the travel day (Open-Meteo marine, free), described on the WMO sea-state scale, with a warning from "moderate" up.
+
+### Not built, and why
+- **4 Departure times, 5 day-of-travel cards, 8 booking pressure, 9 getting around town fares**: each needs sourced timetables,
+  pier and office details, sell-out patterns or fares. The sources that have them (12Go, Rome2Rio, operators) can't be read from
+  the test machine, and the rules say never to invent them.
+- **6 Comfort and overnight**: the network doesn't record departure times or bus class for most legs, so "overnight" and
+  "sleeper" can't be told apart honestly yet. Comes with the timetables above.
+- **13 Own ideas** (suggested, not built): (a) "Leave by" times on a saved journey, from the planner's journey time plus the
+  airport/pier allowance; (b) a "who's booked" tick per person on a saved journey, shared through the live split group, so the
+  group knows who still needs a ticket.
