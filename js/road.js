@@ -8,7 +8,7 @@
 // the grouped Tools page (experiment tools-groups) lists tiles by id: the new tools join "Right now" and "Our trip" (hidden ones are skipped)
 TOOL_GROUPS[0][1].push("fair", "headsup", "visa");
 TOOL_ORDER.splice(TOOL_ORDER.indexOf("developer"), 0, "fair", "headsup", "events", "journal", "visa");      // Developer stays last
-TOOL_GROUPS[1][1].push("events", "journal");
+TOOL_GROUPS[1][1].splice(TOOL_GROUPS[1][1].indexOf("developer"), 0, "events", "journal");          // Developer stays last
 // the stop on our route (or any planner stop) you're in: within an island's radius, or 25 km of a town
 function stopAt(pt){
   if (!pt || pt.lat == null) return null;
@@ -177,14 +177,21 @@ function openArrival(id, at){
   openSheet(arrivalHTML(id), "arr-title");
   paintArrivalNear(at || HUB[id]);
 }
-// once per stop: the first real GPS fix there opens the card
+// once per stop: the first real GPS fix there shows a small "Welcome to …" note (it never covers what you're doing); its button
+// opens the card. Heads-ups and Tools keep the same information for later.
+function arrivalNote(id, at){
+  const root = $("#toastRoot"); if (!root) return;
+  root.innerHTML = `<div class="toast" role="status"><span>Welcome to ${esc(HUB[id].n)}</span><button type="button" id="arrOpen">Arrival tips</button></div>`;
+  $("#arrOpen").onclick = () => { root.innerHTML = ""; openArrival(id, at); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => root.innerHTML = "", 8000);
+}
 function arrivalCheck(){
   if (!exp("arrival") || locStatus !== "ok" || !userLoc) return;
   const id = stopAt(userLoc); if (!id) return;
   const seen = S.arrived || (S.arrived = {});
   if (seen[id]) return;
   seen[id] = todayISO(); persist();
-  if (!$("#sheetRoot .sheet-head")) openArrival(id, userLoc);
+  arrivalNote(id, {lat:userLoc.lat, lng:userLoc.lng});
 }
 
 /* ---------- 18. Trip journal ---------- */
