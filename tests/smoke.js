@@ -546,6 +546,14 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await A.pg.click(`#fr-split [data-pair="${uidB}"]`); await A.pg.waitForTimeout(400);
     await A.pg.click('#confirmRoot [data-cfm="1"]'); await A.pg.waitForTimeout(1500);
     ok(await A.pg.evaluate(() => /all square/.test(document.querySelector("#fr-split .sp-bal").textContent)), "They paid me settles it");
+    // only the owner's phone (Dylan's, claimed once in Tools › Developer) sees Delete on a split group
+    await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(2500);
+    const ownBtn = !!(await A.pg.$("#fr-dev #fr-owner"));
+    if (ownBtn){ await A.pg.click("#fr-dev #fr-owner"); await A.pg.waitForTimeout(300); await A.pg.click('#confirmRoot [data-cfm="1"]'); await A.pg.waitForTimeout(1500); }
+    await A.pg.goto(BASE + "#tools/friends-split"); await A.pg.waitForTimeout(2500);
+    await B.pg.goto(BASE + "#tools/friends-split"); await B.pg.waitForTimeout(2500);
+    const del = {owner:fb.root.owner === uidA, a:!!(await A.pg.$("#sp-gdel")), b:!!(await B.pg.$("#sp-gdel"))};
+    ok(ownBtn && del.owner && del.a && !del.b, "split groups: Dylan claims owner once; only his phone shows Delete " + JSON.stringify(del));
     // Games (Friends › Play): Dylan starts Four in a row with Sam; Sam gets the invite on whatever screen he's on; both phones agree
     await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(1500);
     const pl = await A.pg.evaluate(() => ({games:[...document.querySelectorAll(".gm-tile b")].map(b => b.textContent), tally:!!document.querySelector("#gm-tally"), w:document.documentElement.scrollWidth}));

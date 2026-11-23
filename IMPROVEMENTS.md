@@ -44,5 +44,11 @@ Risks, smallest first:
 4. **No rate limits**: on the free plan, someone could fill the database. Firebase's free-plan limits stop the bill at £0 (the
    project has no card), so the worst case is the app's Friends features stop until the next month.
 
-## Phase 2 onwards
-(see below as each phase lands)
+## Phase 2: split costs and alerts
+
+### 1. Only Dylan's phone deletes split groups (done, not an experiment: a permissions fix)
+Before: the Delete button showed on any developer phone, and the rules let any developer delete a group or take someone out.
+Now there's an **owner** (`owner/` in Firebase): a developer phone claims it once (Tools › Developer › Owner), and from then on the
+rules only let the owner delete a group's name or take people out, which is what deleting a group needs. The button shows only on the
+owner's phone. Adding people, adding and deleting payments and everything else in Split costs are unchanged.
+**Dylan must re-publish the rules and claim owner on his phone** (FIREBASE-SETUP.md).

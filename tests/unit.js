@@ -1153,7 +1153,15 @@ test("show this to the driver: offered only on gaffs with a Thai or Lao name or 
     const stillThere = !!(fb.root.groups[gid] && fb.root.groups[gid].members[me2.uid]);
     await P1.frDb("PUT", `groups/${gid}/members/${me3.uid}`, "Dev");
     const notDevRemove = await P1.liveRemoveMember(gid, me2.uid).then(() => "ok", e => e.status || e.message);
+    // a developer who isn't the owner can't either, once the owner is set; the owner (P3 here) can
+    await P3.frCheckAdmin(); const ownerBefore = P3.frIsOwner();
+    const notOwnerClaim = await P1.frClaimOwner().then(() => "ok", e => e.message);       // P1 isn't a developer
+    await P3.frClaimOwner(); const ownerAfter = P3.frIsOwner();
+    const secondClaim = await P3.frDb("PUT", "owner", me1.uid).then(() => "ok", e => e.message);
     await P3.liveRemoveMember(gid, me2.uid);
+    test("split groups: only the owner's phone, claimed once by a developer, can delete groups or take people out", () => {
+      eq([ownerBefore, notOwnerClaim, ownerAfter, secondClaim], [false, "permission", true, "permission"]);
+    });
     const sansSam = Object.keys(fb.root.groups[gid].members).sort();
     await P2.liveListGroups();
     const samGroups = P2.liveGroupsCached().map(g => g.id);

@@ -192,8 +192,16 @@ async function frLoadPhotos(force){
 /* ---------- developer phone: only it can set everyone's photo ----------
    Developer mode is switched on by tapping "About the data" in Settings 7 times. The first phone to claim it in the database
    becomes the developer (admins/{uid}); after that the rules refuse anyone else. */
-let frAdmin = null;
-async function frCheckAdmin(){ const me = await frMe(); frAdmin = (await frDb("GET", `admins/${me.uid}`).catch(() => null)) === true; return frAdmin; }
+let frAdmin = null, frOwner = null;
+// the owner (owner/: Dylan's phone, claimed once by a developer) is the only phone that can delete a split group or take someone out
+async function frCheckAdmin(){
+  const me = await frMe();
+  frAdmin = (await frDb("GET", `admins/${me.uid}`).catch(() => null)) === true;
+  frOwner = await frDb("GET", "owner").catch(() => null);
+  return frAdmin;
+}
+const frIsOwner = () => !!frOwner && frOwner === frMyId();
+async function frClaimOwner(){ const me = await frMe(); await frDb("PUT", "owner", me.uid); frOwner = me.uid; return true; }
 async function frClaimAdmin(){ const me = await frMe(); await frDb("PUT", `admins/${me.uid}`, true); frAdmin = true; return true; }
 // a small square face (128 px JPEG, about 8 KB) from a photo on the phone
 async function frResizePhoto(file){
@@ -588,12 +596,14 @@ async function paintDev(){
       <div class="fr-stickers">${Object.entries(frStickers).map(([id, st]) => `<div class="fr-stk" data-stk="${esc(id)}">${st.d ? `<img src="${esc(st.d)}" alt="">` : ""}<input class="sp-in fr-stkname" type="text" maxlength="30" value="${esc(st.n)}" data-stkname="${esc(id)}" aria-label="Name of this sticker" enterkeyhint="done">
         <div class="fr-stkact"><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
       <label class="btn small fr-photo" style="margin-top:10px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label></div>
-    <div class="block"><h2>Developers</h2><p class="note">Who else can do all this. Switch a friend on to make them a developer.</p>
+    ${frOwner ? "" : `<div class="block"><h2>Owner</h2><p class="note">One phone, Dylan’s, is the owner: the only one that can delete a split-costs group or take someone out of one. It can only be claimed once.</p><button class="btn small" type="button" id="fr-owner">This is Dylan’s phone: make it the owner</button></div>`}
+    <div class="block"><h2>Developers</h2><p class="note">Who else can do all this. Switch a friend on to make them a developer.${frIsOwner() ? " This phone is the owner." : ""}</p>
       <div class="fr-row"><span>${frAvatar(me, 36)}</span><div><b>This phone</b><div class="note">Developer</div></div></div>
       ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-mkdev="${esc(uid)}" aria-pressed="${devs[uid]}" aria-label="${esc(x.n)} is a developer"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
     <div class="block"><h2>Everyone’s photos</h2><p class="note">The face everyone sees for a person. Anyone can still choose their own photo of a friend with the pencil on Friends.</p>
       ${[[me, {n:"You"}], ...fl].map(([uid, x]) => `<div class="fr-row"><span>${sharedAv(uid)}</span><div><b>${esc(x.n)}</b></div><label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label></div>`).join("")}</div>`;
   paintDevExtras();
+  const ow = $("#fr-owner"); if (ow) ow.onclick = async () => { if (!(await askConfirm("Make this phone the owner? Only it will be able to delete split groups. This can’t be moved to another phone later.", "Make owner"))) return; frClaimOwner().then(() => { toast("This phone is the owner"); paintDev(); }, frFail); };
   el.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
     const file = inp.files && inp.files[0]; if (!file) return;
     try { const c = await frCropPhoto(file); if (!c) return; await frSetPhoto(inp.dataset.frphoto, c); toast("Photo saved: everyone sees it"); paintDev(); drawFriends(); } catch(e){ frFail(e); }
