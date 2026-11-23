@@ -173,3 +173,19 @@ Wikivoyage page (read 23 Nov 2026), Seat 61, AirAsia's Full Moon Party guide and
   instead of count bubbles everywhere, and the map says so; zoom in for everything. A category with no researched place in view
   (most of Laos, say) keeps its counts, so the map is never blank. (One bubble per destination was the other option; it would have
   needed a new kind of layer that mixes the category colours, which breaks the colour rule.)
+
+## Pass 2, part C: polish and tidy (23 Nov 2026)
+- **late-open** (experiment, off): from 10 pm to 5 am (the phone's clock), Gaffs, Munch, Activities and the map's list show
+  places open now first, then those whose hours we don't know, then the closed ones; each group keeps its usual order.
+- **Adopted experiments tidied** (no switch: invisible): the old "off" code of all 14 adopted experiments is gone (about 35 lines
+  across 11 files, plus the map's unused Map/List toggle and zoom buttons that only the off branch drew). `exp()` already returned
+  true for them, so nothing changes for anyone; `npm test` passed before and after. Their ids stay in `EXP_ADOPTED` because some
+  CSS hangs off the `x-<id>` classes.
+- **Empty and loading states**: every new page says something when there's nothing to show (Fair price: "Try one of these…" or
+  "No sourced price … yet"; Trip journal: "It fills in as you travel"; the arrival card's nearest places: "Looking…", then "none
+  found within 5 km"; map-calm keeps counts where there's no researched place, so the map is never blank).
+- **Docs**: CLAUDE.md (new files, data fields, the full list of switches), progress.md (a summary at the top) and
+  TRAVELLER-IDEAS.md (where each of its top 15 stands) are up to date.
+- Not done: a full spacing/button-size/corner pass over the older screens. The 23 Nov audit (part 1) found nothing over the
+  screen width and every button at 32 px or more, so there was no specific fault to fix, and a broad restyle the week of the
+  flight would be a risk for no clear gain.

@@ -35,7 +35,15 @@ function sortItems(items, how, pt = userLoc){
   else if (how === "az") arr.sort((a, b) => a.n.localeCompare(b.n));
   else if (how === "near") arr.sort((a, b) => nullLast(a, b, x => x.r, -1) || nullLast(a, b, gbpMin, 1));
   else arr.sort((a, b) => nullLast(a, b, gbpOrEst, 1) || nullLast(a, b, x => x.r, -1) || byKm(a, b));
-  return arr;
+  return exp("late-open") && how !== "az" && lateNow() ? openFirst(arr) : arr;
+}
+/* Experiment late-open: from 10 pm to 5 am (the phone's own clock), lists and the map's list put places open now first, then
+   those whose hours we don't know, then the closed ones, each group keeping its order. */
+EXPERIMENTS.push({id:"late-open", n:"After 10 pm: open places first", d:"From 10 pm to 5 am, lists and the map’s list show places open now first, then unknown hours, then closed ones."});
+const lateNow = (d = new Date()) => d.getHours() >= 22 || d.getHours() < 5;
+function openFirst(arr){
+  const rank = it => { const o = isOpenNow(it); return o ? (o.open ? 0 : 2) : 1; };
+  return arr.map((x, i) => [x, i, rank(x)]).sort((a, b) => a[2] - b[2] || a[1] - b[1]).map(x => x[0]);
 }
 // a researched price in pounds, or the low end of the estimate (in its own currency: rupiah estimates are not baht)
 const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, e.cur || "THB") : null; };
@@ -102,7 +110,7 @@ const artBadge = it => `<span class="ph-badge">${icon(kindIcon(it))}${esc(kindLa
 /* Experiment slim-cards: a place with no real photo gets a slim card (name, kind and price) instead of a full-size drawing.
    Decided straight away when no photo is likely (and no Google key); otherwise once the photo lookup comes back empty. */
 EXPERIMENTS.push({id:"slim-cards", n:"Slim cards without photos", d:"Places with no real photo get a slim card (name, kind, price) instead of a big drawing."});
-const slimFirst = it => exp("slim-cards") && !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
+const slimFirst = it => !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
 function placeCard(it, pt){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v);
   const km = pt && !pt.none ? dist(pt, it) : null;
@@ -248,7 +256,6 @@ EXPERIMENTS.push({id:"gaff-dates", n:"Gaffs: dates in one button", d:"Check-in, 
 const shortDay = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
 function stayStrip(){
   const inner = stayStrip0();
-  if (!exp("gaff-dates")) return inner;
   const p = stayParams(), g = +S.stay.guests || 2;
   const label = p.ok ? `${shortDay(S.stay.cin)} – ${shortDay(S.stay.cout)} · ${g} guest${g === 1 ? "" : "s"}` : `Add dates · ${g} guest${g === 1 ? "" : "s"}`;
   return `<details class="stay-fold" ${ui.stayOpen ? "open" : ""}><summary class="btn">${icon("calendar","i s")}${esc(label)}${icon("chevd","i xs")}</summary>${inner}</details>`;

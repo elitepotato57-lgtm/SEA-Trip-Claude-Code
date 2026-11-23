@@ -329,7 +329,7 @@ function watchCardPhotos(root){
   const fill = async slot => {
     const it = findPlace(slot.dataset.ph); if (!it || slot.dataset.done) return;
     slot.dataset.done = "1";
-    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src){ slot.dataset.nophoto = "1"; if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim"); } return; }
+    const src = await cardPhotoOnce(it); if (!src || !slot.isConnected){ if (!src){ slot.dataset.nophoto = "1"; if (slot.closest(".card")) slot.closest(".card").classList.add("slim"); } return; }
     const img = new Image(); img.alt = ""; img.decoding = "async";
     let cur = src, tries = 0;
     img.onerror = async () => {
@@ -337,7 +337,7 @@ function watchCardPhotos(root){
       const next = tries++ < 3 ? await photoAfterFail(it, cur) : null;
       if (next && slot.isConnected){ cur = next; img.dataset.fb = ""; cph[it.id] = {src:next, at:Date.now(), g:false, gTried:true}; cphSave(); img.src = next; return; }
       img.remove(); if (cph[it.id]){ delete cph[it.id]; cphSave(); }
-      if (exp("slim-cards") && slot.closest(".card")) slot.closest(".card").classList.add("slim");
+      if (slot.closest(".card")) slot.closest(".card").classList.add("slim");
     };
     img.onload = () => { if (!img.parentNode) slot.insertBefore(img, slot.firstChild); if (/^img\/kind\//.test(cur) && !slot.querySelector(".typ")) slot.insertAdjacentHTML("beforeend", '<span class="typ">Typical photo</span>'); };
     img.src = src;
@@ -421,7 +421,7 @@ function bookingBlock(it){
    card with them in big script, white on black so it reads in a dark taxi. Tap anywhere to close. */
 EXPERIMENTS.push({id:"driver-card", n:"Show this to the driver", d:"On a gaff with a Thai or Lao name or address: a full-screen card in big script, readable in a dark taxi."});
 const localScript = s => /[\u0e00-\u0eff]/.test(s || "");
-const driverOK = it => exp("driver-card") && it && it.c === "gaff" && (localScript(it.nt) || localScript(it.ad));
+const driverOK = it => it && it.c === "gaff" && (localScript(it.nt) || localScript(it.ad));
 function openDriverCard(it){
   const lao = /[\u0e80-\u0eff]/.test((it.nt || "") + (it.ad || "")), lang = lao ? "lo" : "th";
   const el = document.createElement("div"); el.className = "driver-card"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Show this to the driver");
@@ -448,7 +448,7 @@ async function shareIt(it){
 }
 function detailActions(it, ref){
   if (exp("detail-buttons")){
-    const far = exp("plan-here") && farAway(it, ref);
+    const far = farAway(it, ref);
     return `<div class="actions dt2">
       ${far ? `<button class="btn primary wide" type="button" id="dtPlan">${icon("route")}Plan a journey here</button><a class="btn wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`
         : `<a class="btn primary wide" href="${esc(dirLink(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>`}
@@ -457,11 +457,11 @@ function detailActions(it, ref){
         <button class="btn small" type="button" id="dtShare">${icon("share","i s")}Share</button>
         <a class="btn small" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers","i s")}Satellite</a>
         <button class="btn small" type="button" id="dtMap">${icon("map","i s")}On the map</button>
-        ${it.c === "move" || exp("plan-here") ? (far ? "" : `<button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`) : ""}
+        ${far ? "" : `<button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`}
         ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn small" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext","i s")}Reviews</a>`}
       </div></div>`;
   }
-  const planAll = exp("plan-here"), far = planAll && farAway(it, ref), planBtn = it.c === "move" || planAll;
+  const far = farAway(it, ref);
   return `<div class="actions">
     <a class="btn ${far ? "" : "primary"}" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
     ${far ? `<button class="btn primary" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
@@ -470,7 +470,7 @@ function detailActions(it, ref){
     <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
     ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext")}Read reviews</a>`}
     <a class="btn" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers")}Satellite view</a>
-    ${planBtn && !far ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+    ${!far ? `<button class="btn" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
   </div>`;
 }
 const WIFI_TXT = {1:"Yes", 2:"Free", 3:"For customers", 4:"Paid"};

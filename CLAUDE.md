@@ -15,8 +15,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - **Experiments** (Dylan, 22 Nov 2026): changes to try on a developer phone, each behind its own switch in Tools › Developer ›
   Experiments, **off for everyone by default**; with a switch off the app must behave exactly as before. `exp(id)` (core.js) reads
   localStorage `sea-exp-v1` (`{"*":true}` = all on, used by the test run); each experiment adds itself to `EXPERIMENTS` next to its
-  code and gets an `x-<id>` class on `<html>`. Still switches: **tools-groups, detail-buttons**. Adopted for everyone on 23 Nov 2026
-  (`EXP_ADOPTED`, `exp()` returns true; their old "off" branches are still in the code, safe to delete later): tp-fastest, tp-legnames,
+  code and gets an `x-<id>` class on `<html>`. Still switches: **tools-groups, detail-buttons, tp-group, tp-saved, tp-border, tp-sea,
+  tp-times, tp-day, tp-overnight, tp-book, tp-town, map-calm, late-open, push, fair-price, headsup, events, arrival, journal,
+  leave-by, visa-count, meetup** (IMPROVEMENTS.md says what each does). Adopted for everyone on 23 Nov 2026
+  (`EXP_ADOPTED`, `exp()` returns true; their old "off" code was removed the same day, the ids stay for the CSS classes): tp-fastest, tp-legnames,
   en-towns, lost-share, statusfade, map-onerow, help-btn, plan-here, gaff-dates, notes-once (`explain(key, html)`), slim-cards, daylight
   (`S.dayLook`, `lookPaper()`), route-save, driver-card. Never make one the default unless Dylan says so; to adopt one, add it to `EXP_ADOPTED`.
 - The map keeps the summary counts for any tile whose places are still downloading (`waiting` in `refreshMapData`), so zooming in past
@@ -101,6 +103,18 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
 - `js/docs.js`: Tools › Documents.
+- `js/road.js` (after detail.js): life on the road, all experiments: Tools › Fair price (`FAIR`, `fairAnswer`), Heads-ups (`HEADSUP`,
+  scams per route stop), Events (`EVENTS`, Full Moon Parties from `FULL_MOONS`), Trip journal (`S.been`, `S.visits`, `wrapped()`),
+  Visa countdown (`VISA_DAYS`, `S.entered`); the arrival card (`openArrival`, once per stop, `S.arrived`); Leave by on a journey;
+  Friends › Meet up (`meetSend`, a `msgs/` entry with `s:"meet"` and `m`) and Notifications (`pushOn`, `pushNotify`). `boot.js`
+  runs `roadTick` every 30 s (real GPS only). Facts come from Wikivoyage town pages, Seat 61, AirAsia and gov.uk, named in place.
+- Notifications with the app closed: `push/worker.js` (a free Cloudflare Worker: Web Push, RFC 8291/8292, WebCrypto only) reads
+  `push/{uid}` with the sender's own Firebase token, so the rules (`push`, `pushok`) decide who may notify whom; `sw.js` shows them.
+  Needs `window.SEA_PUSH = {url, key}` in config.js: Dylan's steps are in PUSH-SETUP.md. Tested in `tests/push.js` (run by unit.js).
+- Transport timetables: an edge's `dep` is `{fromHub: [[leaves, arrives, +days, service]]}` with `depSrc`, and `day` is
+  `{fromHub: {at, to, early, bag, tips, src}}`; `night:true` marks sleeper options (tp-overnight). Thai route facts are written by
+  `node tools/transport-route.js` (run after `tools/transport-asia.js`, which re-creates its own links). `TOWN` in js/transport.js
+  is getting around each route stop (Wikivoyage).
 - `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). Temples get no photo
   unless that exact picture was checked by eye (`PHOTO_CHECKED`); file names mentioning a Buddha are skipped. `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs

@@ -420,9 +420,9 @@ function setupPage(){
   </section>
   ${exp("detail-buttons") ? `<section class="block"><h2>Directions open in</h2>
     <div class="seg" role="group" aria-label="Maps app for directions" style="margin-top:6px"><button type="button" data-mapsapp="google" aria-pressed="${S.mapsApp !== "apple"}">Google Maps</button><button type="button" data-mapsapp="apple" aria-pressed="${S.mapsApp === "apple"}">Apple Maps</button></div></section>` : ""}
-  ${exp("daylight") ? `<section class="block"><h2>Light look in the daytime</h2>
+  <section class="block"><h2>Light look in the daytime</h2>
     <p class="note">Easier to read in bright sun: the light look from 7am to 6pm, the dark one in the evening. Changes when the app next opens.</p>
-    <button class="switch" type="button" id="dayLook" aria-pressed="${S.dayLook === true}" style="margin-top:6px"><i></i>Light look during the day</button></section>` : ""}
+    <button class="switch" type="button" id="dayLook" aria-pressed="${S.dayLook === true}" style="margin-top:6px"><i></i>Light look during the day</button></section>
   <section class="block"><h2>Stop the phone asking again</h2>
     <p class="note">The iPhone decides how often to ask about your location and microphone, not the app. To make it remember: open the iPhone’s <b>Settings › Apps › Safari</b>, scroll to <b>Settings for Websites</b>, and set <b>Location</b>, <b>Microphone</b> and <b>Camera</b> to <b>Allow</b>. Then in <b>Settings › Privacy & Security › Location Services › Safari Websites</b>, choose <b>While Using the App</b>.</p>
   </section>

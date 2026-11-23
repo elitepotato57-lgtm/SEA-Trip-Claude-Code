@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.24.0";
+const VERSION = "2.25.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -14,7 +14,8 @@ function expState(){
   if (!expState.v){ try { expState.v = JSON.parse(localStorage.getItem(EXP_KEY)) || {}; } catch(e){ expState.v = {}; } }
   return expState.v;
 }
-// Adopted (Dylan, 23 Nov 2026): on for everyone, no longer a switch. Their "off" branches are left in the code for now.
+// Adopted (Dylan, 23 Nov 2026): on for everyone, no longer a switch. Their "off" branches were removed on 23 Nov 2026; the ids stay
+// here so each still puts its x-<id> class on <html> (some CSS hangs off those classes).
 const EXP_ADOPTED = new Set(["tp-fastest", "tp-legnames", "en-towns", "lost-share", "statusfade", "map-onerow", "help-btn", "plan-here",
   "gaff-dates", "notes-once", "slim-cards", "daylight", "route-save", "driver-card"]);
 function exp(id){ if (EXP_ADOPTED.has(id)) return true; const s = expState(); return s[id] === true || (s["*"] === true && s[id] !== false); }
@@ -164,7 +165,7 @@ const NOTES = {THB:[20,100,500,1000],USD:[1,5,10,20],EUR:[5,10,20,50],AUD:[5,10,
    in the daytime, 7am to 6pm, checked when the app opens. */
 EXPERIMENTS.push({id:"daylight", n:"Daylight readability", d:"Stronger contrast for small grey text, and a Settings option to use the light look during the day."});
 const isDaytime = (d = new Date()) => d.getHours() >= 7 && d.getHours() < 18;
-const lookPaper = () => S.look === "paper" || (exp("daylight") && S.dayLook === true && isDaytime());
+const lookPaper = () => S.look === "paper" || (S.dayLook === true && isDaytime());
 function applyLook(){
   const paper = lookPaper(), root = document.documentElement;
   if (paper) root.dataset.look = "paper"; else delete root.dataset.look;
@@ -390,7 +391,6 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); retu
 EXPERIMENTS.push({id:"notes-once", n:"Explainer notes once", d:"Notes like “Researched and well-known places first…” show once, then hide behind a small (i)."});
 const NOTES_SEEN = "notes-seen-v1", notesNow = new Set();
 function explain(key, html){
-  if (!exp("notes-once")) return html;
   const seen = lsGet(NOTES_SEEN, {}) || {};
   if (!seen[key] || notesNow.has(key)){ notesNow.add(key); if (!seen[key]){ seen[key] = 1; lsSet(NOTES_SEEN, seen); } return html; }
   return `<button class="info-i" type="button" data-explain="${esc(key)}" aria-expanded="false" aria-label="What’s this?">i</button><div class="explain-body" data-explainbody="${esc(key)}" hidden>${html}</div>`;
