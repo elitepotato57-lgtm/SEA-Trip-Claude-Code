@@ -949,3 +949,23 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 /* experiment tp-sea */
 .sea-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
 .sea-line.warn b{color:var(--warn)}.sea-line.bad b{color:var(--bad)}
+
+/* transport: saved departure times and the travel-day card (experiments tp-times, tp-day) */
+.dep-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
+.dep-line sup{font-size:.7em}
+.deps{margin-top:4px;font-size:calc(13px * var(--ts,1))}
+.deps summary{cursor:pointer;color:var(--muted)}
+.deps .known{margin:4px 0}
+.dep-src{margin:2px 0 0}
+.day-card{margin-top:8px}
+.day-card .known{margin:6px 0}
+.night-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
+.night-line small{color:var(--muted)}
+.book-card{margin-top:10px}
+.book-card .known{margin:6px 0}
+/* getting around town (experiment tp-town) */
+.town-list{list-style:none;margin:8px 0 10px;padding:0;display:grid;gap:10px}
+.town-list li{display:flex;gap:10px;align-items:flex-start}
+.town-list li .i{color:var(--move);flex:none;margin-top:2px}
+.town-list b{display:block}
+.town-list span{color:var(--muted);font-size:calc(13.5px * var(--ts,1))}

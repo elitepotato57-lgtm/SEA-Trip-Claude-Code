@@ -90,3 +90,45 @@ Every leg of the route and every pair of neighbouring stops was run through the 
 - **13 Own ideas** (suggested, not built): (a) "Leave by" times on a saved journey, from the planner's journey time plus the
   airport/pier allowance; (b) a "who's booked" tick per person on a saved journey, shared through the live split group, so the
   group knows who still needs a ticket.
+
+## Pass 2, part A: transport data and transport experiments (23 Nov 2026)
+
+This ran in a cloud session (Dylan's PC wasn't connected). 12Go and Rome2Rio still refuse automated visits (their own servers
+answer "403"), so the facts come from Seat 61, SiamTickets (which publishes Lomprayah, Seatran, Songserm, Andaman Wave Master,
+Prem Pracha and Nakhonchai Air timetables and fares), AirAsia's own route pages, Vietnam Airlines' route pages and Wikivoyage.
+Vietjet's and Bangkok Airways' pages only work in a full browser, so nothing was taken from them.
+
+### Route check, before → after (`node tests/audit-route.js`)
+| Leg | Before | After |
+|---|---|---|
+| Koh Tao → Koh Phangan | direct boat had no price ("check live") | **450–600 baht** (Lomprayah catamaran 600, Laemsor ferry 450, Songserm 500), Mae Haad → Thong Sala |
+| Ho Chi Minh City → Hoi An | flight with no price | flight **from 817,000 dong** (Vietnam Airlines); with tp-overnight on, the **Reunification Express** night train too (661,000–1,274,000 dong, Seat 61) |
+| Hoi An → Hanoi | flight with no price | flight **849,000–968,000 dong**; with tp-overnight on, the night train (567,000–1,137,000 dong) |
+| Koh Samui / Krabi → Ao Nang | taxi with no price | **white songthaew 60 baht** (80 after 6 pm), Krabi Town ↔ Ao Nang |
+| Chiang Mai → Phuket | no price | **4,086–9,000 baht** (AirAsia, December) |
+| Bangkok → Phnom Penh, Saigon, Hanoi, Da Nang, Luang Prabang, Vientiane, Singapore, Phu Quoc; Chiang Mai → Luang Prabang | no price | AirAsia's lowest fare each day in Dec 2026–Jan 2027 |
+| Ho Chi Minh City → Hanoi | no price | 888,000–1,610,000 dong (Vietnam Airlines) |
+| Bangkok → Siem Reap | no price | **still "check live"**: AirAsia doesn't fly it and Bangkok Airways' page can't be read here |
+
+Saved timetables (for tp-times) now exist for: Bangkok ⇄ Chiang Mai trains (Seat 61) and Nakhonchai Air buses, Chiang Mai → Pai
+minivans, Koh Tao → Koh Phangan, Koh Phangan → Koh Samui, Koh Phangan → Ao Nang, Krabi → Koh Phi Phi, Koh Phi Phi → Phuket, and
+the Reunification Express both ways (Saigon ⇄ Da Nang ⇄ Hanoi). Scripts: `tools/transport-asia.js` (Vietnam trains, flight fares)
+then `tools/transport-route.js` (the Thai route), both re-runnable.
+
+### New experiments (all off)
+- **tp-times**: legs with a saved timetable show today's next departures and the last one (local time where the leg starts),
+  or every departure on a chosen date. Always labelled a saved timetable, not live.
+- **tp-day**: an "On the day" card per leg: the pier or station, where it arrives, how early to be there, luggage limit, tips.
+- **tp-overnight**: night trains and sleeper buses are offered even when flying is quicker, marked "saves a night's gaff, about £X"
+  (the middle price of our researched hostels where it leaves from), and that saving counts towards Cheapest. Bangkok → Chiang Mai
+  keeps the flight and adds the sleeper train; Saigon → Hoi An adds the Reunification Express, which becomes Cheapest.
+- **tp-book**: "When to book": Koh Phangan boats within 3 days of a Full Moon Party (24 Dec, 31 Dec, 22 Jan), Thai trains at New
+  Year (book the day booking opens, up to 6 months ahead), Thai 1st-class sleepers, and Vietnamese train booking (60 days ahead;
+  Tet). A "Book ahead" tag on the journey card. The sources give no number of days for the ferries, so it says "as soon as you know".
+- **tp-town**: "Getting around <town>" on Transport for the 15 stops on our route (BTS/MRT, river boats, songthaews, taxis,
+  scooters, tuk-tuks, with Wikivoyage's fares), and a button that copies the destination for Grab or Bolt. Neither app publishes
+  a link that fills in a destination, so copying is the honest version.
+
+### Not done in part A, and why
+- Bangkok → Siem Reap fare (above). Cambodian bus departure times: Seat 61's Cambodia page doesn't list them cleanly.
+- Booking pressure around Christmas for flights and ferries: no source gives a number of days, so nothing was added.

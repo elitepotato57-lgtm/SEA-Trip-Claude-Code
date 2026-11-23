@@ -90,7 +90,25 @@ function connectors(node, key){
   return legs;
 }
 EXPERIMENTS.push({id:"tp-fastest", n:"Transport: true fastest journey", d:"Always keeps the quickest journey, even when one of its legs has no saved price, so the Fastest badge is right."});
-const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0];
+/* Experiment tp-overnight: a night train or sleeper bus is kept as an option even when it's much slower than flying, because the
+   night on board saves a night's gaff. For choosing which journeys to show, up to NIGHT_SLEEP hours of an overnight leg don't
+   count, and the night's gaff it saves (the middle price of our researched hostels where it leaves from) counts towards Cheapest.
+   The times and prices shown are never changed. */
+EXPERIMENTS.push({id:"tp-overnight", n:"Transport: overnight trains and buses", d:"Night trains and sleeper buses are offered even when flying is quicker, marked “saves a night’s gaff, about £X”, and that counts towards Cheapest."});
+const NIGHT_SLEEP = 8;
+let NIGHT_ON = false;          // set by planTrips, so the busy search below doesn't read the switch thousands of times
+// an overnight option: marked night in the data, and (where a timetable is saved) leaving in the evening and arriving the next day
+const nightAny = o => !!o.night && (!o.dep || Object.values(o.dep).some(l => l.some(d => d[2] === 1 && hm(d[0]) >= 17 * 60)));
+const nightLeg = (o, from) => !!o.night && (!o.dep || !o.dep[from] ? nightAny(o) : o.dep[from].some(d => d[2] === 1 && hm(d[0]) >= 17 * 60));
+const legMin = o => o.dur[0] + (o.mode === "Flight" ? FLIGHT_EXTRA[0] : 0) + CHANGE_EXTRA[0] - (NIGHT_ON && nightAny(o) ? Math.min(NIGHT_SLEEP, o.dur[0] - 1) : 0);
+const gaffCache = {};
+// a night in a researched hostel near this stop, in pounds: the middle of their lowest prices (null where we have none)
+function gaffNight(id){
+  if (id in gaffCache) return gaffCache[id];
+  const n = NODE[id] || HUB[id];
+  const ps = n ? D.places.filter(p => p.c === "gaff" && p.p && p.p[0] > 0 && dist(p, n) <= 25).map(p => toGBP(p.p[0], p.cur || "THB")).sort((a, b) => a - b) : [];
+  return (gaffCache[id] = ps.length >= 2 ? {gbp:ps[Math.floor(ps.length / 2)], n:ps.length, city:n.n} : null);
+}
 // the quickest possible time from every stop to the destination (Dijkstra, backwards)
 function timeTo(adj, to){
   const best = {[to]:0}, todo = [[0, to]];
@@ -125,6 +143,7 @@ function planTrips(fromN, toN){
   if (!fromN || !toN) return [];
   const fk = fromN.id || "@from", tk = toN.id || "@to";
   if (fk === tk || (!fromN.id && !toN.id && dist(fromN, toN) < .3)) return [];
+  NIGHT_ON = exp("tp-overnight");
   NODE = Object.assign({}, HUB);
   const adj = {}; Object.keys(ADJ).forEach(k => adj[k] = ADJ[k].slice());
   const link = o => { (adj[o.a] = adj[o.a] || []).push({o, to:o.b}); (adj[o.b] = adj[o.b] || []).push({o, to:o.a}); };
@@ -140,7 +159,12 @@ function planTrips(fromN, toN){
       if (o.p){ pmin += toGBP(o.p[0], o.cur); pmax += toGBP(o.p[o.p.length - 1], o.cur); } else unpriced++;
       if (!o.verified) unverified++;
     });
-    return {legs, dmin, dmax, mid:(dmin + dmax) / 2, pmin, pmax, unpriced, unverified};
+    const mid = (dmin + dmax) / 2;
+    // tp-overnight: the nights spent on board, the hours that don't count for choosing, and the gaff they save
+    const nights = NIGHT_ON ? legs.filter(L => nightLeg(L.o, L.from)) : [];
+    const saved = nights.reduce((a, L) => a + ((gaffNight(L.from) || {}).gbp || 0), 0);
+    const eff = mid - nights.reduce((a, L) => a + Math.min(NIGHT_SLEEP, L.o.dur[0] - 1), 0);
+    return {legs, dmin, dmax, mid, pmin, pmax, unpriced, unverified, nights:nights.length, saved, eff, net:pmin - saved};
   });
   if (!trips.length) return [];
   // no silly detours through another country: a trip inside one country stays in it, and a trip between two countries only goes
@@ -151,28 +175,30 @@ function planTrips(fromN, toN){
     const stay = trips.filter(t => !third(t));
     if (stay.length){
       const best = Math.min(...stay.map(t => t.mid));
-      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.mid < best));
+      trips = trips.filter(t => !third(t) || (c0 !== c1 && t.eff < best));
     }
   }
   // local rides at either end are always unpriced outside Bangkok, so judge prices on the main legs
   const core = t => t.unpriced - t.legs.filter(L => L.from[0] === "@" || L.to[0] === "@").filter(L => !L.o.p).length;
+  // (a journey is judged by eff and net, its time and price as tp-overnight counts them, against the others' real time: with the
+  // switch off they're the same as mid and pmin)
   const best = Math.min(...trips.map(t => t.mid));
   // experiment: the truly fastest journey is always kept, even when a leg on it has no saved price
   const quickest = exp("tp-fastest") ? trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b) : null;
-  trips = trips.filter(t => t.mid <= best * 2.5 + 2);
+  trips = trips.filter(t => t.eff <= best * 2.5 + 2);
   const priced = trips.filter(t => !core(t));
-  const keepUnpriced = new Set(trips.filter(t => core(t) && t.mid <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.mid - b.mid)).slice(0, 3));
+  const keepUnpriced = new Set(trips.filter(t => core(t) && t.eff <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.eff - b.eff)).slice(0, 3));
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
-    : !priced.some(u => u !== t && u.mid <= t.mid && u.pmin <= t.pmin && (u.mid < t.mid || u.pmin < t.pmin)));
+    : !priced.some(u => u !== t && u.mid <= t.eff && u.net <= t.net && (u.mid < t.eff || u.net < t.net)));
   if (quickest && !trips.includes(quickest)) trips.push(quickest);
   // and no long way round: a trip goes if another is much quicker, no dearer, with no more legs and no more legs without a price
-  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.mid && u.legs.length <= t.legs.length && core(u) <= core(t) && u.pmin <= t.pmin + 0.5));
+  trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.eff && u.legs.length <= t.legs.length && core(u) <= core(t) && u.net <= t.net + 0.5));
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
   const cheapPool = trips.filter(t => !core(t));
-  const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.pmin <= b.pmin ? a : b) : null;
+  const cheapest = cheapPool.length ? cheapPool.reduce((a, b) => a.net <= b.net ? a : b) : null;
   trips.forEach(t => { t.fastest = t === fastest; t.cheapest = t === cheapest; });
   trips.sort(ui.tp.sort === "cheap"
-    ? (a, b) => (core(a) - core(b)) || (a.pmin - b.pmin) || (a.mid - b.mid)
+    ? (a, b) => (core(a) - core(b)) || (a.net - b.net) || (a.mid - b.mid)
     : (a, b) => (a.mid - b.mid) || (a.pmin - b.pmin));
   return trips.slice(0, 8);
 }
@@ -229,6 +255,11 @@ function groupLine(t){
   const loc = v => money(inCur(v, tc), tc), gbp = v => "£" + fmtNum(Math.round(v));
   return `<div class="grp-price">${n} of you: <b>${rng(t.pmin * n, t.pmax * n, loc)}</b> <small>${rng(t.pmin * n, t.pmax * n, gbp)} together, ${rng(t.pmin, t.pmax, gbp)} each${t.unpriced ? ", plus a leg without a saved price" : ""}</small></div>`;
 }
+function nightLine(t){
+  if (!exp("tp-overnight") || !t.nights) return "";
+  const g = t.legs.filter(L => nightLeg(L.o, L.from)).map(L => gaffNight(L.from)).filter(Boolean);
+  return `<div class="night-line">${icon("bed","i xs")} Overnight${t.nights > 1 ? ` (${t.nights} nights)` : ""}: saves a night’s gaff${t.saved ? `, about <b>£${fmtNum(Math.round(t.saved))}</b>` : ""}${g.length ? ` <small>(the middle price of ${g[0].n} researched hostels in ${esc(g[0].city)})</small>` : ""}</div>`;
+}
 function tripPrice(t){
   const tc = tripCur(t);
   return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
@@ -237,9 +268,9 @@ function tripCard(t, idx){
   const stops = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k].n);
   const chain = t.legs.map((L, k) => `<span class="lchip" style="--lc:${LEG_COLS[k % LEG_COLS.length]}">${icon(MODE_IC[L.o.mode] || "bus", "i xs")}${esc(L.o.mode)}</span>`).join('<span class="larr" aria-hidden="true">›</span>');
   return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
-    <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
+    <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}${bookNotes(t).some(x => x.r.warn) ? '<span class="tag warn">Book ahead</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}
+      <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}${nightLine(t)}
     <div class="lchain">${chain}</div>
     <div class="note" style="margin-top:4px">${esc(stops.join(" → "))}</div>
     <div class="trip-more">${icon("map","i s")}See ${t.legs.length === 1 ? "the details" : "all " + t.legs.length + " legs"} and the map${icon("chevr","i xs")}</div>
@@ -321,6 +352,155 @@ async function paintSea(t){
     el.innerHTML = `${icon("waves","i xs")} Sea ${day === todayISO() ? "today" : "on " + esc(fmtDay(day))}: waves up to <b>${h.toFixed(1)} m</b>, ${esc(st)}${h >= 1.25 ? ". Bumpy for small boats: seasickness tablets help, and check with the operator before going" : ""}. <span class="note">Open-Meteo forecast; WMO sea-state scale.</span>`;
   });
 }
+/* Local clock where a leg starts: departure times are local, and Thailand, Cambodia, Vietnam and Laos share UTC+7 while
+   Malaysia, Singapore and central Indonesia are an hour ahead */
+const CC_TZ = {TH:"Asia/Bangkok", KH:"Asia/Phnom_Penh", VN:"Asia/Ho_Chi_Minh", LA:"Asia/Vientiane", MY:"Asia/Kuala_Lumpur", SG:"Asia/Singapore"};
+const tzAt = n => { const cc = nodeCc(n); if (cc === "ID") return n.lng >= 134 ? "Asia/Jayapura" : n.lng >= 114.4 ? "Asia/Makassar" : "Asia/Jakarta"; return CC_TZ[cc] || "Asia/Bangkok"; };
+function clockAt(n, when = new Date()){
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {timeZone:tzAt(n), hour:"2-digit", minute:"2-digit", year:"numeric", month:"2-digit", day:"2-digit", hourCycle:"h23"}).formatToParts(when).map(x => [x.type, x.value]));
+    return {min:(+p.hour % 24) * 60 + +p.minute, iso:`${p.year}-${p.month}-${p.day}`};
+  } catch(e){ return {min:when.getHours() * 60 + when.getMinutes(), iso:todayISO()}; }
+}
+const hm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+/* Experiment tp-times: legs with a saved timetable (D.net edges' dep: {fromHub: [[leaves, arrives, +days, service]]}, from the
+   sources in tools/transport-route.js and tools/transport-asia.js) show the next departures today and the last one, or every
+   departure on the chosen date. A saved baseline, never live. */
+EXPERIMENTS.push({id:"tp-times", n:"Transport: departure times", d:"Ferries, night trains and buses with a saved timetable show today’s next departures and the last one (a saved guide, not live)."});
+function legDeps(L){ const d = L.o.dep && L.o.dep[L.from]; return Array.isArray(d) && d.length ? d.slice().sort((a, b) => hm(a[0]) - hm(b[0])) : null; }
+// {left: departures still to come today, first, last}
+function depsLeft(list, nowMin){ return {left:list.filter(d => hm(d[0]) >= nowMin), first:list[0], last:list[list.length - 1]}; }
+function legTimesHTML(L){
+  if (!exp("tp-times")) return "";
+  const list = legDeps(L); if (!list) return "";
+  const src = L.o.depSrc, now = clockAt(NODE[L.from]), day = ui.tp.date && ui.tp.date > now.iso ? ui.tp.date : null;
+  const fmt = d => `<b>${esc(d[0])}</b>${d[1] ? `–${esc(d[1])}${d[2] ? "<sup>+1</sup>" : ""}` : ""}${d[3] ? " " + esc(d[3]) : ""}`;
+  const r = depsLeft(list, now.min);
+  const head = day ? `On ${esc(fmtDay(day))}: ${list.length} departure${list.length > 1 ? "s" : ""}, first <b>${esc(r.first[0])}</b>, last <b>${esc(r.last[0])}</b>`
+    : r.left.length ? `Next today: ${r.left.slice(0, 3).map(fmt).join(", ")}${r.left.length > 3 ? "…" : ""}. Last one <b>${esc(r.last[0])}</b>` : `No more today. First tomorrow: ${fmt(r.first)}`;
+  return `<div class="dep-line">${icon("clock","i xs")} ${head}</div>
+    <details class="deps"><summary>All ${list.length} saved departures</summary><ul class="known">${list.map(d => `<li>${fmt(d)}</li>`).join("")}</ul></details>
+    <p class="note dep-src">Saved timetable${src ? ` from <a href="${esc(src[1])}" target="_blank" rel="noopener">${esc(src[0])}</a>` : ""}: not live, so check with the operator before you go.</p>`;
+}
+/* Experiment tp-day: what to know on the day, per leg and direction (D.net edges' day: {fromHub: {at, to, early, bag, tips, src}}):
+   which pier, station or office, how early to be there, luggage, and tips, each from its source */
+EXPERIMENTS.push({id:"tp-day", n:"Transport: on the day", d:"Legs show a card for the travel day: which pier, station or office, how early to be there, luggage limits and tips, from the sources."});
+function dayCard(L){
+  if (!exp("tp-day")) return "";
+  const d = L.o.day && L.o.day[L.from]; if (!d) return "";
+  const li = [d.at && `<li><b>Leaves from</b> ${esc(d.at)}</li>`, d.to && `<li><b>Arrives at</b> ${esc(d.to)}</li>`, d.early && `<li><b>Timing</b> ${esc(d.early)}</li>`,
+    d.bag && `<li><b>Luggage</b> ${esc(d.bag)}</li>`].concat((d.tips || []).map(x => `<li>${esc(x)}</li>`)).filter(Boolean);
+  return `<div class="callout day-card">${icon("pin")}<div><b>On the day</b><ul class="known">${li.join("")}</ul>
+    <p class="note">From ${(d.src || []).map(x => `<a href="${esc(x[1])}" target="_blank" rel="noopener">${esc(x[0])}</a>`).join(", ")}.</p></div></div>`;
+}
+/* Experiment tp-book: booking pressure on the travel date (or today): Full Moon Party nights on Koh Phangan's boats, New Year on
+   Thai trains, and how far ahead Thai and Vietnamese trains open. Only what the sources say; where they give no number of days,
+   the advice is "as soon as you know your date". */
+EXPERIMENTS.push({id:"tp-book", n:"Transport: when to book", d:"Warns when your travel date is near a Full Moon Party (Koh Phangan boats) or New Year (Thai trains), and says how far ahead trains open."});
+// Full Moon Party nights in Haad Rin (31 Dec is the New Year countdown party): the AirAsia guide, checked 23 Nov 2026
+const FULL_MOONS = ["2026-11-24", "2026-12-24", "2026-12-31", "2027-01-22", "2027-02-22"];
+const FMP_SRC = ["AirAsia: Full Moon Party Koh Phangan 2026 & 2027", "https://www.airasia.com/blog/thailand/surat-thani/full-moon-party-koh-phangan/"];
+const WV = page => [`Wikivoyage: ${page.replace(/_/g, " ")}`, `https://en.wikivoyage.org/wiki/${page}`];
+const S61_TH = ["Seat 61: Thailand", "https://www.seat61.com/Thailand.htm"], S61_VN = ["Seat 61: Vietnam", "https://www.seat61.com/Vietnam.htm"];
+const dayDiff = (a, b) => Math.round((Date.parse(a + "T12:00:00Z") - Date.parse(b + "T12:00:00Z")) / 864e5);
+const BOOK_RULES = [
+  {id:"fullmoon", leg:L => (L.from === "phangan" || L.to === "phangan") && isBoat(L.o),
+    on:iso => FULL_MOONS.find(d => Math.abs(dayDiff(iso, d)) <= 3),
+    text:d => `Full Moon Party on ${fmtDay(d)}: the boats to and from Koh Phangan fill up around it, so book your ferry as soon as you know your date. Rooms go too, unless you book ahead.`,
+    src:[WV("Ko_Pha_Ngan"), FMP_SRC], warn:true},
+  {id:"thai-ny", leg:L => L.o.mode === "Train" && nodeCc(NODE[L.from]) === "TH", on:iso => { const md = iso.slice(5); return md >= "12-30" || md <= "01-03" ? iso : null; },
+    text:() => "New Year (30 December to 3 January) is one of the two busiest times on Thai trains: book on the day booking opens. Long trips like Bangkok–Chiang Mai open up to 6 months ahead; trips of a quarter to 60% of a train’s route open 30 days ahead.",
+    src:[S61_TH], warn:true},
+  {id:"thai-1st", leg:L => L.o.mode === "Train" && L.o.night && nodeCc(NODE[L.from]) === "TH", on:iso => iso,
+    text:() => "There’s usually just one 1st-class sleeping car per train, and it fills soon after booking opens. 2nd-class berths are easier to get.", src:[S61_TH]},
+  {id:"vn-train", leg:L => L.o.mode === "Train" && nodeCc(NODE[L.from]) === "VN", on:iso => iso,
+    text:() => "Booking opens 60 days before (sometimes over 90 for the whole line; short hops later). At Tet, Vietnamese New Year in late January or February, book the day it opens; other times you can usually buy at the station a few days ahead.", src:[S61_VN]}
+];
+// [{rule, L, d}] for the journey on the chosen date (or today)
+function bookNotes(t, iso = ui.tp.date && ui.tp.date >= todayISO() ? ui.tp.date : todayISO()){
+  if (!exp("tp-book")) return [];
+  const out = [];
+  BOOK_RULES.forEach(r => { const L = t.legs.find(r.leg); if (!L) return; const d = r.on(iso); if (d) out.push({r, L, d}); });
+  return out;
+}
+function bookCard(t){
+  const n = bookNotes(t); if (!n.length) return "";
+  return `<div class="callout book-card${n.some(x => x.r.warn) ? " warn" : ""}">${icon("calendar")}<div><b>When to book</b><ul class="known">${n.map(x => `<li>${esc(x.r.text(x.d))}</li>`).join("")}</ul>
+    <p class="note">From ${[...new Map(n.flatMap(x => x.r.src).map(s => [s[1], s])).values()].map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}${n.some(x => x.r.id === "fullmoon") ? ". Party dates can move for Buddhist holidays: check before you go" : ""}.</p></div></div>`;
+}
+/* Experiment tp-town: getting around each stop on our route (metro, boats, songthaews, taxis, scooters, tuk-tuks), from each
+   town's Wikivoyage "Get around" section (read 23 Nov 2026), on Transport for the place you're heading to (or where you are).
+   Grab and Bolt publish no link that fills in a destination, so the button copies the place's name to paste into either app. */
+EXPERIMENTS.push({id:"tp-town", n:"Transport: getting around town", d:"Transport shows how to get around the town you’re heading to (or in): metro, boats, songthaews, taxis, scooters, fair fares, and copies the place for Grab or Bolt."});
+const TOWN = {
+  bkk:{w:"Bangkok", i:[
+    ["train", "BTS Skytrain and MRT metro", "06:00 to midnight. The MRT takes contactless Visa or Mastercard at the gates; the BTS doesn’t yet, so buy a single ticket, a Rabbit card (200 baht, 100 of it to spend; passport needed) or a 150-baht day pass."],
+    ["train", "Airport Rail Link", "Suvarnabhumi to Phaya Thai 45 baht, 27 minutes; to Makkasan (for the MRT) 35 baht."],
+    ["ship", "Chao Phraya Express Boat", "Orange-flag boat 14 baht, every day 06:00–19:00, stopping at Tha Chang for the Grand Palace; Phra Arthit is the pier for Khao San Road. The blue-flag tourist boat is 40 baht (150 for a day pass): touts may say the orange boat isn’t coming, but it runs every 5–20 minutes."],
+    ["car", "Taxis", "Ask for the meter. Hail a moving taxi on the main road, away from the tourist spots, or use Grab or Bolt."],
+    ["car", "Tuk-tuks", "Never get in one that someone else is steering you to, and ignore ‘all-day tours’ for 10 baht: they end at gem and souvenir shops."]]},
+  cnx:{w:"Chiang_Mai", i:[
+    ["bus", "RTC city bus", "Air-conditioned, a few useful routes including the airport: 20 baht, cash to the driver."],
+    ["car", "Red songthaews (rot daeng)", "Shared trucks with no fixed route. The sign says at most 30 baht a person, inside the second ring road."],
+    ["car", "Tuk-tuks", "Rarely under 100 baht, even for a few kilometres."]]},
+  pai:{w:"Pai", i:[
+    ["nav", "On foot", "The town centre is small and easy to walk."],
+    ["car", "Bicycles and scooters", "Bicycles 40–100 baht a day; a 125cc scooter about 100–300 baht a day, with a 2,000–3,000 baht cash deposit or your passport."]]},
+  tao:{w:"Ko_Tao", i:[
+    ["car", "Taxis", "Pickup taxis in Sairee and Mae Haad: at least 300 baht a trip, or about 100 baht each for a bigger group."],
+    ["car", "Scooters", "Some shops keep your passport, then charge for scratches that were already there (mostly on or near the ‘Up Road’ from Mae Haad). Photograph the bike before you ride."]]},
+  phangan:{w:"Ko_Pha_Ngan", i:[
+    ["car", "Songthaews", "200–300 baht a person: bargain, especially for short trips, and share to pay less."],
+    ["car", "Scooters", "About 250 baht a day, 200 for longer rentals. Wear a helmet: the police fine 200 baht."]]},
+  samui:{w:"Ko_Samui", i:[
+    ["car", "Songthaews", "Fixed routes and prices until 18:00: 20–80 baht a person (Na Thon pier to Bophut 50). After 18:00 they work as taxis: agree the price first."],
+    ["car", "Scooters", "120–700 baht a day; a small 125cc shouldn’t be over 200, even at New Year. Rent from a reputable shop."]]},
+  aonang:{w:"Ao_Nang", i:[
+    ["car", "Songthaews", "Around Ao Nang from 20 baht; the white ones to Krabi Town and its bus station are 60 baht."],
+    ["car", "Tuk-tuks", "About 100 baht inside Ao Nang, 400 to Krabi Town (2019 prices: agree first)."],
+    ["car", "Scooters", "150–200 baht for 24 hours."]]},
+  krabi:{w:"Krabi_Town", i:[
+    ["car", "White songthaew to Ao Nang", "60 baht, from near the Vogue department store on Maharaj Road."],
+    ["car", "Taxi", "Bus station to the town centre about 100 baht (4 km)."]]},
+  phuket:{w:"Phuket", i:[
+    ["bus", "Smart Bus", "100 baht a trip wherever you get on and off: the airport to the beaches, and between them."],
+    ["car", "Tuk-tuks", "At least 200 baht; about half as much again at night."],
+    ["car", "Motorbike taxis", "From 20 baht for 1–2 km; drivers wear numbered vests."]]},
+  rep:{w:"Siem_Reap", i:[
+    ["car", "Motodops (motorbike taxis)", "About US$0.50 (2,000 riel) in town, up to double at night or in the rain: agree first. A full day about US$10."],
+    ["car", "Scooters", "From about US$8 a day. Wear a helmet: police checkpoints fine US$15."]]},
+  pnh:{w:"Phnom_Penh", i:[
+    ["car", "Tuk-tuks", "US$2–3 a trip in the city, US$8 to the airport. PassApp tuk-tuks are metered."],
+    ["car", "Motodops", "Riverfront to Central Market about 2,000 riel; more at night."],
+    ["alert", "Bag snatching", "Keep phones and bags in the middle of a tuk-tuk, not on the side by the road."]]},
+  hoian:{w:"Hoi_An", i:[
+    ["car", "Bicycles", "From 20,000 dong a day: the best way round town."],
+    ["car", "Scooters", "About 125,000 dong a day (2018). No motorbikes in the Old Town on the 14th and 15th of each lunar month."]]},
+  dad:{w:"Da_Nang", i:[
+    ["car", "Grab", "Widely used, and its chat translates both ways."],
+    ["car", "Motorbike taxis", "Short hops about 20,000 dong; to the airport about 70,000."],
+    ["car", "Taxis", "Mai Linh and Vinasun are reliable; their meters start by themselves."]]},
+  han:{w:"Hanoi", i:[
+    ["train", "Metro", "8,000–15,000 dong; tap a contactless card or phone at the gates."],
+    ["bus", "Buses", "7,000–12,000 dong; pay the assistant on board."],
+    ["car", "Grab", "The easiest way round: fixed fares, cash or card."],
+    ["car", "Taxis", "Insist on the meter: 20,000 dong for the first 2 km."]]}
+};
+// the stop to describe: where you're heading (if it's one of ours), else where you are
+function townFor(fN, tN){
+  for (const n of [tN, fN]) if (n && n.id && TOWN[n.id]) return n.id;
+  return null;
+}
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; } catch(e){ return false; }
+}
+function townHTML(id, dest){
+  const T = TOWN[id]; if (!T) return "";
+  return `<div class="block town" style="margin-top:18px"><h2>Getting around ${esc(HUB[id].n)}</h2>
+    <ul class="town-list">${T.i.map(x => `<li>${icon(x[0], "i s")}<div><b>${esc(x[1])}</b><span>${esc(x[2])}</span></div></li>`).join("")}</ul>
+    ${dest ? `<button class="btn small" type="button" id="tpCopy" data-copy="${esc(dest)}">${icon("car","i s")}Copy “${esc(dest)}” for Grab or Bolt</button>` : ""}
+    <p class="note" style="margin-top:8px">From <a href="https://en.wikivoyage.org/wiki/${esc(T.w)}" target="_blank" rel="noopener">Wikivoyage: ${esc(T.w.replace(/_/g, " "))}</a>, read 23 Nov 2026. Prices change: agree the fare before you ride.</p></div>`;
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -333,7 +513,7 @@ function tripSheetHTML(t){
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
+      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${legTimesHTML(L)}${dayCard(L)}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
@@ -344,9 +524,9 @@ function tripSheetHTML(t){
     <div class="trip open">
     <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
-      <div class="price">${price}</div></div>
+      <div class="price">${price}</div></div>${nightLine(t)}
     <div class="legmap" id="legMap" role="img" aria-label="Map of the journey, each leg in its own colour"></div>
-    <div style="margin-top:8px">${legs}</div>
+    <div style="margin-top:8px">${legs}</div>${bookCard(t)}
     ${getThere(firstStn)}
     <div class="row" style="margin-top:12px">${t.legs.length > 1 && go12(t.legs[0].from, t.legs[t.legs.length - 1].to) ? ext(go12(t.legs[0].from, t.legs[t.legs.length - 1].to), "Search the whole route on 12Go " + icon("ext","i s")) : ""}${ext(`https://www.rome2rio.com/s/${enc(a)}/${enc(b)}`, "Rome2Rio " + icon("ext","i s"))}</div>
     ${t.legs.some(L => legBook(L)) ? `<p class="note" style="margin-top:6px">12Go shows the real departures and confirms the service, today’s price and seats; these times and prices are a saved guide.${ui.tp.date && t.legs.length > 1 ? " Your date is used for every leg: change it on 12Go if a later leg is the next day." : ""}</p>` : ""}
@@ -468,7 +648,9 @@ function transportPage(){
       ext(`https://www.rome2rio.com/s/${enc(fN.n)}/${enc(tN.n)}`, "Search Rome2Rio " + icon("ext","i s")));
   }
   else html += `<p class="note" style="margin:0 0 8px">${trips.length} way${trips.length === 1 ? "" : "s"} to get there. Times and prices are a saved baseline, so confirm live before you pay.</p>` + trips.map(tripCard).join("");
-  html += `<div class="block" style="margin-top:18px"><h2>Getting a ride in town</h2><p class="note" style="margin:2px 0 10px">${esc(D.countries[S.country].name)}, general tips (not price-checked)</p><p style="margin:0">${esc(D.rides[S.country])}</p></div>`;
+  const town = exp("tp-town") ? townFor(fN, tN) : null;
+  if (town) html += townHTML(town, tN && !tN.here ? tN.n : "");
+  else html += `<div class="block" style="margin-top:18px"><h2>Getting a ride in town</h2><p class="note" style="margin:2px 0 10px">${esc(D.countries[S.country].name)}, general tips (not price-checked)</p><p style="margin:0">${esc(D.rides[S.country])}</p></div>`;
   const other = D.routes.filter(r => !r.cc.every(c => c === "TH"));
   html += `<details class="more" style="margin-top:6px"><summary>Saved routes in the other countries (${other.length})</summary><div style="margin-top:10px">${other.map(routeCard).join("")}</div></details></div>`;
   return html;
@@ -586,6 +768,8 @@ function bindSearch(which){
 }
 function bindTransport(){
   bindSavedTrips($("#pageview"));
+  const cp = $("#tpCopy");
+  if (cp) cp.onclick = async () => toast(await copyText(cp.dataset.copy) ? `Copied “${cp.dataset.copy}”: paste it into Grab or Bolt as where you’re going` : "Couldn’t copy: type it into Grab or Bolt");
   const root = $("#pageview");
   bindSearch("from"); bindSearch("to");
   $("#tp-swap").onclick = () => { if (!ui.tp.to) return; const f = fromNode(); ui.tp.from = ui.tp.to; ui.tp.to = f; ui.tp.sel = 0; ui.tp.go = false; renderPage(); };
