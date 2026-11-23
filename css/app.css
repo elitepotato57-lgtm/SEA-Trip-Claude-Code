@@ -949,3 +949,4 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 /* experiment tp-sea */
 .sea-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
 .sea-line.warn b{color:var(--warn)}.sea-line.bad b{color:var(--bad)}
+.price .plus{font-weight:700;color:var(--warn)}

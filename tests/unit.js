@@ -939,6 +939,12 @@ test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (
   const d = P.planTrips(P.hubNode("rep"), P.hubNode("pnh"))[0]; eq(P.borderCard(d, 0), "", "inside Cambodia");
 });
 
+test("transport: a price missing a leg says so (so far, + ?, and which leg); a full price doesn't", () => {
+  const t = A.planTrips(A.hubNode("phangan"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
+  ok(/\+ \?/.test(h) && /so far/.test(h) && /Bangkok → Siem Reap flight/.test(h), h);
+  const full = A.planTrips(A.hubNode("bkk"), A.hubNode("cnx"))[0]; ok(!/so far|\+ \?/.test(A.tripPrice(full)));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

@@ -229,9 +229,15 @@ function groupLine(t){
   const loc = v => money(inCur(v, tc), tc), gbp = v => "£" + fmtNum(Math.round(v));
   return `<div class="grp-price">${n} of you: <b>${rng(t.pmin * n, t.pmax * n, loc)}</b> <small>${rng(t.pmin * n, t.pmax * n, gbp)} together, ${rng(t.pmin, t.pmax, gbp)} each${t.unpriced ? ", plus a leg without a saved price" : ""}</small></div>`;
 }
+// a journey's price. When a leg has no saved price, the total is only part of the cost, so it says "so far" and names the leg(s)
+// left out, instead of looking like the whole fare
+const unpricedLegs = t => t.legs.filter(L => !L.o.p).map(L => `${NODE[L.from].n} → ${NODE[L.to].n} ${L.o.mode.toLowerCase()}`);
 function tripPrice(t){
   const tc = tripCur(t);
-  return t.unpriced === t.legs.length ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
+  if (t.unpriced === t.legs.length) return `<small>Price: check live</small>`;
+  const rng = `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}`, gbp = `£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}`;
+  if (!t.unpriced) return `${rng}<small>${gbp}</small>`;
+  return `${rng} <span class="plus">+ ?</span><small>${gbp} so far, not counting the ${esc(listAnd(unpricedLegs(t)))} (no saved price)</small>`;
 }
 function tripCard(t, idx){
   const stops = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k].n);
@@ -325,7 +331,7 @@ async function paintSea(t){
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
   const tc = tripCur(t);
-  const price = allUnpriced ? `<small>Price: check live</small>` : `${money(inCur(t.pmin, tc), tc)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(inCur(t.pmax, tc)) : ""}<small>£${fmtNum(t.pmin)}${t.pmax - t.pmin > 0.3 ? "–" + fmtNum(t.pmax) : ""}${t.unpriced ? ", plus a leg without a saved price" : ""}</small>`;
+  const price = tripPrice(t);
   const legs = t.legs.map((L, k) => {
     const o = L.o, fromStn = stationOf(L.from === o.a ? o.da : o.db);
     const lp = o.p ? withGBP(localRange(o.p, o.cur, ccCur(nodeCc(NODE[L.from]))), o.p, o.cur) : "price not saved";
