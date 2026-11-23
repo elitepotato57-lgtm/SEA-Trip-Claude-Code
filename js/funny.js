@@ -34,7 +34,7 @@ function funnyIntro(){
     el.classList.add("out");
     setTimeout(() => { el.remove(); if (url) URL.revokeObjectURL(url); }, 650);
   };
-  safety = setTimeout(finish, 6000);                        // no signal or it won't play: never stuck on a black screen
+  safety = setTimeout(finish, 15000);                       // no signal or it won't play: never stuck on a black screen (Skip works any time)
   el.onclick = finish;                                      // tap (or Skip) to go straight to the app
   v.onended = finish; v.onerror = finish;
   v.onplaying = () => { clearTimeout(safety); safety = setTimeout(finish, ((isFinite(v.duration) && v.duration) || 3) * 1000 + 1500); };
@@ -60,6 +60,7 @@ const funnyInChina = (lat, lng) => {
 function funnyPrep(){
   if (!funnyOn() || funnyAudioUrl || typeof Audio === "undefined") return;
   funnyAudioUrl = "loading";
+  if (typeof fetch === "function") fetch(FUNNY_INTRO).catch(() => {});     // saved by the service worker, so the next open plays it at once
   funnyBlobUrl(FUNNY_CHINA).then(u => { funnyAudioUrl = u; funnyAudio = new Audio(u); funnyAudio.preload = "auto"; }).catch(() => { funnyAudioUrl = ""; });
   try { [FUNNY_BEN, FUNNY_MUNCH, FUNNY_NIGHT].forEach(src => { const im = new Image(); im.src = src; }); } catch(e){}
 }
@@ -87,16 +88,18 @@ function funnyBen(){
   setTimeout(() => el.remove(), 3100);
 }
 /* ---------- a picture and a line that pop up for a moment (tap to close sooner) ---------- */
-function funnyPop(src, text, ms = 2200, alarm = false){
+// slide: no box, big text, slides in from the left and away to the right (the munchies)
+function funnyPop(src, text, ms = 2200, alarm = false, slide = false){
   if (!funnyOn() || typeof document === "undefined" || !document.body) return;
   const old = $("#funnyPop"); if (old) old.remove();
   const el = document.createElement("div");
   el.id = "funnyPop"; el.className = "funny-pop"; el.setAttribute("role", "status");
   if (alarm) el.classList.add("alarm");
+  if (slide) el.classList.add("clean", "slide");
   el.innerHTML = `<img src="${src}" alt=""><p>${esc(text)}</p>${alarm ? [1, 2, 3, 4, 5, 6].map(i => `<span class="fp-bang b${i}" aria-hidden="true">!</span>`).join("") : ""}`;
   if (alarm) funnyAlarm();
   document.body.appendChild(el);
-  const bye = () => { el.classList.add("out"); setTimeout(() => el.remove(), 400); };
+  const bye = () => { if (el.classList.contains("out")) return; el.classList.add("out"); setTimeout(() => el.remove(), slide ? 520 : 400); };
   el.onclick = bye; setTimeout(bye, ms);
 }
 // a very short alarm (about half a second, two-tone), made on the phone: no sound file to download
@@ -112,7 +115,7 @@ function funnyAlarm(){
     o.start(t); o.stop(t + .52);
   } catch(e){}
 }
-const funnyMunchies = () => funnyPop(FUNNY_MUNCH, "Uh-oh, Tommy’s got the munchies again, hasn’t he?", 2200);
+const funnyMunchies = () => funnyPop(FUNNY_MUNCH, "Uh-oh, Tommy’s got the munchies again, hasn’t he?", 2700, false, true);
 const funnyNightlife = () => funnyPop(FUNNY_NIGHT, "Watch out for drug dealers. Cretins such as these two have been known for spiking your drinks and tag teaming bumholes.", 4200, true);
 function funnyOnRoute(){
   const r = parseHash(), key = r.view + "/" + r.sub;
@@ -131,6 +134,14 @@ function funnyStart(){
   funnyIntro();
   funnyOnRoute();
 }
+// an iPhone often brings the app back from where it was left instead of starting it again: after 10 minutes or more
+// away, coming back counts as opening it, so the intro plays again
+let funnyHiddenAt = 0;
+if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", () => {
+  if (document.hidden){ funnyHiddenAt = Date.now(); return; }
+  if (funnyHiddenAt && Date.now() - funnyHiddenAt >= 10 * 60e3) funnyIntro();
+  funnyHiddenAt = 0;
+});
 // Settings › Funny mode
 function funnySet(on){
   S.funny = !!on; persist();

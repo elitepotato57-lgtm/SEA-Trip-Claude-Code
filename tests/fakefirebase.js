@@ -27,7 +27,9 @@ function makeFake(){
     if (top === "stickers") return p.length >= 2;
     if (top === "msgs") return a === uid;
     if (top === "phones") return p.length === 2 && (a === uid || get(["pallow", a, uid]) === true);
-    if (top === "pallow" || top === "sos") return a === uid;
+    if (top === "pallow" || top === "sos" || top === "pushok") return a === uid;
+    if (top === "push") return true;
+    if (top === "pushsub") return p.length === 2 && (a === uid || get(["pushok", a, uid]) === true);
     if (top === "gkey") return get(["gkeyok", uid]) === true || get(["admins", uid]) === true;
     if (top === "gkeyok") return get(["admins", uid]) === true || (p.length === 2 && a === uid);
     if (top === "gkeyask" || top === "stats") return get(["admins", uid]) === true;
@@ -58,7 +60,9 @@ function makeFake(){
     if (top === "stickerIndex" || top === "stickers") return p.length === 2 && get(["admins", uid]) === true && (val == null || top === "stickerIndex" || (val.d && val.d.length < 300000 && val.d.startsWith("data:image/")));
     if (top === "msgs") return p.length === 3 && (uid === a || (get(p) === undefined && val && val.f === uid));
     if (top === "phones") return p.length === 2 && a === uid && (val == null || (typeof val === "string" && /^\+[0-9]{7,15}$/.test(val)));
-    if (top === "pallow") return a === uid;
+    if (top === "pallow" || top === "pushok") return a === uid;
+    if (top === "push") return get(["admins", uid]) === true && (p.length === 1 ? val == null || Object.keys(val).every(k => k === "key" || k === "url") : (a === "key" ? val == null || /^[A-Za-z0-9_-]{80,100}$/.test(val) : a === "url" ? val == null || (typeof val === "string" && val.startsWith("https://") && val.length < 200) : false));
+    if (top === "pushsub") return p.length === 2 && a === uid && (val == null || (typeof val.e === "string" && val.e.startsWith("https://") && val.e.length < 800 && typeof val.p === "string" && val.p.length < 120 && typeof val.a === "string" && val.a.length < 40));
     if (top === "gkey" || top === "gkeyok") return get(["admins", uid]) === true && (top === "gkey" ? p.length === 1 : p.length === 2);
     if (top === "gkeyask") return p.length === 2 && (a === uid || get(["admins", uid]) === true);
     if (top === "stats") return p.length >= 2 && a === uid;

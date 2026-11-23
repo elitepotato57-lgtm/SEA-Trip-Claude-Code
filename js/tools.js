@@ -22,14 +22,14 @@ const TOOLS = [
   {id:"developer", l:"Developer", d:"Stickers, developers, Design Lab", ic:"cog", get hidden(){ return S.dev !== true; }}
 ];
 // the order of the tiles on Tools (anything not listed goes after, in the order above)
-const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport", "developer"];
+const TOOL_ORDER = ["friends", "translate", "currency", "emergency", "docs", "trips", "wifi", "weather", "deals", "guide", "assistant", "transport", "developer"];
 const toolsInOrder = () => TOOLS.filter(t => !t.hidden).sort((a, b) => ((TOOL_ORDER.indexOf(a.id) + 1) || 99) - ((TOOL_ORDER.indexOf(b.id) + 1) || 99));
 const TOOL_PAGES = {};          // id -> {render(root), title}; filled in by each tool below
 /* Experiment tools-groups: no tiles that repeat other buttons (Transport is a tab, Settings and Saved are in the header,
    Wi-Fi and the Essentials grid are on the map, Deals' free things are Activities' Free filter, the Trip assistant answers in the
    map search). What's left is grouped: Right now, Our trip, Read up. */
 EXPERIMENTS.push({id:"tools-groups", n:"Tools: fewer tiles, in groups", d:"Hides tiles that repeat other buttons (Transport, Settings, Saved, Wi-Fi, Essentials, Deals, assistant) and groups the rest."});
-const TOOL_GROUPS = [["Right now", ["emergency", "friends", "translate", "currency", "weather"]], ["Our trip", ["docs", "offline", "discover", "developer"]], ["Read up", ["guide"]]];
+const TOOL_GROUPS = [["Right now", ["emergency", "friends", "translate", "currency", "weather"]], ["Our trip", ["docs", "trips", "offline", "discover", "developer"]], ["Read up", ["guide"]]];
 function toolsGroupedHTML(){
   const extra = {offline:{id:"offline", l:"Offline & backup", d:"Save cities for no signal, back up", ic:"download", href:"#tools/offline"},
     discover:{id:"discover", l:"Discover", d:"Destinations at a glance", ic:"compass", href:"#discover"}};

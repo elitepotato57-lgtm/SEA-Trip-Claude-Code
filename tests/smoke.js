@@ -53,6 +53,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
 
   await page.goto(BASE + "#map"); await page.waitForTimeout(6000);
   ok(await page.evaluate(() => !!document.querySelector("#map canvas")), "map canvas is drawn");
+  ok(await page.evaluate(() => ui.mapCats.size === 0 && !ui.essKinds.size && !document.querySelector('#mapChips .chip[aria-pressed="true"]')), "the app opens on the map with nothing selected");
+  await page.click("#mapChips [data-all]"); await page.waitForTimeout(4000);
   const dbs = await page.evaluate(() => PLACE_DBS.length);
   ok(Object.values(sumHits).every(n => n === 1) && Object.keys(sumHits).length === 3 * dbs, `each place summary downloads once, for all ${dbs} countries ` + JSON.stringify(sumHits));
   const cl = await page.evaluate(() => ["stay","food","do","ess","move"].filter(g => map.getLayer("cl-circle-" + g)).length);
@@ -554,6 +556,37 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await B.pg.goto(BASE + "#tools/friends-split"); await B.pg.waitForTimeout(2500);
     const del = {owner:fb.root.owner === uidA, a:!!(await A.pg.$("#sp-gdel")), b:!!(await B.pg.$("#sp-gdel"))};
     ok(ownBtn && del.owner && del.a && !del.b, "split groups: Dylan claims owner once; only his phone shows Delete " + JSON.stringify(del));
+    // I'm lost with the app closed: Dylan makes the keys and saves the relay; Sam allows notifications (the phone's push
+    // service is pretended); Dylan's alert reaches the relay with Sam's subscription
+    {
+      await A.pg.goto(BASE + "#tools/developer"); await A.pg.waitForTimeout(2500);
+      await A.pg.click("#push-keys"); await A.pg.waitForTimeout(1500);
+      const secret = await A.pg.evaluate(() => { try { return JSON.parse(document.querySelector("#push-jwk").value); } catch(e){ return null; } });
+      await A.pg.fill("#push-url", "https://relay.test/"); await A.pg.click("#push-save"); await A.pg.waitForTimeout(1500);
+      ok(secret && secret.d && secret.x && fb.root.push && /^[A-Za-z0-9_-]{87}$/.test(fb.root.push.key) && fb.root.push.url === "https://relay.test/",
+        "Developer › Alerts when the app is closed: makes the keys (the secret shown once to copy, the public half in Firebase) and saves the relay");
+      await B.c.addInitScript(() => {
+        Object.defineProperty(Notification, "permission", {get:() => window.__perm || "default", configurable:true});
+        Notification.requestPermission = async () => (window.__perm = "granted");
+        PushManager.prototype.getSubscription = async function(){ return window.__sub || null; };
+        PushManager.prototype.subscribe = async function(o){ window.__keyLen = new Uint8Array(o.applicationServerKey).length;
+          return window.__sub = {toJSON:() => ({endpoint:"https://web.push.apple.com/sam-test", keys:{p256dh:"B" + "q".repeat(86), auth:"a".repeat(22)}}), unsubscribe:async () => true}; };
+      });
+      await B.pg.goto(BASE + "#tools/friends"); await B.pg.reload(); await B.pg.waitForTimeout(3000);
+      const before = await B.pg.evaluate(() => !!document.querySelector("#push-on"));
+      await B.pg.click("#push-on"); await B.pg.waitForTimeout(2500);
+      const on = await B.pg.evaluate(() => ({keyLen:window.__keyLen, line:(document.querySelector("#fr-push") || {}).textContent || ""}));
+      ok(before && on.keyLen === 65 && /Alerts reach this phone/.test(on.line) && fb.root.pushsub && fb.root.pushsub[uidB] && fb.root.pushsub[uidB].e === "https://web.push.apple.com/sam-test" && fb.root.pushok[uidB][uidA] === true,
+        "Friends › I’m lost: Sam taps Get alerts when the app is closed, allows notifications, and his phone subscribes " + JSON.stringify(on));
+      const relay = [];
+      await A.c.route("https://relay.test/**", async r => { if (r.request().method() === "POST") relay.push(JSON.parse(r.request().postData())); await r.fulfill({status:200, contentType:"application/json", body:'{"sent":1}', headers:{"access-control-allow-origin":"*"}}); });
+      await A.pg.goto(BASE + "#tools/friends"); await A.pg.waitForTimeout(2500);
+      await A.pg.click("#fr-sos"); await A.pg.waitForTimeout(300); await A.pg.click('#confirmRoot [data-cfm="1"]'); await A.pg.waitForTimeout(3000);
+      ok(relay.length === 1 && relay[0].subs.length === 1 && relay[0].subs[0].e === "https://web.push.apple.com/sam-test" && / is lost$/.test(relay[0].title),
+        "Dylan’s I’m lost goes to the relay with Sam’s subscription, so it reaches Sam with his app closed " + JSON.stringify(relay.map(r => ({n:r.subs.length, t:r.title}))));
+      // Sam's open app shows the alert too: close it so it doesn't sit over the next checks
+      await B.pg.waitForSelector('.sosRoot [data-sos="ok"]', {timeout:12000}).then(() => B.pg.click('.sosRoot [data-sos="ok"]')).catch(() => {});
+    }
     // Games (Friends › Play): Dylan starts Four in a row with Sam; Sam gets the invite on whatever screen he's on; both phones agree
     await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(1500);
     const pl = await A.pg.evaluate(() => ({games:[...document.querySelectorAll(".gm-tile b")].map(b => b.textContent), tally:!!document.querySelector("#gm-tally"), w:document.documentElement.scrollWidth}));
@@ -837,7 +870,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const c = await browser.newContext({viewport:{width:393, height:852}, geolocation:{latitude:13.7466, longitude:100.5393}, permissions:["geolocation"]});
     await c.route(/\/places\/th\/(stay|food|do)\/\d+-\d+-\d+\.json/, async r => { await new Promise(res => setTimeout(res, 6000)); r.continue().catch(() => {}); });
     const pg = await c.newPage(); pg.on("pageerror", e => errors.push(e.message));
-    await pg.goto(BASE + "#map"); await pg.waitForTimeout(5000);
+    await pg.goto(BASE + "#map"); await pg.waitForTimeout(1500);
+    await pg.click("#mapChips [data-all]"); await pg.waitForTimeout(3500);                                                // the map opens with nothing on: show everything
     await pg.evaluate(() => map.jumpTo({center:[98.9853, 18.7883], zoom:12.5})); await pg.waitForTimeout(2000);        // Chiang Mai: not loaded yet
     const slow = await pg.evaluate(() => ({mode:mapRun.mode, loading:mapRun.loading, drawn:map.queryRenderedFeatures().filter(f => /^cl-circle-|^pt-/.test(f.layer.id)).reduce((s, f) => s + (+f.properties.w || 1), 0)}));
     ok(slow.mode === "detail" && slow.loading && slow.drawn > 1000, "zooming in while places are still downloading keeps the counts on the map, no empty patch " + JSON.stringify(slow));
@@ -863,6 +897,37 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await page.click("#dtDriver"); await page.waitForTimeout(300);
     ok(await page.evaluate(() => /โรงแรมเฮีย/.test(document.querySelector(".driver-card").textContent)), "the driver card shows the Thai name in big script");
     await page.click(".driver-card"); await page.evaluate(() => closeDetail());
+  }
+
+  // Tools › Trips: start a trip, move, end it, add photos (one with its own location, one placed by the time it was taken)
+  {
+    await ctx.setGeolocation({latitude:13.7466, longitude:100.5393});
+    await page.goto(BASE + "#tools/trips"); await page.waitForTimeout(1200);
+    await page.fill("#trkName", "Smoke walk"); await page.click("#trkStart"); await page.waitForTimeout(2500);
+    const t0 = await page.evaluate(() => ({on:S.tripOn, live:(document.querySelector("#trkLive") || {}).textContent || "", end:!!document.querySelector("#trkEnd"), w:document.documentElement.scrollWidth}));
+    // a walk north, a fix every 15 pretend minutes (the clock is moved by changing the time of each fix the page sees)
+    for (let i = 1; i <= 3; i++){ await ctx.setGeolocation({latitude:13.7466 + i * .004, longitude:100.5393}); await page.waitForTimeout(1500); }
+    const n = await page.evaluate(() => trkCur && trkCur.pts.length);
+    ok(t0.on && t0.end && /Since/.test(t0.live) && n >= 3 && t0.w <= 393, "Trips: Start records the route from the GPS as you move " + JSON.stringify({t0, n}));
+    // put the photos' times on the route: the first point's time + a minute (no location in that photo)
+    await page.evaluate(() => { const p = trkCur.pts; const t = Date.UTC(2026, 10, 28, 8, 0); p.forEach((q, i) => q[2] = t - (p.length - 1 - i) * 60e3); return Trk.putTrip(trkCur); });
+    await page.click("#trkEnd"); await page.waitForTimeout(400); await page.click('[data-cfm="1"]'); await page.waitForTimeout(3000);
+    const tp = await page.evaluate(() => ({on:S.tripOn, sub:ui.sub, map:!!document.querySelector("#trkMap canvas"), w:document.documentElement.scrollWidth}));
+    ok(!tp.on && /^trips\?/.test(tp.sub) && tp.map && tp.w <= 393, "Trips: End trip opens the trip with its route on a map " + JSON.stringify(tp));
+    await page.setInputFiles("#trkFiles", [path.join(__dirname, "fixtures", "photo-gps.jpg"), path.join(__dirname, "fixtures", "photo-nogps.jpg")]);
+    await page.waitForTimeout(4000);
+    const ph = await page.evaluate(() => ({pins:document.querySelectorAll("#trkMap .trk-pin").length, off:document.querySelectorAll(".trk-grid .trk-thumb").length, note:document.querySelector("#trkAddNote").textContent}));
+    ok(ph.pins === 2 && ph.off === 0, "Trips: both photos go on the map (one by its own location, one by the route at that time) " + JSON.stringify(ph));
+    await page.click("#trkPh"); await page.waitForTimeout(200);
+    const hid = await page.evaluate(() => [...document.querySelectorAll("#trkMap .trk-pin")].every(m => m.hidden) && S.tripPhotos === false);
+    await page.click("#trkPh"); await page.waitForTimeout(200);
+    ok(hid && await page.evaluate(() => [...document.querySelectorAll("#trkMap .trk-pin")].every(m => !m.hidden)), "Trips: the Photos switch hides and shows them");
+    await page.evaluate(() => document.querySelector("#trkMap .trk-pin").click()); await page.waitForTimeout(500);
+    ok(await page.evaluate(() => { const i = document.querySelector("#sheetRoot .trk-big"); return !!i && /Placed by/.test(document.querySelector("#sheetRoot").textContent); }), "Trips: tapping a photo opens it, saying how it was placed");
+    await page.evaluate(() => closeDetail());
+    await page.goto(BASE + "#tools/trips"); await page.waitForTimeout(1000);
+    ok(await page.evaluate(() => /Smoke walk/.test(document.querySelector(".trk-list").textContent) && !!document.querySelector("#trkStart")), "Trips: the finished trip is listed, and a new one can be started");
+    await ctx.setGeolocation({latitude:13.7466, longitude:100.5393});
   }
 
   // offline: the service worker should already have saved the app

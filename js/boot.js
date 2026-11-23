@@ -18,6 +18,7 @@
   refreshLiveRates(false);              // and today's exchange rates, if there is signal
   // friends: messages and game invites pop up on whatever screen you're on (does nothing until Friends is set up)
   if (typeof frLoop === "function") setTimeout(() => { try { frLoop(); } catch(e){} }, 1500);
+  if (typeof trkResume === "function") trkResume();     // Tools › Trips: carry on recording a trip that was started
   if (typeof funnyStart === "function") funnyStart();   // funny mode's intro video (only when switched on in Settings)
 })();
 

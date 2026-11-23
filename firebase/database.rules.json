@@ -142,6 +142,26 @@
         }
       }
     },
+    "push": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "key": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{80,100}$/)" },
+      "url": { ".validate": "newData.isString() && newData.val().beginsWith('https://') && newData.val().length < 200" },
+      "$other": { ".validate": false }
+    },
+    "pushsub": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('pushok').child($uid).child(auth.uid).val() === true)",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "!newData.exists() || (newData.hasChildren(['e', 'p', 'a']) && newData.child('e').isString() && newData.child('e').val().beginsWith('https://') && newData.child('e').val().length < 800 && newData.child('p').isString() && newData.child('p').val().length < 120 && newData.child('a').isString() && newData.child('a').val().length < 40)"
+      }
+    },
+    "pushok": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
     "gkey": {
       ".read": "auth != null && (root.child('gkeyok').child(auth.uid).val() === true || root.child('admins').child(auth.uid).val() === true)",
       ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",

@@ -36,7 +36,8 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages. Their Filters have
   "Measured from" (`distFromField`): the distance is from where you are or any trip destination (it sets the same `S.focus` as the place button).
   Rows that scroll sideways (`.scroller`, `.map-chips`, the price rows) never scroll up and down (`overflow-y:hidden`).
-- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type).
+- `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type). The app opens on the map with
+  nothing selected (`ui.mapCats` starts empty; Dylan, 23 Nov 2026). The statusfade fade is on the map only and stops above the search bar.
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
   `SURF` in `js/places.js`. Activities › Surf opens the map in surf mode (`ui.mapSurf`, `openSurfMap`). The wave forecast (`surfNow`,
   Open-Meteo, free) and the Surfline button are in `js/tools-more.js`. Surfline has no open data: never scrape it. No schools or shops.
@@ -62,9 +63,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   Each game shows its rules the first time (`gm-seen`), and from the ? button.
 - Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozas** (id `boozer`, no explainer toast): bars,
   pubs, clubs and bottle shops (kind `liquor`, added to built folders by `node tools/osm/add-booze.js`; extract.py keeps them now).
-- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch pops up `img/tom-fried.jpg`,
+- `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch slides `img/tom-fried.jpg` across (no box, big text),
   Nightlife `img/tom-aid-ping.png` with a half-second two-tone alarm (Web Audio, `funnyAlarm`) and flashing yellow exclamation marks. On start `media/tommy.mp4`
-  plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away. Tapping China on the main map
+  plays full screen (blob URL, inline, with sound if allowed, else muted), then fades away; it also plays when the app comes back after 10+ minutes away
+  (iPhones often resume rather than restart). `media/` is kept in its own cache (`sea-trip-media-v1` in sw.js) so updates don't throw the video away. Tapping China on the main map
   (`funnyMapTap`, called from the map's click handler; GEO's China, which stops at 30°N, plus a coarse Natural Earth outline north of that) plays
   `media/chinese.mp3`. Opening Tools › Friends makes Ben wave: `img/ben-wave.png`, a 16-frame see-through strip cut from
   `media/ben-wave.mp4` by `python3 tools/ben-sprite.py` (flood-fills the black from the edges, so his navy jumper stays), animated with CSS `steps()`.
@@ -101,6 +103,15 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
 - `js/docs.js`: Tools › Documents.
+- `js/trips.js`: Tools › Trips (Dylan, 23 Nov 2026): Start a trip / End trip records the phone's own GPS while the app is open
+  (`trkKeep`: 40 m or 10 min; stretches with the app closed are dashed, `trkSegments`); after it, photos picked from the library go
+  on the trip's map by their own EXIF location, else by the route's position at the time they were taken (`exifRead`, `trkPlace`),
+  with a Photos switch (`S.tripPhotos`). Everything in IndexedDB `sea-trip-trips`, on the phone only. `S.tripOn` = the trip recording.
+- `js/push.js` + `push/worker.mjs` + `PUSH-SETUP.md`: I'm lost reaches phones with the app closed (Web Push). Phones subscribe from
+  Friends › I'm lost (`pushEnable`; `pushsub/{uid}` readable by the friends in `pushok/{uid}`); `frSosSend` posts friends'
+  subscriptions to Dylan's free Cloudflare Worker relay (`push/url`), which signs (VAPID, secret `VAPID_JWK`) and encrypts
+  (RFC 8291) each one. Keys are made on the developer phone (Tools › Developer); only the public half (`push/key`) is in Firebase.
+  `sw.js` shows the notification and opens Friends when it's tapped. iPhones: Home Screen app only, iOS 16.4+.
 - `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). Temples get no photo
   unless that exact picture was checked by eye (`PHOTO_CHECKED`); file names mentioning a Buddha are skipped. `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs

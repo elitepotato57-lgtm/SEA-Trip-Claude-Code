@@ -597,12 +597,14 @@ async function paintDev(){
         <div class="fr-stkact"><button class="icon-btn" type="button" data-stkdel="${esc(id)}" aria-label="Delete ${esc(st.n)}">${icon("trash","i s")}</button></div></div>`).join("") || `<p class="note">None yet.</p>`}</div>
       <label class="btn small fr-photo" style="margin-top:10px">${icon("plus","i s")}Add stickers<input type="file" accept="image/*" multiple id="stk-add" hidden></label></div>
     ${frOwner ? "" : `<div class="block"><h2>Owner</h2><p class="note">One phone, Dylan’s, is the owner: the only one that can delete a split-costs group or take someone out of one. It can only be claimed once.</p><button class="btn small" type="button" id="fr-owner">This is Dylan’s phone: make it the owner</button></div>`}
+    ${typeof pushDevHTML === "function" ? pushDevHTML() : ""}
     <div class="block"><h2>Developers</h2><p class="note">Who else can do all this. Switch a friend on to make them a developer.${frIsOwner() ? " This phone is the owner." : ""}</p>
       <div class="fr-row"><span>${frAvatar(me, 36)}</span><div><b>This phone</b><div class="note">Developer</div></div></div>
       ${fl.map(([uid, x]) => `<div class="fr-row"><span>${frAvatar(uid, 36)}</span><div><b>${esc(x.n)}</b></div><button class="switch" type="button" data-mkdev="${esc(uid)}" aria-pressed="${devs[uid]}" aria-label="${esc(x.n)} is a developer"><i></i></button></div>`).join("") || `<p class="note">Add friends first.</p>`}</div>
     <div class="block"><h2>Everyone’s photos</h2><p class="note">The face everyone sees for a person. Anyone can still choose their own photo of a friend with the pencil on Friends.</p>
       ${[[me, {n:"You"}], ...fl].map(([uid, x]) => `<div class="fr-row"><span>${sharedAv(uid)}</span><div><b>${esc(x.n)}</b></div><label class="btn small fr-photo">${icon("camera","i s")}Photo<input type="file" accept="image/*" data-frphoto="${esc(uid)}" hidden></label></div>`).join("")}</div>`;
   paintDevExtras();
+  if (typeof pushDevPaint === "function") pushDevPaint();
   const ow = $("#fr-owner"); if (ow) ow.onclick = async () => { if (!(await askConfirm("Make this phone the owner? Only it will be able to delete split groups. This can’t be moved to another phone later.", "Make owner"))) return; frClaimOwner().then(() => { toast("This phone is the owner"); paintDev(); }, frFail); };
   el.querySelectorAll("[data-frphoto]").forEach(inp => inp.onchange = async () => {
     const file = inp.files && inp.files[0]; if (!file) return;
@@ -978,6 +980,8 @@ async function frSosSend(){
   const body = {t:{".sv":"timestamp"}, n:f.name || "A friend", ...(here ? {lat:+here.lat.toFixed(5), lng:+here.lng.toFixed(5)} : {}), ...(f.callLink ? {cl:f.callLink} : {})};
   frSosHere = here || null;
   const r = await Promise.allSettled(ids.map(uid => frDb("PUT", `sos/${uid}/${me.uid}`, body)));
+  // and a notification on the phones of friends who turned on alerts when the app is closed (js/push.js)
+  if (typeof pushSend === "function") pushSend(ids, `${f.name || "A friend"} is lost`, "Tap to see where they are and call them.", "./#tools/friends", "sos").catch(() => 0);
   return r.filter(x => x.status === "fulfilled").length;
 }
 const frSosShown = new Set();
@@ -1009,6 +1013,7 @@ function frSosHTML(){
   return `<div class="block sos-block"><h2>${icon("alert","i s")}I’m lost</h2>
     <p class="note">${exp("lost-share") ? "One tap sends an alert to all your mates with where you are, a button to call you and your group call link. It pops up straight away on phones with the app open; others see it when they next open it, so a WhatsApp message with your location goes too." : "One tap pops up an alert on all your mates’ phones with where you are, a button to call you, and your group call link."}</p>
     <button class="btn danger wide" type="button" id="fr-sos">${icon("alert","i s")}I’m lost: alert everyone</button>
+    <div id="fr-push"></div>
     <details class="more" style="margin-top:10px"><summary>${f.phone ? "Your number and group call" : "Set up: your number and a group call link"}</summary>
       <label class="field" style="margin-top:8px">Your phone number (with country code)<input id="fr-phone" type="tel" autocomplete="tel" placeholder="+44 7700 900123" value="${esc(f.phone || "")}"></label>
       <label class="field">Group call link (optional)<input id="fr-clink" type="url" placeholder="https://call.whatsapp.com/…" value="${esc(f.callLink || "")}"></label>
@@ -1018,6 +1023,7 @@ function frSosHTML(){
 }
 function frSosBind(root){
   const s = root.querySelector("#fr-sos"); if (!s) return;
+  if (typeof pushPaint === "function") pushPaint(root);         // alerts when the app is closed (js/push.js)
   root.querySelector("#fr-phonesave").onclick = () => frSavePhone(root.querySelector("#fr-phone").value, root.querySelector("#fr-clink").value.trim())
     .then(() => toast("Saved: your friends can call you from an alert"), e => toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"));
   s.onclick = async () => {

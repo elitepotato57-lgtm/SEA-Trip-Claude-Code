@@ -682,7 +682,7 @@ test("split costs: custom amounts must add up to the total, and they change who 
   eq(A.splitPairs(m), {b:20, c:10}); eq(A.splitBalances({people:m.people, items:m.items}), {a:30, b:-20, c:-10});
 });
 test("Tools: the order Dylan asked for, and Split costs only in Friends", () => {
-  eq(A.toolsInOrder().map(t => t.id), ["friends", "translate", "currency", "emergency", "docs", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
+  eq(A.toolsInOrder().map(t => t.id), ["friends", "translate", "currency", "emergency", "docs", "trips", "wifi", "weather", "deals", "guide", "assistant", "transport"]);
 });
 test("questions: costs, journey times, distances", () => {
   const f = A.moreIntent("How much should a tuk-tuk cost from where I am to MBK market?");
@@ -939,6 +939,53 @@ test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (
   const d = P.planTrips(P.hubNode("rep"), P.hubNode("pnh"))[0]; eq(P.borderCard(d, 0), "", "inside Cambodia");
 });
 
+test("trips: when and where a photo was taken is read from it (both byte orders), or nothing if it has none", () => {
+  const fs = require("fs"), ab = f => { const b = fs.readFileSync(require("path").join(__dirname, "fixtures", f)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); };
+  const g = A.exifRead(ab("photo-gps.jpg")), n = A.exifRead(ab("photo-nogps.jpg"));
+  eq([new Date(g.t).toISOString(), g.lat, g.lng], ["2026-11-28T07:30:00.000Z", 13.7563, 100.5018]);
+  eq([new Date(n.t).toISOString(), n.lat, n.lng], ["2026-11-28T08:00:00.000Z", undefined, undefined]);
+  // an iPhone-style (big-endian) EXIF block: date, time zone and a position in the southern and western halves
+  const bytes = [], u16 = v => bytes.push(v >> 8 & 255, v & 255), u32 = v => { u16(v >>> 16); u16(v & 65535); }, str = s => [...s].forEach(c => bytes.push(c.charCodeAt(0)));
+  str("MM"); u16(42); u32(8);
+  // IFD0 at 8: 2 entries (Exif pointer, GPS pointer)
+  u16(2); u16(0x8769); u16(4); u32(1); u32(38); u16(0x8825); u16(4); u32(1); u32(100); u32(0);
+  // Exif IFD at 38: DateTimeOriginal (20 bytes at 68), OffsetTimeOriginal (7 bytes at 88)
+  while (bytes.length < 38) bytes.push(0);
+  u16(2); u16(0x9003); u16(2); u32(20); u32(68); u16(0x9011); u16(2); u32(7); u32(88); u32(0);
+  while (bytes.length < 68) bytes.push(0); str("2026:12:01 09:15:30"); bytes.push(0);
+  str("-03:00"); bytes.push(0);
+  while (bytes.length < 100) bytes.push(0);
+  // GPS IFD at 100: S, 8° 30' 0", W, 115° 15' 0" (rationals at 154 and 178)
+  u16(4); u16(1); u16(2); u32(2); str("S"); bytes.push(0, 0, 0); u16(2); u16(5); u32(3); u32(154); u16(3); u16(2); u32(2); str("W"); bytes.push(0, 0, 0); u16(4); u16(5); u32(3); u32(178); u32(0);
+  while (bytes.length < 154) bytes.push(0);
+  [[8, 1], [30, 1], [0, 1], [115, 1], [15, 1], [0, 1]].forEach(([a, b]) => { u32(a); u32(b); });
+  const tiff = bytes, app1 = [0xFF, 0xE1, (tiff.length + 8) >> 8, (tiff.length + 8) & 255, 0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
+  const jpg = new Uint8Array([0xFF, 0xD8, ...app1, 0xFF, 0xDA, 0, 2]);
+  const be = A.exifRead(jpg.buffer);
+  eq([new Date(be.t).toISOString(), be.lat, be.lng], ["2026-12-01T12:15:30.000Z", -8.5, -115.25]);
+  eq(A.exifRead(new Uint8Array([0x89, 0x50, 0x4E, 0x47]).buffer), {}, "a PNG has none");
+});
+test("trips: the route keeps accurate points as you move (and every 10 minutes), dashes across a stretch with the app closed, and places photos", () => {
+  const t0 = Date.UTC(2026, 10, 28, 7, 0), min = 60e3;
+  eq(A.trkKeep(null, {lat:13.75, lng:100.5, acc:500, at:t0}), false, "too rough");
+  eq(A.trkKeep(null, {lat:13.75, lng:100.5, acc:20, at:t0}), true, "the first good fix");
+  const last = [13.75, 100.5, t0];
+  eq(A.trkKeep(last, {lat:13.7501, lng:100.5, acc:10, at:t0 + min}), false, "11 m on, a minute later");
+  eq(A.trkKeep(last, {lat:13.7505, lng:100.5, acc:10, at:t0 + min}), true, "55 m on");
+  eq(A.trkKeep(last, {lat:13.75, lng:100.5, acc:10, at:t0 + 10 * min}), true, "standing still for 10 minutes");
+  const pts = [[13.75, 100.50, t0], [13.76, 100.50, t0 + 10 * min], [13.77, 100.50, t0 + 20 * min], [13.90, 100.60, t0 + 140 * min], [13.91, 100.60, t0 + 150 * min]];
+  const seg = A.trkSegments(pts);
+  eq(seg.map(s => [s.gap, s.c.length]), [[false, 3], [true, 2], [false, 2]]);
+  const st = A.trkStats({start:t0, end:t0 + 150 * min, pts});
+  if (!(st.km > 3 && st.km < 3.5)) throw new Error("the gap's straight line isn't counted as travelled: " + st.km);
+  eq(A.trkPlace({glat:1, glng:2, t:t0}, pts), {lat:1, lng:2, how:"gps"}, "the photo's own location first");
+  const mid = A.trkPlace({t:t0 + 5 * min}, pts);
+  eq([mid.how, +mid.lat.toFixed(3)], ["time", 13.755], "halfway between two points");
+  eq(A.trkPlace({t:t0 + 80 * min}, pts), null, "taken while the app was closed, far from both ends");
+  eq(A.trkPlace({t:t0 + 30 * min}, pts).lat, 13.77, "10 minutes after the last point before the gap");
+  eq(A.trkPlace({t:t0 - 2 * 3600e3}, pts), null, "two hours before the trip");
+  eq(A.trkPlace({t:null}, pts), null);
+});
 test("transport: a price missing a leg says so (so far, + ?, and which leg); a full price doesn't", () => {
   const t = A.planTrips(A.hubNode("phangan"), A.hubNode("rep")).find(x => x.unpriced && x.unpriced < x.legs.length), h = A.tripPrice(t);
   ok(/\+ \?/.test(h) && /so far/.test(h) && /Bangkok → Siem Reap flight/.test(h), h);
@@ -1011,6 +1058,37 @@ test("transport: a price missing a leg says so (so far, + ?, and which leg); a f
       eq(asks, 1); ok(G.geoFresh() && G.geoFresh().lat === 13.75); eq(made, 1);
     });
   }
+  // the push relay (push/worker.mjs): only real push services, the alert encrypted for that phone alone (RFC 8291, decrypted
+  // here independently), a VAPID token signed with the key the phones subscribed with (RFC 8292)
+  {
+    const W = await import(require("url").pathToFileURL(require("path").join(__dirname, "..", "push", "worker.mjs")).href), C = globalThis.crypto.subtle;
+    const ua = await C.generateKey({name:"ECDH", namedCurve:"P-256"}, true, ["deriveBits"]), uaPub = new Uint8Array(await C.exportKey("raw", ua.publicKey));
+    const auth = globalThis.crypto.getRandomValues(new Uint8Array(16)), sub = {e:"https://web.push.apple.com/x", p:W.b64u(uaPub), a:W.b64u(auth)};
+    const msg = JSON.stringify({title:"Sam is lost", body:"Tap to see where"}), body = await W.encryptFor(sub, msg);
+    // decrypt as the phone would: salt, record size, the relay's key, then AES-GCM
+    const salt = body.slice(0, 16), idlen = body[20], asPub = body.slice(21, 21 + idlen), ct = body.slice(21 + idlen);
+    const asKey = await C.importKey("raw", asPub, {name:"ECDH", namedCurve:"P-256"}, false, []);
+    const secret = new Uint8Array(await C.deriveBits({name:"ECDH", public:asKey}, ua.privateKey, 256));
+    const H = async (s, ikm, info, n) => new Uint8Array(await C.deriveBits({name:"HKDF", hash:"SHA-256", salt:s, info}, await C.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), n * 8));
+    const te = new TextEncoder(), cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; a.forEach(x => { o.set(x, i); i += x.length; }); return o; };
+    const ikm = await H(auth, secret, cat(te.encode("WebPush: info\0"), uaPub, asPub), 32);
+    const cek = await H(salt, ikm, te.encode("Content-Encoding: aes128gcm\0"), 16), nonce = await H(salt, ikm, te.encode("Content-Encoding: nonce\0"), 12);
+    const plain = new Uint8Array(await C.decrypt({name:"AES-GCM", iv:nonce}, await C.importKey("raw", cek, "AES-GCM", false, ["decrypt"]), ct));
+    const vk = await C.generateKey({name:"ECDSA", namedCurve:"P-256"}, true, ["sign", "verify"]), jwk = await C.exportKey("jwk", vk.privateKey);
+    const [, t, k] = /^vapid t=([^,]+), k=(.+)$/.exec(await W.vapidAuth(sub.e, jwk)), [h, c, s] = t.split(".");
+    const sigOk = await C.verify({name:"ECDSA", hash:"SHA-256"}, await C.importKey("raw", W.unb64u(k), {name:"ECDSA", namedCurve:"P-256"}, false, ["verify"]), W.unb64u(s), te.encode(h + "." + c));
+    const claims = JSON.parse(Buffer.from(W.unb64u(c)).toString());
+    const posted = [];
+    const res = await W.handle(new Request("https://relay/", {method:"POST", body:JSON.stringify({subs:[sub, {e:"https://evil.example/x", p:sub.p, a:sub.a}], title:"Sam is lost", body:"x", url:"https://evil.example/"})}),
+      {VAPID_JWK:JSON.stringify(jwk)}, async (u, o) => { posted.push({u, h:o.headers}); return new Response(null, {status:201}); });
+    const noKey = await W.handle(new Request("https://relay/", {method:"POST", body:"{}"}), {});
+    test("push relay: encrypted for that phone only, a signed VAPID token, only real push services, and it says when its secret is missing", () => {
+      eq(new TextDecoder().decode(plain), msg + "\x02"); eq(body[16] * 16777216 + body[17] * 65536 + body[18] * 256 + body[19], 4096);
+      ok(sigOk, "the signature checks out with the public key in k="); eq([claims.aud, claims.sub], ["https://web.push.apple.com", "https://elitepotato57-lgtm.github.io/SEA-Trip-Claude-Code/"]);
+      eq(res.status, 200); eq(posted.map(p => p.u), ["https://web.push.apple.com/x"]); eq([posted[0].h["Content-Encoding"], posted[0].h.TTL, posted[0].h.Urgency], ["aes128gcm", "86400", "high"]);
+      eq(noKey.status, 500); eq(W.checkSub({e:"https://fcm.googleapis.com/fcm/send/abc", p:sub.p, a:sub.a}), true); eq(W.checkSub({e:"http://web.push.apple.com/x", p:sub.p, a:sub.a}), false);
+    });
+  }
   // sea forecast on boat legs: the WMO scale, and the day's highest waves from Open-Meteo marine
   {
     let asked = "";
@@ -1025,7 +1103,9 @@ test("transport: a price missing a leg says so (so far, + ?, and which leg); a f
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");
-    const fb = makeFake(), cfg = {SEA_FIREBASE:{apiKey:API_KEY, databaseURL:DB_URL}, fetch:fb.fetch};
+    // the push relay (push/worker.mjs) is pretended too: what phones post to it is kept in relayGot
+    const relayGot = [], fb = makeFake(), cfg = {SEA_FIREBASE:{apiKey:API_KEY, databaseURL:DB_URL}, fetch:(u, o) => /^https:\/\/relay\.test\//.test(String(u))
+      ? (relayGot.push(JSON.parse(o.body)), Promise.resolve({ok:true, json:async () => ({sent:JSON.parse(o.body).subs.length})})) : fb.fetch(u, o)};
     const P1 = load(undefined, cfg), P2 = load(undefined, cfg), P3 = load(undefined, cfg);
     P1.S.friends.name = "Dylan"; P2.S.friends.name = "Sam"; P3.S.friends.name = "Stranger";
     const me1 = await P1.frMe(), me2 = await P2.frMe(), me3 = await P3.frMe();
@@ -1229,6 +1309,21 @@ test("transport: a price missing a leg says so (so far, + ?, and which leg); a f
     test("I'm lost: friends get the alert and can see your number; nobody else can", () => {
       ok(sosSent >= 1, "sent to " + sosSent); eq(sosAtSam.cl, "https://call.whatsapp.com/voice/abc123"); eq(sosAtSam.n, P1.frState().name);
       eq(samSees, "+447700900123"); eq(strangerSees, null); eq(forgeSos, 401); ok(/country code/.test(badNum), badNum);
+    });
+    // alerts when the app is closed: only a developer saves the keys and relay; Sam's subscription is readable only by Sam's
+    // friends; an "I'm lost" alert hands the relay the subscriptions of the friends who turned alerts on
+    const PKEY = "B" + "x".repeat(86), SUB = {e:"https://web.push.apple.com/sam", p:"B" + "q".repeat(86), a:"a".repeat(22)};
+    const nonDevUrl = await P1.frDb("PUT", "push/url", "https://relay.test/").then(() => "ok", e => e.message);
+    await P3.frDb("PUT", "push/key", PKEY); await P3.frDb("PUT", "push/url", "https://relay.test/");
+    const badSub = await P2.frDb("PUT", `pushsub/${me2.uid}`, {e:"http://not-https", p:"x", a:"y"}).then(() => "ok", e => e.message);
+    await P2.frDb("PUT", `pushsub/${me2.uid}`, SUB); await P2.pushAllow();
+    const P4 = load(undefined, cfg); await P4.frMe();
+    let strangerSub = 0; try { await P4.frDb("GET", `pushsub/${me2.uid}`); } catch(e){ strangerSub = e.status; }
+    relayGot.length = 0;
+    await P1.frSosSend(); await new Promise(r => setTimeout(r, 50));
+    test("I'm lost with the app closed: only a developer sets the relay; the alert goes to the relay with friends' subscriptions; strangers can't read them", () => {
+      eq(nonDevUrl, "permission"); eq(badSub, "permission"); eq(strangerSub, 401);
+      eq(relayGot.length, 1); eq(relayGot[0].subs, [SUB]); ok(/ is lost$/.test(relayGot[0].title), relayGot[0].title); eq(relayGot[0].url, "./#tools/friends"); eq(relayGot[0].tag, "sos");
     });
     // the developer (P3) shares a Google key with the friends they pick; usage counts reach only developers
     await P2.gkAsk();
