@@ -987,6 +987,18 @@ test("experiment tp-overnight: the Reunification Express night train is offered 
   ok(bc.some(t => t.legs[0].o.mode === "Flight") && bc.some(t => t.legs[0].o.mode === "Train"), "Bangkok → Chiang Mai keeps the flight and adds the sleeper train");
 });
 
+test("experiment tp-book: Koh Phangan boats near a Full Moon Party and Thai trains at New Year say to book ahead, with sources; nothing switched off", () => {
+  const P = load(); P.expSet("tp-book", true);
+  const boat = P.planTrips(P.hubNode("tao"), P.hubNode("phangan"))[0];
+  eq(P.bookNotes(boat, "2026-12-22").map(x => x.r.id), ["fullmoon"]);
+  eq(P.bookNotes(boat, "2026-12-10"), [], "a quiet week");
+  P.ui.tp.date = "2026-12-23"; ok(/Full Moon Party on Thu 24 Dec/.test(P.bookCard(boat)) && /wikivoyage/.test(P.bookCard(boat)), P.bookCard(boat));
+  ok(/Book ahead/.test(P.tripCard(boat, 0)));
+  const tr = P.planTrips(P.hubNode("bkk"), P.hubNode("cnx")).find(t => t.legs.some(L => L.o.mode === "Train"));
+  if (tr) ok(P.bookNotes(tr, "2026-12-31").some(x => x.r.id === "thai-ny") && !P.bookNotes(tr, "2026-12-15").some(x => x.r.id === "thai-ny"));
+  P.expSet("tp-book", false); eq(P.bookCard(boat), ""); ok(!/Book ahead/.test(P.tripCard(boat, 0)));
+});
+
 /* tests that need to wait (restoring a backup) run last */
 (async () => {
   {

@@ -961,3 +961,5 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .day-card .known{margin:6px 0}
 .night-line{margin-top:6px;font-size:calc(13px * var(--ts,1))}
 .night-line small{color:var(--muted)}
+.book-card{margin-top:10px}
+.book-card .known{margin:6px 0}

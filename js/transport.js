@@ -268,7 +268,7 @@ function tripCard(t, idx){
   const stops = [t.legs[0].from].concat(t.legs.map(L => L.to)).map(k => NODE[k].n);
   const chain = t.legs.map((L, k) => `<span class="lchip" style="--lc:${LEG_COLS[k % LEG_COLS.length]}">${icon(MODE_IC[L.o.mode] || "bus", "i xs")}${esc(L.o.mode)}</span>`).join('<span class="larr" aria-hidden="true">›</span>');
   return `<div class="trip compact" data-trip="${idx}" role="button" tabindex="0" aria-label="See every leg of this journey">
-    <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}</div>
+    <div>${t.fastest ? '<span class="badge">Fastest</span>' : ""}${t.cheapest ? '<span class="badge cheap">Cheapest</span>' : ""}${bookNotes(t).some(x => x.r.warn) ? '<span class="tag warn">Book ahead</span>' : ""}</div>
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
       <div class="price">${tripPrice(t)}</div></div>${groupLine(t)}${nightLine(t)}
     <div class="lchain">${chain}</div>
@@ -393,6 +393,41 @@ function dayCard(L){
   return `<div class="callout day-card">${icon("pin")}<div><b>On the day</b><ul class="known">${li.join("")}</ul>
     <p class="note">From ${(d.src || []).map(x => `<a href="${esc(x[1])}" target="_blank" rel="noopener">${esc(x[0])}</a>`).join(", ")}.</p></div></div>`;
 }
+/* Experiment tp-book: booking pressure on the travel date (or today): Full Moon Party nights on Koh Phangan's boats, New Year on
+   Thai trains, and how far ahead Thai and Vietnamese trains open. Only what the sources say; where they give no number of days,
+   the advice is "as soon as you know your date". */
+EXPERIMENTS.push({id:"tp-book", n:"Transport: when to book", d:"Warns when your travel date is near a Full Moon Party (Koh Phangan boats) or New Year (Thai trains), and says how far ahead trains open."});
+// Full Moon Party nights in Haad Rin (31 Dec is the New Year countdown party): the AirAsia guide, checked 23 Nov 2026
+const FULL_MOONS = ["2026-11-24", "2026-12-24", "2026-12-31", "2027-01-22", "2027-02-22"];
+const FMP_SRC = ["AirAsia: Full Moon Party Koh Phangan 2026 & 2027", "https://www.airasia.com/blog/thailand/surat-thani/full-moon-party-koh-phangan/"];
+const WV = page => [`Wikivoyage: ${page.replace(/_/g, " ")}`, `https://en.wikivoyage.org/wiki/${page}`];
+const S61_TH = ["Seat 61: Thailand", "https://www.seat61.com/Thailand.htm"], S61_VN = ["Seat 61: Vietnam", "https://www.seat61.com/Vietnam.htm"];
+const dayDiff = (a, b) => Math.round((Date.parse(a + "T12:00:00Z") - Date.parse(b + "T12:00:00Z")) / 864e5);
+const BOOK_RULES = [
+  {id:"fullmoon", leg:L => (L.from === "phangan" || L.to === "phangan") && isBoat(L.o),
+    on:iso => FULL_MOONS.find(d => Math.abs(dayDiff(iso, d)) <= 3),
+    text:d => `Full Moon Party on ${fmtDay(d)}: the boats to and from Koh Phangan fill up around it, so book your ferry as soon as you know your date. Rooms go too, unless you book ahead.`,
+    src:[WV("Ko_Pha_Ngan"), FMP_SRC], warn:true},
+  {id:"thai-ny", leg:L => L.o.mode === "Train" && nodeCc(NODE[L.from]) === "TH", on:iso => { const md = iso.slice(5); return md >= "12-30" || md <= "01-03" ? iso : null; },
+    text:() => "New Year (30 December to 3 January) is one of the two busiest times on Thai trains: book on the day booking opens. Long trips like Bangkok–Chiang Mai open up to 6 months ahead; trips of a quarter to 60% of a train’s route open 30 days ahead.",
+    src:[S61_TH], warn:true},
+  {id:"thai-1st", leg:L => L.o.mode === "Train" && L.o.night && nodeCc(NODE[L.from]) === "TH", on:iso => iso,
+    text:() => "There’s usually just one 1st-class sleeping car per train, and it fills soon after booking opens. 2nd-class berths are easier to get.", src:[S61_TH]},
+  {id:"vn-train", leg:L => L.o.mode === "Train" && nodeCc(NODE[L.from]) === "VN", on:iso => iso,
+    text:() => "Booking opens 60 days before (sometimes over 90 for the whole line; short hops later). At Tet, Vietnamese New Year in late January or February, book the day it opens; other times you can usually buy at the station a few days ahead.", src:[S61_VN]}
+];
+// [{rule, L, d}] for the journey on the chosen date (or today)
+function bookNotes(t, iso = ui.tp.date && ui.tp.date >= todayISO() ? ui.tp.date : todayISO()){
+  if (!exp("tp-book")) return [];
+  const out = [];
+  BOOK_RULES.forEach(r => { const L = t.legs.find(r.leg); if (!L) return; const d = r.on(iso); if (d) out.push({r, L, d}); });
+  return out;
+}
+function bookCard(t){
+  const n = bookNotes(t); if (!n.length) return "";
+  return `<div class="callout book-card${n.some(x => x.r.warn) ? " warn" : ""}">${icon("calendar")}<div><b>When to book</b><ul class="known">${n.map(x => `<li>${esc(x.r.text(x.d))}</li>`).join("")}</ul>
+    <p class="note">From ${[...new Map(n.flatMap(x => x.r.src).map(s => [s[1], s])).values()].map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}${n.some(x => x.r.id === "fullmoon") ? ". Party dates can move for Buddhist holidays: check before you go" : ""}.</p></div></div>`;
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -418,7 +453,7 @@ function tripSheetHTML(t){
     <div class="sum" style="margin-top:6px"><div><div class="big">${fRange(t.dmin, t.dmax)}</div><div class="m note">${t.legs.length === 1 ? "Direct" : `${t.legs.length} legs, ${t.legs.length - 1} change${t.legs.length > 2 ? "s" : ""}`}${t.legs.some(L => L.o.mode === "Flight") ? ", includes airport time" : ""}</div></div>
       <div class="price">${price}</div></div>${nightLine(t)}
     <div class="legmap" id="legMap" role="img" aria-label="Map of the journey, each leg in its own colour"></div>
-    <div style="margin-top:8px">${legs}</div>
+    <div style="margin-top:8px">${legs}</div>${bookCard(t)}
     ${getThere(firstStn)}
     <div class="row" style="margin-top:12px">${t.legs.length > 1 && go12(t.legs[0].from, t.legs[t.legs.length - 1].to) ? ext(go12(t.legs[0].from, t.legs[t.legs.length - 1].to), "Search the whole route on 12Go " + icon("ext","i s")) : ""}${ext(`https://www.rome2rio.com/s/${enc(a)}/${enc(b)}`, "Rome2Rio " + icon("ext","i s"))}</div>
     ${t.legs.some(L => legBook(L)) ? `<p class="note" style="margin-top:6px">12Go shows the real departures and confirms the service, today’s price and seats; these times and prices are a saved guide.${ui.tp.date && t.legs.length > 1 ? " Your date is used for every leg: change it on 12Go if a later leg is the next day." : ""}</p>` : ""}
