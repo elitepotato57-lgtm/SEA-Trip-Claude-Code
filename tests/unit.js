@@ -1005,6 +1005,17 @@ test("experiment tp-border: the Phnom Penh to Saigon bus gets the Vietnam card (
       eq(asks, 1); ok(G.geoFresh() && G.geoFresh().lat === 13.75); eq(made, 1);
     });
   }
+  // sea forecast on boat legs: the WMO scale, and the day's highest waves from Open-Meteo marine
+  {
+    let asked = "";
+    const P = load(undefined, {fetch:u => { asked = String(u); return Promise.resolve({ok:true, json:async () => ({daily:{wave_height_max:[1.6]}})}); }});
+    const h = await P.seaFor(9.6, 100.0, "2026-12-01");
+    test("experiment tp-sea: the travel day's highest waves from Open-Meteo marine, described on the WMO sea-state scale", () => {
+      eq(h, 1.6); ok(/marine-api\.open-meteo\.com/.test(asked) && /wave_height_max/.test(asked) && /start_date=2026-12-01/.test(asked), asked);
+      eq([0.3, 0.9, 1.6, 3, 5].map(P.seaState), ["smooth", "slight", "moderate", "rough", "very rough"]);
+      ok(P.isBoat({mode:"Ferry"}) && P.isBoat({mode:"Bus + ferry"}) && !P.isBoat({mode:"Bus"}));
+    });
+  }
   // Friends: two phones and a pretend Firebase that applies the same rules as firebase/database.rules.json
   {
     const {makeFake, DB_URL, API_KEY} = require("./fakefirebase");

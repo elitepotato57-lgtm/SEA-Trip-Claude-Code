@@ -292,6 +292,35 @@ function borderCard(t, k){
     <ul class="known">${(into ? into.pts : []).map(x => `<li>${x}</li>`).join("")}</ul>
     <p class="note">From gov.uk, checked ${BORDER_CHECKED}${into ? `: <a href="${esc(into.url)}" target="_blank" rel="noopener">gov.uk travel advice for ${esc(into.name)}</a>` : ""}.</p></div></div>`;
 }
+/* Experiment tp-sea: boat legs show the sea forecast for the travel day (today if no date is picked, up to a week ahead):
+   the highest waves forecast midway (Open-Meteo marine, free, no key), described with the WMO sea-state scale. */
+EXPERIMENTS.push({id:"tp-sea", n:"Transport: sea forecast on boat legs", d:"Ferry legs show the waves forecast for your travel day (Open-Meteo), as calm, slight, moderate or rough."});
+const isBoat = o => /ferry|boat/i.test(o.mode) || /speedboat|longtail/i.test(o.op || "");
+// WMO sea state (code table 3700), by wave height in metres
+const seaState = h => h < 0.1 ? "calm" : h < 0.5 ? "smooth" : h < 1.25 ? "slight" : h < 2.5 ? "moderate" : h < 4 ? "rough" : "very rough";
+const seaCache = {};
+async function seaFor(lat, lng, day){
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)},${day}`;
+  if (!(key in seaCache)) seaCache[key] = getJSON(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&daily=wave_height_max&timezone=auto&start_date=${day}&end_date=${day}&cell_selection=sea`, {timeout:10000})
+    .then(j => { const v = j && j.daily && j.daily.wave_height_max && j.daily.wave_height_max[0]; return isFinite(v) && v != null ? +v : null; }).catch(() => { delete seaCache[key]; return null; });
+  return seaCache[key];
+}
+async function paintSea(t){
+  if (!exp("tp-sea")) return;
+  const day = ui.tp.date && ui.tp.date >= todayISO() ? ui.tp.date : todayISO();
+  if ((new Date(day + "T12:00:00") - new Date(todayISO() + "T12:00:00")) / 864e5 > 6) return;      // the forecast only goes a week ahead
+  t.legs.forEach(async (L, k) => {
+    if (!isBoat(L.o)) return;
+    const a = NODE[L.from], b = NODE[L.to], el = document.querySelector(`#sheetRoot [data-sea="${k}"]`); if (!el) return;
+    el.hidden = false; el.textContent = "Checking the sea…";
+    const h = await seaFor((a.lat + b.lat) / 2, (a.lng + b.lng) / 2, day);
+    if (!el.isConnected) return;
+    if (h == null){ el.textContent = "Sea forecast: needs signal (Open-Meteo)."; return; }
+    const st = seaState(h);
+    el.className = "sea-line" + (h >= 2.5 ? " bad" : h >= 1.25 ? " warn" : "");
+    el.innerHTML = `${icon("waves","i xs")} Sea ${day === todayISO() ? "today" : "on " + esc(fmtDay(day))}: waves up to <b>${h.toFixed(1)} m</b>, ${esc(st)}${h >= 1.25 ? ". Bumpy for small boats: seasickness tablets help, and check with the operator before going" : ""}. <span class="note">Open-Meteo forecast; WMO sea-state scale.</span>`;
+  });
+}
 // the whole journey, leg by leg, in a sheet with its own map
 function tripSheetHTML(t){
   const allUnpriced = t.unpriced === t.legs.length;
@@ -304,7 +333,7 @@ function tripSheetHTML(t){
       <b>${esc(legTitle(t, k))}</b>
       <div class="m">${esc(legKind(o))}</div>
       <div class="m">${fRange(o.dur[0], o.dur[1])}${o.mode === "Flight" ? " flying, plus airport time" : ""}, ${esc(lp)}${fromStn && fromStn.lat != null ? `, from ${esc(fromStn.n)}` : ""}${o.verified ? "" : ' <span class="tag warn">Estimate</span>'}</div>
-      ${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
+      ${exp("tp-sea") && isBoat(o) ? `<div class="sea-line" data-sea="${k}" hidden></div>` : ""}${borderCard(t, k)}${legBookBtn(L)}${o.mode === "Flight" ? `<a class="btn small" style="margin-top:6px" href="${esc(flightLink(L))}" target="_blank" rel="noopener">${icon("plane","i s")}Flight times${ui.tp.date ? " on " + esc(fmtDay(ui.tp.date)) : ""} on Google Flights ${icon("ext","i s")}</a>` : ""}
     </div></div>`;
   }).join("");
   const first = t.legs[0], firstStn = stationOf(first.from === first.o.a ? first.o.da : first.o.db);
@@ -358,6 +387,7 @@ function bindSavedTrips(root){
 function openTripSheet(t){
   if (legMap){ try { legMap.remove(); } catch(e){} legMap = null; }
   openSheet(tripSheetHTML(t), "trip-title");
+  paintSea(t);
   if (exp("tp-saved")){
     const head = $("#sheetRoot .sheet-head");
     if (head){ head.insertAdjacentHTML("afterend", `<button class="btn small" type="button" id="tpSave" style="margin:6px 0 2px">${icon("bookmark","i s")}Save this journey</button>`);
