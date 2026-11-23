@@ -184,13 +184,13 @@ function planTrips(fromN, toN){
   // switch off they're the same as mid and pmin)
   const best = Math.min(...trips.map(t => t.mid));
   // experiment: the truly fastest journey is always kept, even when a leg on it has no saved price
-  const quickest = exp("tp-fastest") ? trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b) : null;
+  const quickest = trips.reduce((a, b) => (a.mid < b.mid || (a.mid === b.mid && core(a) <= core(b))) ? a : b);
   trips = trips.filter(t => t.eff <= best * 2.5 + 2);
   const priced = trips.filter(t => !core(t));
   const keepUnpriced = new Set(trips.filter(t => core(t) && t.eff <= best * 1.6 + 1).sort((a, b) => (core(a) - core(b)) || (a.eff - b.eff)).slice(0, 3));
   trips = trips.filter(t => core(t) ? keepUnpriced.has(t)
     : !priced.some(u => u !== t && u.mid <= t.eff && u.net <= t.net && (u.mid < t.eff || u.net < t.net)));
-  if (quickest && !trips.includes(quickest)) trips.push(quickest);
+  if (!trips.includes(quickest)) trips.push(quickest);
   // and no long way round: a trip goes if another is much quicker, no dearer, with no more legs and no more legs without a price
   trips = trips.filter(t => !trips.some(u => u !== t && u.mid * 1.3 < t.eff && u.legs.length <= t.legs.length && core(u) <= core(t) && u.net <= t.net + 0.5));
   const fastest = trips.reduce((a, b) => a.mid <= b.mid ? a : b);
@@ -287,7 +287,6 @@ EXPERIMENTS.push({id:"tp-legnames", n:"Transport: clearer leg names", d:"Local r
 // bus stop it takes you to (or from), instead of "Koh Phangan → Koh Phangan"
 function legTitle(t, k){
   const L = t.legs[k], plain = `${NODE[L.from].n} → ${NODE[L.to].n}`;
-  if (!exp("tp-legnames")) return plain;
   const local = L.o.mode === "Local ride" || (L.o.mode === "Taxi" && !(L.o.src || []).length);
   if (!local) return plain;
   const nx = t.legs[k + 1], pv = t.legs[k - 1];
@@ -296,7 +295,7 @@ function legTitle(t, k){
   return NODE[L.from].n === NODE[L.to].n ? `Around ${NODE[L.to].n}` : plain;
 }
 // "Bus" and "Bus, minivan or taxi" together read "Bus, Bus, minivan or taxi": drop the mode when the operator already says it
-const legKind = o => exp("tp-legnames") && o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
+const legKind = o => o.op && o.op.toLowerCase().startsWith(o.mode.toLowerCase()) ? o.op : `${o.mode}${o.op ? ", " + o.op : ""}`;
 /* Experiment tp-border: a leg that crosses a land border gets a short card: the visa to sort out before, how the crossing
    goes and what to watch for. Only what gov.uk says for British passports (fetched and checked 23 Nov 2026), with its links. */
 EXPERIMENTS.push({id:"tp-border", n:"Transport: border crossings", d:"Overland legs into another country get a card: the visa to sort first, the crossing, and what to watch for (gov.uk)."});

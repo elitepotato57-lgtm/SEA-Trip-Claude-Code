@@ -119,7 +119,7 @@ function osmPlace(row, areas, grp, cc = "TH"){
   const it = {id:"o:" + row[0], osm:true, g:grp, c:CAT_OF_GRP[grp], k, n:name || (KIND[k] || {l:"Place"}).l, unnamed:!name, cc, city:a[1], area:a[0],
     lat:row[1], lng:row[2], ap:false, t:[(KIND[k] || {l:"Place"}).l], p:null, cur:null, r:null, s:[], tips:[], verified:false};
   for (const key in p) it[P_MAP[key] || key] = p[key];
-  if ((NON_LATIN_TOWN.test(it.city || "") || NON_LATIN_TOWN.test(it.area || "")) && exp("en-towns")){ const t = enTown(it.lat, it.lng, cc); it.city = it.area = t; }
+  if ((NON_LATIN_TOWN.test(it.city || "") || NON_LATIN_TOWN.test(it.area || ""))){ const t = enTown(it.lat, it.lng, cc); it.city = it.area = t; }
   if (it.wp){ const m = /^en:(.+)$/.exec(it.wp); it.wpx = it.wp; it.wp = m ? m[1] : undefined; }
   return it;
 }

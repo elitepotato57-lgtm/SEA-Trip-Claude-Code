@@ -490,7 +490,6 @@ function renderMapStatus(){
 EXPERIMENTS.push({id:"map-onerow", n:"Map: one row of chips", d:"Sub-types show only for the last category tapped, a floating List button replaces Map/List, and the + and − buttons go."});
 function renderMapUI(){
   if (!$("#mapChips")) return;
-  const one = exp("map-onerow");
   const all = ["gaff","munch","cool"].every(c => ui.mapCats.has(c)) && !ui.mapCats.has("move") && !ui.essKinds.size && !ui.mapSaved && !ui.mapSurf && !ui.mapPick;
   const pk = !!ui.mapPick;           // a "top 5" answer is showing: no section chip is lit
   const chip = (attrs, label, on, col) => `<button class="chip" type="button" ${attrs} aria-pressed="${on}" ${col ? `style="--c:${col}"` : ""}>${col ? '<span class="dot"></span>' : ""}${label}</button>`;
@@ -501,25 +500,24 @@ function renderMapUI(){
     + chip("data-surf", `${icon("waves","i xs")}Surf`, !!ui.mapSurf)
     + chip("data-saved", `${icon("bookmark","i xs")}Saved`, ui.mapSaved);
   const essRow = $("#mapEss");
-  essRow.hidden = !(ui.essOpen || ui.essKinds.size) || (one && ui.lastCat && ui.lastCat !== "ess");
+  essRow.hidden = !(ui.essOpen || ui.essKinds.size) || (ui.lastCat && ui.lastCat !== "ess");
   essRow.innerHTML = (typeof frCfg === "function" && frCfg() ? `<button class="chip" type="button" data-essfr aria-pressed="${ui.mapFriends === true}">${icon("users")}Friends</button>` : "") + ESS.map(e => `<button class="chip" type="button" data-essk="${e.id}" aria-pressed="${ui.essKinds.has(e.id)}">${icon(e.ic)}${e.l}</button>`).join("");
   const doRow = $("#mapDo");
   if (doRow){
-    doRow.hidden = !(ui.mapCats.has("cool") && !all && !ui.mapSaved && !ui.mapSurf && !ui.essKinds.size) || (one && ui.lastCat !== "cool");
+    doRow.hidden = !(ui.mapCats.has("cool") && !all && !ui.mapSaved && !ui.mapSurf && !ui.essKinds.size) || ui.lastCat !== "cool";
     doRow.innerHTML = doRow.hidden ? "" : DO_SECTIONS().map(c => `<button class="chip" type="button" data-dok="${c.id}" aria-pressed="${ui.doKinds.has(c.id)}">${c.ic ? icon(c.ic) : ""}${c.l}</button>`).join("");
   }
-  $("#mapModeRow").innerHTML = one ? `<span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>` : `<div class="seg" role="group" aria-label="Map or list" style="background:rgba(28,31,36,.96)"><button type="button" data-mode="map" aria-pressed="${ui.mapMode === "map"}">${icon("map","i s")}Map</button><button type="button" data-mode="list" aria-pressed="${ui.mapMode === "list"}">${icon("list","i s")}List</button></div>
-    <span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
+  $("#mapModeRow").innerHTML = `<span class="map-status" id="mapStatusTxt" style="position:static;transform:none" hidden></span>`;
   let fl = $("#mapListBtn");
-  if (one){
+  {
     if (!fl){ fl = document.createElement("button"); fl.id = "mapListBtn"; fl.type = "button"; fl.className = "map-listbtn"; $("#mapview").appendChild(fl); }
     const toList = ui.mapMode !== "list";
     fl.dataset.mode = toList ? "list" : "map"; fl.innerHTML = toList ? `${icon("list","i s")}List` : `${icon("map","i s")}Map`;
     fl.setAttribute("aria-label", toList ? "Show these places as a list" : "Back to the map");
     fl.onclick = () => { ui.mapMode = fl.dataset.mode; renderMapUI(); };
-  } else if (fl) fl.remove();
+  }
   const top = $("#mapTop");
-  if (one){
+  {
     top.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { ui.lastCat = b.dataset.cat; }, {capture:true}));
     top.querySelector("[data-ess]").addEventListener("click", () => { ui.lastCat = "ess"; }, {capture:true});
     top.querySelector("[data-all]").addEventListener("click", () => { ui.lastCat = null; }, {capture:true});
@@ -551,18 +549,14 @@ function renderMapUI(){
   });
   const fr = top.querySelector("[data-essfr]");
   if (fr) fr.onclick = () => { ui.mapFriends = ui.mapFriends !== true; ui.essOpen = true; renderMapUI(); drawFriends(); if (ui.mapFriends){ frPoll().then(() => frFitAll()).catch(() => {}); } };
-  top.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mapMode = b.dataset.mode; renderMapUI(); });
 
-  $("#mapSide").innerHTML = (exp("help-btn") ? `<button class="icon-btn help-btn" type="button" data-help aria-label="Help: emergency numbers and I’m lost">${icon("siren")}</button>` : "") + `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>
+  $("#mapSide").innerHTML = `<button class="icon-btn help-btn" type="button" data-help aria-label="Help: emergency numbers and I’m lost">${icon("siren")}</button>` + `<button class="icon-btn" id="satBtn" type="button" aria-label="${ui.satChecking ? "Checking satellite" : ui.basemap === "sat" ? "Back to map view" : "Satellite view"}" aria-pressed="${ui.basemap === "sat"}">${icon("layers")}</button>
     <button class="icon-btn" id="locBtn" type="button" aria-label="Show where I am">${icon("locate")}</button>
-    <button class="icon-btn" id="fitBtn" type="button" aria-label="Show the whole country">${icon("fit")}</button>
-    ${one ? "" : `<button class="icon-btn zoomb" id="zinBtn" type="button" aria-label="Zoom in">${icon("plus")}</button>
-    <button class="icon-btn zoomb" id="zoutBtn" type="button" aria-label="Zoom out">${icon("minus")}</button>`}`;
+    <button class="icon-btn" id="fitBtn" type="button" aria-label="Show the whole country">${icon("fit")}</button>`;
   $("#satBtn").onclick = () => setBasemap(ui.basemap === "sat" ? "map" : "sat");
   // a tap on locate is the one place the compass is asked for (iPhone needs a tap), and it turns on precise GPS while the map is open
   $("#locBtn").onclick = () => { if (userLoc && map) flyTo(userLoc, Math.max(13, map.getZoom())); Heading.askCompass(); locate(true, st => { if (st === "ok" || st === "outside") Heading.startWatch(true); }); };
   $("#fitBtn").onclick = () => { const c = D.countries[S.country]; flyTo({lat:c.c[0], lng:c.c[1]}, c.z); };
-  if (!one){ $("#zinBtn").onclick = () => map && map.zoomIn(); $("#zoutBtn").onclick = () => map && map.zoomOut(); }
 
   const list = $("#mapList"); list.hidden = ui.mapMode !== "list";
   $("#mapview").classList.toggle("listmode", ui.mapMode === "list");

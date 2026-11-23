@@ -291,7 +291,7 @@ async function saveRoute(root){
 TOOL_PAGES.offline = root => {
   const ref = userLoc || (S.focus ? focusPt() : null);
   let cities = PLACE_DESTS.slice().sort((a, b) => ref && !ref.none ? dist(ref, {lat:a[1], lng:a[2]}) - dist(ref, {lat:b[1], lng:b[2]}) : 0);
-  const rc = exp("route-save") ? routeCities() : [];
+  const rc = routeCities();
   if (rc.length) cities = rc.concat(cities.filter(c => !rc.includes(c)));
   const row = c => {
     const p = S.packs[c[0]], busy = packState.busy === c[0];

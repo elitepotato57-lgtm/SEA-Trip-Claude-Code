@@ -42,7 +42,7 @@ function hero({title, sub = "", img = "", back = null, where = true, action = ""
   // a full address: a url() inside a CSS variable is read from the stylesheet's folder (css/), not the page's
   const imgUrl = img ? new URL(img, document.baseURI).href : "";
   return `<header class="hero ${back ? "slim" : ""}" ${img ? `style="--hero:url('${imgUrl}')"` : ""}>
-    <div class="hero-top">${left}<span class="sp"></span>${action}${exp("help-btn") ? `<button class="hbtn help-btn" type="button" data-help aria-label="Help: emergency numbers and I’m lost">${icon("siren")}</button>` : ""}
+    <div class="hero-top">${left}<span class="sp"></span>${action}<button class="hbtn help-btn" type="button" data-help aria-label="Help: emergency numbers and I’m lost">${icon("siren")}</button>
       <a class="hbtn" href="#saved" aria-label="Saved places${n ? `, ${n}` : ""}">${icon("bookmark")}${n ? `<span class="n" id="savedCount">${n}</span>` : ""}</a>
       <a class="hbtn" href="#tools/settings" aria-label="Settings">${icon("cog")}</a></div>
     <h1>${esc(title)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</header>`;

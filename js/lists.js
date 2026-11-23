@@ -110,7 +110,7 @@ const artBadge = it => `<span class="ph-badge">${icon(kindIcon(it))}${esc(kindLa
 /* Experiment slim-cards: a place with no real photo gets a slim card (name, kind and price) instead of a full-size drawing.
    Decided straight away when no photo is likely (and no Google key); otherwise once the photo lookup comes back empty. */
 EXPERIMENTS.push({id:"slim-cards", n:"Slim cards without photos", d:"Places with no real photo get a slim card (name, kind, price) instead of a big drawing."});
-const slimFirst = it => exp("slim-cards") && !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
+const slimFirst = it => !likelyPhoto(it) && !(typeof googlePhotoFor === "function" && googlePhotoFor(it));
 function placeCard(it, pt){
   const c = CAT[it.c] || CAT.ess, col = cssv(c.v);
   const km = pt && !pt.none ? dist(pt, it) : null;
@@ -256,7 +256,6 @@ EXPERIMENTS.push({id:"gaff-dates", n:"Gaffs: dates in one button", d:"Check-in, 
 const shortDay = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
 function stayStrip(){
   const inner = stayStrip0();
-  if (!exp("gaff-dates")) return inner;
   const p = stayParams(), g = +S.stay.guests || 2;
   const label = p.ok ? `${shortDay(S.stay.cin)} – ${shortDay(S.stay.cout)} · ${g} guest${g === 1 ? "" : "s"}` : `Add dates · ${g} guest${g === 1 ? "" : "s"}`;
   return `<details class="stay-fold" ${ui.stayOpen ? "open" : ""}><summary class="btn">${icon("calendar","i s")}${esc(label)}${icon("chevd","i xs")}</summary>${inner}</details>`;

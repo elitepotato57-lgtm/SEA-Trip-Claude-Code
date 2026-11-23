@@ -557,7 +557,7 @@ function openHelp(){
   if (b) b.onclick = async () => {
     if (!(await askConfirm("Send an “I’m lost” alert to all your friends, with where you are?", "Send alert", true))) return;
     b.disabled = true;
-    try { const n = await frSosSend(); toast(`Alert sent to ${n} ${n === 1 ? "friend" : "friends"}`); if (exp("lost-share")) frSosShare(frSosHere); }
+    try { const n = await frSosSend(); toast(`Alert sent to ${n} ${n === 1 ? "friend" : "friends"}`); frSosShare(frSosHere); }
     catch(e){ b.disabled = false; toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : e.message || "No signal? Try again"); }
   };
 }
