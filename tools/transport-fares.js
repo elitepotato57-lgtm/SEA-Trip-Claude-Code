@@ -47,6 +47,15 @@ function add(e){
   if (have) Object.assign(have, e); else { E.push(e); added++; }
 }
 
+// a note on a leg that's already priced (no price changed): what was checked and why there's nothing cheaper
+function note(a, b, mode, text, src){
+  const e = find(a, b, mode); if (!e) throw new Error(`no ${mode} edge ${a}-${b}`);
+  e.notes = (e.notes || []).filter(n => !n.startsWith(text.slice(0, 30)));
+  e.notes.push(text + ` (${CHECKED})`);
+  e.src = e.src || []; if (src && !e.src.some(x => x[1] === src[1])) e.src.push(src);
+}
+note("cnx", "pai", "Minivan", "The cheapest way you can count on: a once-daily songthaew costs 80 baht, but foreigners are usually refused", WV("Pai"));
+
 /* ---------- Gulf islands: Lomprayah's own fares and departure times ---------- */
 set("cjm", "tao", "Ferry", {p:[450, 750], cur:"THB", dur:[1.75, 2.5], src:[LP],
   notes:["Lomprayah from Chumphon: 05:45, 07:00 and 13:15; from Koh Tao: 10:15, 12:30 and 15:00"]});

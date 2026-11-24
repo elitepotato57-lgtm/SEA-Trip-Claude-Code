@@ -103,6 +103,7 @@ function openWherePicker(){
   if (userLoc) dests.sort((a, b) => a.km - b.km); else dests.sort((a, b) => a.n.localeCompare(b.n));
   const sheet = openSheet(`<div class="sheet-head"><h2 id="wp-title" style="margin:0 0 4px">Where are you looking?</h2><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div>
     <p class="note" style="margin-bottom:10px">Gaffs, Munch, Activities and the map all look around this place. ${esc(LOC_LINE())}</p>
+    ${townBoxHTML("wp-q", "Type a town or city")}
     <div class="pick-list">
       <button type="button" id="wp-here" aria-pressed="${!S.focus}">${icon("locate")}<span>Near me<small>${here ? esc(here) : "Uses your phone’s location"}</small></span></button>
       ${dests.map((d, i) => `<button type="button" data-dest="${i}" aria-pressed="${!!S.focus && S.focus.n === d.n}">${icon("pin")}<span>${esc(d.n)}${d.km != null ? `<small>${distText(d.km)}</small>` : ""}</span></button>`).join("")}
@@ -111,6 +112,7 @@ function openWherePicker(){
       <p class="note" style="margin:8px 0">Every country here has its full map of places, destinations, a guide, money and ride tips. Thailand, Bali, Lombok and southern Sumatra also have the most hand-researched places; the others have a starter set.</p>
       <div class="cgrid">${Object.entries(D.countries).map(([k, x]) => `<button type="button" data-pick="${k}" aria-pressed="${S.country === k}"><span class="f" aria-hidden="true">${x.flag}</span>${esc(x.name)}</button>`).join("")}</div>
     </details>`, "wp-title");
+  bindTownBox(sheet, "wp-q", p => { focusOnTown(p); closeDetail(); if (map) flyTo(p, 12.5); rerender(); });
   $("#wp-here").onclick = () => { setFocus(null); S.countryMode = "auto"; persist(); closeDetail(); locate(true); if (map && userLoc) flyTo(userLoc, 13); rerender(); };
   sheet.querySelectorAll("[data-dest]").forEach(b => b.onclick = () => {
     const d = dests[+b.dataset.dest]; setFocus(d); closeDetail();

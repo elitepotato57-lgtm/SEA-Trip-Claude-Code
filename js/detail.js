@@ -58,8 +58,11 @@ async function googlePlace_(it, fields){
 }
 const G_PRICE = {PRICE_LEVEL_FREE:"Free", PRICE_LEVEL_INEXPENSIVE:"฿ (cheap)", PRICE_LEVEL_MODERATE:"฿฿ (mid-range)", PRICE_LEVEL_EXPENSIVE:"฿฿฿ (pricey)", PRICE_LEVEL_VERY_EXPENSIVE:"฿฿฿฿ (very pricey)"};
 function showGoogleFacts(it, g){
-  const el = $("#gFacts"); if (!el || !g || (!g.r && !g.pl)) return;
   if ($("#photoBox") && $("#photoBox").dataset.id !== it.id) return;
+  // Munch: Google's kind of place fills the Food line when OpenStreetMap doesn't say what's sold
+  const fl = $("#foodLine");
+  if (fl && g && g.ty && !/\S/.test(fl.dataset.known || "")){ fl.hidden = false; fl.querySelector(".v").innerHTML = `${esc(g.ty)}<div class="note">From Google Maps</div>`; }
+  const el = $("#gFacts"); if (!el || !g || (!g.r && !g.pl)) return;
   el.hidden = false;
   el.innerHTML = `<span class="l">On Google Maps</span>${g.r ? `${starsHTML(g.r * 2)} <span class="note">${g.n ? g.n.toLocaleString("en-GB") + " reviews" : ""}</span>` : ""}${g.pl && G_PRICE[g.pl] ? `<div class="note">Price level: ${esc(G_PRICE[g.pl])}</div>` : ""}`;
 }
@@ -77,10 +80,11 @@ async function googleFacts(it){
   const key = "gfacts:" + it.id, hit = lsGet(key);
   if (hit && Date.now() - hit.at < 7 * 864e5){ showGoogleFacts(it, hit); return; }
   if (!gAllow("details")) return;
-  const fields = ["rating", "userRatingCount", "priceLevel"].concat(it.cur_ ? ["location"] : [], it.c === "gaff" ? ["reviews"] : []);
+  const fields = ["rating", "userRatingCount", "priceLevel"].concat(it.cur_ ? ["location"] : [], it.c === "gaff" ? ["reviews"] : [], it.c === "munch" ? ["primaryTypeDisplayName"] : []);
   const pl = await googlePlace(it, fields); if (!pl) return;
   gSpend("details");
-  const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, rev:shortReview(pl.reviews), at:Date.now()};
+  const tn = pl.primaryTypeDisplayName, ty = typeof tn === "string" ? tn : tn && tn.text;
+  const g = {r:pl.rating || null, n:pl.userRatingCount || null, pl:pl.priceLevel || null, rev:shortReview(pl.reviews), ty:ty ? String(ty).slice(0, 40) : null, at:Date.now()};
   lsSet(key, g); if (g.r) G_RATINGS.set(it.id, g.r); showGoogleFacts(it, g);
   applyGoogleExtras(it, pl);
 }
@@ -511,6 +515,11 @@ function openDetail(id){
   if (soc.length) facts.push(fact("Social", soc.join(" · ")));
   const ftype = it.c === "munch" ? foodType(it) : null;
   if (ftype || (it.cu && it.cu.length)) facts.push(fact("Food", `${esc(ftype || it.cu.join(", "))}${ftype && it.cu && it.cu.length ? `<div class="note">${esc(it.cu.join(", "))}</div>` : ""}`));
+  else if (it.c === "munch"){
+    // not recorded: the line waits for Google's kind of place (if there's a key and signal), else says so
+    const g = lsGet("gfacts:" + it.id), ty = g && g.ty;
+    facts.push(`<div class="fact" id="foodLine" data-known=""><span class="l">Food</span><span class="v">${ty ? `${esc(ty)}<div class="note">From Google Maps</div>` : `<span class="note">Not recorded on OpenStreetMap</span>`}</span></div>`);
+  }
   if (it.gf) facts.push(fact("Gluten-free", it.gf === 2 ? "Fully gluten-free (as marked on OpenStreetMap)" : "Has gluten-free options (as marked on OpenStreetMap). Ask about cross-contamination"));
   if (it.veg || it.vegan) facts.push(fact("Diet", [it.vegan ? (it.vegan === 2 ? "Fully vegan" : "Vegan options") : "", it.veg ? (it.veg === 2 ? "Fully vegetarian" : "Vegetarian options") : ""].filter(Boolean).join(", ")));
   if (it.wifi) facts.push(fact("Wi-Fi", WIFI_TXT[it.wifi] || "Yes"));

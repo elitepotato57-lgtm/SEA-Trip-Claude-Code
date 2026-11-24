@@ -94,8 +94,11 @@ const surfLink = it => `https://www.surfline.com/search/${enc(it.n.replace(/\s*\
 const wantsSurf = it => isSurf(it) || it.k === "beach" || (!it.osm && hasT(it, "Beaches"));
 // Activities › Surf: straight to the map with only the researched surf spots near you (or in this country)
 function openSurfMap(){
-  const pt = userLoc || focusPt(), spots = surfNear(pt, S.country);
-  if (!spots.length){ toast(`No surf spots researched in ${D.countries[S.country].name} yet. Bali, Lombok, Krui, Phuket, Khao Lak, Samui and Malaysia’s east coast have them.`); return; }
+  const pt = userLoc || focusPt();
+  let spots = surfNear(pt, S.country);
+  // none near here or in this country: no "nothing here" message, the map simply shows the nearest researched spots (Dylan, 24 Nov 2026)
+  if (!spots.length && SURF.length) spots = pt && !pt.none ? SURF.slice().sort((a, b) => dist(pt, a) - dist(pt, b)).slice(0, 8) : SURF.slice();
+  if (!spots.length) return;
   ui.mapSurf = true; ui.mapCats = new Set(); ui.essKinds.clear(); ui.essOpen = false; ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = null;
   go("#map");
   const fit = () => {

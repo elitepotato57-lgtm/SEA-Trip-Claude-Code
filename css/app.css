@@ -390,7 +390,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .sugs button:first-child{border-top:0}
 .sugs button small{display:block;color:var(--muted);font-size:calc(12px * var(--ts,1));margin-top:1px}
 .sugs .hd{padding:7px 11px 3px;font-size:calc(11.5px * var(--ts,1));color:var(--faint);border-top:1px solid var(--line)}
-.tmap{height:240px;border-radius:var(--r-l);overflow:hidden;border:1px solid var(--line);margin:0 0 6px;background:var(--land);position:relative}
+.tmap{height:min(58vh,440px);border-radius:var(--r-l);overflow:hidden;border:1px solid var(--line);margin:0 0 6px;background:var(--land);position:relative}
 .trip{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:12px;margin:0 0 8px;cursor:pointer}
 .trip[aria-pressed="true"]{border-color:var(--accent)}
 .trip .sum{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
@@ -846,7 +846,7 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .larr{color:var(--muted)}
 .trip-more{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--link);font-weight:600;font-size:calc(13px * var(--ts,1))}
 .trip.open{border:0;padding:0;background:none;cursor:default}
-.legmap{height:260px;border-radius:var(--r-l);overflow:hidden;margin:10px 0 4px;border:1px solid var(--line)}
+.legmap{height:min(52vh,420px);border-radius:var(--r-l);overflow:hidden;margin:10px 0 4px;border:1px solid var(--line)}
 .leg .li.legn{position:relative;background:var(--raised);color:var(--lc);box-shadow:inset 0 0 0 2px var(--lc)}
 .leg .li.legn i{position:absolute;top:-6px;left:-6px;min-width:16px;height:16px;border-radius:8px;background:var(--lc);color:#111;font:700 10px/16px var(--font);font-style:normal;text-align:center}
 .leg-ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--bg);color:var(--lc);box-shadow:0 0 0 2px var(--lc)}
@@ -866,13 +866,13 @@ button.sf-c:disabled{cursor:default;opacity:1}
 .fp-bang.b4{bottom:-14px;left:-12px;animation-delay:.3s}.fp-bang.b5{bottom:-18px;left:calc(50% - 17px)}.fp-bang.b6{bottom:-14px;right:-12px;animation-delay:.15s}
 @keyframes fpBang{from{transform:scale(.85) rotate(-10deg)}to{transform:scale(1.15) rotate(10deg)}}
 @media (prefers-reduced-motion:reduce){.fp-bang{animation:none}}
-/* experiment statusfade: on the map only, a dark fade behind the clock (it stops above the search bar) and behind the search bar and chips */
+/* experiment statusfade (Dylan, 24 Nov 2026: only on the map, and not so far down): on the map, a dark fade behind the phone's clock
+   that ends at the bottom of the search bar. Nothing on any other page, and nothing drawn over the search bar itself. */
 :root{--fade:18,20,23}
 :root[data-look="paper"]{--fade:243,234,215}
-html.x-statusfade:has(#mapview:not([hidden]):not(.listmode)) body::before{content:"";position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 4px);z-index:1300;pointer-events:none;
-  background:linear-gradient(rgba(var(--fade),.96),rgba(var(--fade),.8) 70%,rgba(var(--fade),0))}
-html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:absolute;left:-10px;right:-10px;top:calc(-8px - env(safe-area-inset-top,0px));bottom:-10px;z-index:-1;pointer-events:none;
-  background:linear-gradient(rgba(var(--fade),.9),rgba(var(--fade),.72) 55%,rgba(var(--fade),0))}
+html.x-statusfade #mapview:not(.listmode) .map-top::before{content:"";position:absolute;left:-10px;right:-10px;top:calc(-8px - env(safe-area-inset-top,0px));
+  height:calc(env(safe-area-inset-top,0px) + 8px + 46px);z-index:-1;pointer-events:none;
+  background:linear-gradient(rgba(var(--fade),.92),rgba(var(--fade),.7) 60%,rgba(var(--fade),0))}
 /* experiment map-onerow: the floating List / Map button */
 .map-listbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--mb-lift,0px));z-index:7;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(28,31,36,.96);color:var(--ink);font:inherit;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.35)}
 :root[data-look="paper"] .map-listbtn{background:rgba(251,245,232,.97)}
@@ -1021,3 +1021,7 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 /* list filters: the review slider snaps to any, 1, 2, 3, 4 or 5 stars */
 .rate-sl .ticks{display:flex;justify-content:space-between;font-size:calc(11px * var(--ts,1));color:var(--muted);margin-top:2px;padding:0 2px}
 .pf-unk{margin-top:16px}
+/* type a town: the box and its suggestions */
+.town-in{margin:4px 0 8px}
+.town-sugs{margin-bottom:10px;max-height:46vh;overflow-y:auto}
+.dist-from + .town-in{margin-top:6px}

@@ -49,7 +49,9 @@ function openFirst(arr, top = 60){
 // a researched price in pounds, or the low end of the estimate (in its own currency: rupiah estimates are not baht)
 const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, e.cur || "THB") : null; };
 const minRLabel = r => !r ? "Any rating" : r >= 5 ? "5 stars only" : `${r} stars and up`;
-function passRating(it, minR){ return !minR || (it.r != null && it.r / 2 >= minR); }
+// a place's rating out of 5: researched first, else a Google rating this phone has already seen (G_RATINGS, js/detail.js)
+const rate5 = it => it.r != null ? it.r / 2 : (typeof G_RATINGS !== "undefined" && G_RATINGS.get(it.id)) || null;
+function passRating(it, minR){ const r = rate5(it); return !minR || (r != null && r >= minR); }
 
 /* ---------- small renderers ---------- */
 function starsHTML(r){
@@ -186,7 +188,7 @@ function listTest(cat){
     const why = pfReason(it, cat);                                                  // the same maximum-price rule as the map (js/estimate.js)
     if (why && why !== "unknown") return false;
     if (why === "unknown") return "u";                                               // no saved price: listed after the ones that fit
-    if (it.cur_ ? !passRating(it, st.minR) : st.minR) return false;                // no ratings in OpenStreetMap, so a review filter leaves them out
+    if (!passRating(it, st.minR)) return false;                                       // OpenStreetMap has no ratings: only researched or Google-rated places pass
     return true;
   };
 }
@@ -288,6 +290,52 @@ function stayStrip0(){
 }
 /* "Measured from": the distance (and the whole list) can be worked out from any trip destination, not just where you are,
    for planning ahead. It sets the same "where" as the place button at the top of the page. */
+/* ---------- type a town or city instead of scrolling for it (Where are you looking? and Measured from) ----------
+   Trip destinations and transport hubs match straight away, with no signal; with signal, OpenStreetMap's search finds anywhere
+   else in the seven countries. pick({n, lat, lng}) is called with the chosen place. */
+const townFold = s => foldText(s || "");
+function townMatches(q){
+  const f = townFold(q); if (!f) return [];
+  const out = [], seen = new Set();
+  const add = (n, lat, lng, sub) => { const k = townFold(n); if (seen.has(k)) return; seen.add(k); out.push({n, lat, lng, sub}); };
+  const starts = [], within = [];
+  D.cities.forEach(c => { const k = townFold(c[0]); if (k.startsWith(f)) starts.push(c); else if (k.includes(f)) within.push(c); });
+  starts.concat(within).forEach(c => add(c[0], c[1], c[2], (D.countries[ccAt(c[1], c[2]) || "TH"] || {}).name || ""));
+  if (typeof HUB !== "undefined") Object.values(HUB).forEach(h => { if (townFold(h.n).includes(f)) add(h.n, h.lat, h.lng, "Transport hub"); });
+  return out.slice(0, 8);
+}
+function townBoxHTML(id, ph){
+  return `<label class="sbar town-in"><span class="vis-hidden">${esc(ph)}</span>${icon("search")}<input type="search" id="${id}" autocomplete="off" enterkeyhint="search" placeholder="${esc(ph)}"></label>
+    <div class="pick-list town-sugs" id="${id}-sugs" hidden></div>`;
+}
+function bindTownBox(root, id, pick){
+  const inp = root.querySelector("#" + id), box = root.querySelector("#" + id + "-sugs"); if (!inp || !box) return;
+  let last = "", online = [];
+  const row = (p, i) => `<button type="button" data-town="${i}">${icon("pin")}<span>${esc(p.n)}${p.sub ? `<small>${esc(p.sub)}</small>` : ""}</span></button>`;
+  const draw = () => {
+    const q = inp.value.trim(), local = townMatches(q);
+    const all = local.concat(online.filter(o => !local.some(l => townFold(l.n) === townFold(o.n)))).slice(0, 10);
+    box.hidden = !q;
+    box.innerHTML = all.length ? all.map(row).join("") : q ? `<p class="note" style="padding:6px 2px">${navigator.onLine === false ? "No match among the trip’s towns. With signal, anywhere can be found." : "Searching…"}</p>` : "";
+    box.querySelectorAll("[data-town]").forEach(b => b.onclick = () => { const p = all[+b.dataset.town]; inp.blur(); pick({n:p.n, lat:p.lat, lng:p.lng}); });
+  };
+  const remote = debounce(async () => {
+    const q = inp.value.trim(); if (q.length < 3 || q === last || typeof osmSearch !== "function") return;
+    last = q; const r = await osmSearch(q);
+    if (inp.value.trim() !== q) return;
+    online = (r || []).map(x => ({n:x.n, lat:x.node.lat, lng:x.node.lng, sub:x.sub}));
+    if (!r) online = [];
+    draw();
+    if (!r && !townMatches(q).length) box.innerHTML = `<p class="note" style="padding:6px 2px">Nothing found. Check the spelling, or pick from the list.</p>`;
+  }, 600);
+  inp.oninput = () => { online = []; draw(); remote(); };
+  inp.onkeydown = e => { if (e.key === "Enter"){ const b = box.querySelector("[data-town]"); if (b){ e.preventDefault(); b.click(); } } };
+}
+// focus on a typed or picked place: the lists, map and distances all look around it
+function focusOnTown(p){
+  setFocus({n:p.n, lat:p.lat, lng:p.lng});
+  const cc = ccAt(p.lat, p.lng); if (cc && S.country !== cc) setCountry(cc, true);
+}
 function distFromField(){
   const byCc = {};
   for (const c of PLACE_DESTS){ const cc = placeDbCc(c[1], c[2]) || "TH"; (byCc[cc] = byCc[cc] || []).push(c); }
@@ -298,10 +346,11 @@ function distFromField(){
     <option value="" ${cur ? "" : "selected"}>Where I am now</option>
     ${known ? "" : `<option value="__cur" selected>${esc(cur)}</option>`}
     ${order.map(k => `<optgroup label="${esc(D.countries[k].name)}">${byCc[k].slice().sort((a, b) => a[0].localeCompare(b[0])).map(c => `<option value="${esc(c[0])}" ${c[0] === cur ? "selected" : ""}>${esc(c[0])}</option>`).join("")}</optgroup>`).join("")}
-  </select></label>`;
+  </select></label>${townBoxHTML("l-fromq", "Or type a town or city")}`;
 }
 function bindDistFrom(root){
   const sel = root.querySelector("#l-from"); if (!sel) return;
+  bindTownBox(root, "l-fromq", p => { focusOnTown(p); renderPage(); });
   sel.onchange = () => {
     if (sel.value === "__cur") return;
     if (!sel.value){ setFocus(null); S.countryMode = "auto"; persist(); locate(true); renderPage(); return; }

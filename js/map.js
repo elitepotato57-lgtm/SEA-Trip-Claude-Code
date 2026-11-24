@@ -322,13 +322,14 @@ function soloCat(){
   const c = [...ui.mapCats]; return c.length === 1 ? c[0] : null;
 }
 // filters set for the sections on the map: a maximum price (shared with the lists) and the transport type
-const shownFilterCats = () => ui.mapSaved ? [] : [...ui.mapCats].filter(c => c === "move" ? ui.mf.move.t !== "all" : pfOn(c));
+const shownFilterCats = () => ui.mapSaved ? [] : [...ui.mapCats].filter(c => c === "move" ? ui.mf.move.t !== "all" : pfOn(c) || !!(ui.lists[c] && ui.lists[c].minR));
 function mapFilterOn(){ return shownFilterCats().length > 0; }
 // the same rules as the Gaffs, Munch and Activities lists (passPF in js/estimate.js), so the map and the lists always agree
 function passMapFilter(it){
   if (ui.mapSaved) return true;
   if (it.c === "move") return ui.mf.move.t === "all" || MOVE_KIND_TYPE[it.k] === ui.mf.move.t;
   if (it.c === "cool" && !passDo(it)) return false;
+  if (PF_GRP[it.c] && ui.lists[it.c] && !passRating(it, ui.lists[it.c].minR)) return false;     // the stars picked (shared with the list)
   if (PF_GRP[it.c]) return passPF(it, it.c);
   return true;
 }
@@ -341,16 +342,21 @@ function renderMapFilt(){
     // several sections showing: list the filters still in force, each with a way to clear it, so none is invisible
     const on = shownFilterCats();
     if (!on.length){ el.hidden = true; el.innerHTML = ""; return; }
-    el.innerHTML = `<span class="mf-lab">Filters on</span>` + on.map(k => `<button class="chip" type="button" data-unf="${k}" aria-pressed="true" aria-label="Clear the ${esc(CAT[k].label)} filter">${esc(CAT[k].label)}: ${esc(k === "move" ? MOVE_TYPES.find(t => t[0] === ui.mf.move.t)[1] : pfSummary(k))} ${icon("x","i xs")}</button>`).join("");
+    el.innerHTML = `<span class="mf-lab">Filters on</span>` + on.map(k => `<button class="chip" type="button" data-unf="${k}" aria-pressed="true" aria-label="Clear the ${esc(CAT[k].label)} filter">${esc(CAT[k].label)}: ${esc(k === "move" ? MOVE_TYPES.find(t => t[0] === ui.mf.move.t)[1] : [pfSummary(k), ui.lists[k].minR ? `${ui.lists[k].minR}★ and up` : ""].filter(Boolean).join(", "))} ${icon("x","i xs")}</button>`).join("");
     el.hidden = false;
-    el.querySelectorAll("[data-unf]").forEach(x => x.onclick = () => { const k = x.dataset.unf; if (k === "move") ui.mf.move.t = "all"; else setPF(k, null); renderMapFilt(); refreshMapData(); });
+    el.querySelectorAll("[data-unf]").forEach(x => x.onclick = () => { const k = x.dataset.unf; if (k === "move") ui.mf.move.t = "all"; else { setPF(k, null); ui.lists[k].minR = 0; } renderMapFilt(); refreshMapData(); });
     return;
   }
   const b = (attr, label, on, title) => `<button class="chip" type="button" ${attr} aria-pressed="${on}"${title ? ` aria-label="${esc(title)}"` : ""}>${label}</button>`;
   const here = map && mapLoaded ? ccAt(map.getCenter().lat, map.getCenter().lng) : null;
   if (c === "move") el.innerHTML = MOVE_TYPES.map(([id, l]) => b(`data-mt="${id}"`, l, ui.mf.move.t === id)).join("");
-  else el.innerHTML = pfControls(c, here || S.country);
+  else {
+    // the price chips, then the stars (the same setting as the list's review slider)
+    const mr = Math.round(+ui.lists[c].minR || 0);
+    el.innerHTML = pfControls(c, here || S.country) + `<span class="mf-lab">Stars</span>` + [0, 1, 2, 3, 4, 5].map(n => b(`data-mr="${n}"`, n ? `${n}★${n < 5 ? "+" : ""}` : "Any", mr === n, n ? `${n} stars and up` : "Any rating")).join("");
+  }
   el.hidden = false;
+  el.querySelectorAll("[data-mr]").forEach(x => x.onclick = () => { ui.lists[c].minR = +x.dataset.mr; if (+x.dataset.mr) toast("Only places with a rating show: our researched ones, and ones whose Google rating this phone has seen"); renderMapFilt(); refreshMapData(); });
   bindPF(el, c, () => { renderMapFilt(); refreshMapData(); });
   el.querySelectorAll("[data-mt]").forEach(x => x.onclick = () => { ui.mf.move.t = x.dataset.mt; renderMapFilt(); refreshMapData(); });
   if (typeof updateFade === "function") updateFade(el);
