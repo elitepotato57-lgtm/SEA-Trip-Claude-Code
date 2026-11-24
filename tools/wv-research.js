@@ -44,7 +44,11 @@ async function raw(title, hops = 0){
   const m = /^#redirect\s*\[\[([^\]|#]+)/i.exec(s.trim());
   return m && hops < 3 ? raw(m[1].trim(), hops + 1) : {title, text:s};
 }
+// Bangkok's district pages, as Wikivoyage has them (looked up once; the lookup API is rate-limited from busy networks)
+const DISTRICTS = {Bangkok:["Khao San Road", "Sukhumvit", "Silom", "Rattanakosin", "Phahonyothin", "Yaowarat and Phahurat", "Thonburi", "Ratchadaphisek",
+  "Siam Square", "Pratunam", "Ramkhamhaeng", "Dusit", "Downtown"].map(d => "Bangkok/" + d)};
 async function districts(title){
+  if (DISTRICTS[title]) return DISTRICTS[title];
   const j = JSON.parse(await get(`https://en.wikivoyage.org/w/api.php?action=query&list=prefixsearch&pssearch=${encodeURIComponent(title + "/")}&pslimit=40&format=json`));
   return j.query.prefixsearch.map(p => p.title).filter(t => t.startsWith(title + "/") && !/tour$/i.test(t));
 }
@@ -65,7 +69,9 @@ function listings(s){
       cur += body[k++];
     }
     parts.push(cur);
-    const f = {type:parts[0].trim().toLowerCase()};
+    // the page section it's in ("== Cope ==" lists embassies, "== Learn ==" universities: not things to do)
+    const heads = s.slice(0, st).match(/^==+\s*([^=\n]+?)\s*==+\s*$/gm) || [];
+    const f = {type:parts[0].trim().toLowerCase(), sec:heads.length ? heads[heads.length - 1].replace(/=/g, "").trim().toLowerCase() : ""};
     for (const p of parts.slice(1)){ const e = p.indexOf("="); if (e > 0) f[p.slice(0, e).trim().toLowerCase()] = p.slice(e + 1).trim(); }
     out.push(f);
   }
@@ -106,7 +112,12 @@ function parsePrice(text, cc){
 }
 
 /* ---------- the kind of place ---------- */
+// sections whose listings aren't places to stay, eat or go (embassies, hospitals, banks, schools, transport offices)
+const SKIP_SEC = /cope|connect|stay safe|stay healthy|embass|consulat|learn|work|get in|get around|go next|understand|talk|respect|medical|health|money|post|internet|telecom/;
+const NOT_A_PLACE = /\bembass|consulat|\bimmigration\b|\buniversity\b|\bhospital\b|\bclinic\b|\bpost office\b|tourist information|tourism authority|\bbank\b|\bpolice\b|\bministry\b|\bvisa\b/i;
 function kindOf(f, name, txt){
+  if (SKIP_SEC.test(f.sec || "") || NOT_A_PLACE.test(name)) return null;
+  if (f.type !== "sleep" && f.type !== "eat" && f.type !== "drink" && /^\(?(consulate|embassy)\)?$/i.test(txt.trim())) return null;
   const s = (name + " " + txt).toLowerCase();
   if (f.type === "sleep") return {c:"gaff", t:/hostel|dorm\b|dormitor/.test(s) ? "Hostel" : /villa/.test(name.toLowerCase()) ? "Villa" : /guest ?house|homestay|home stay|bungalow|hut\b/.test(s) ? "Guesthouse" : "Hotel"};
   if (f.type === "eat") return {c:"munch", t:/caf[eé]|coffee|bakery/.test(s) ? "Cafe" : /night market|food market|\bmarket\b/.test(s) ? "Market" : /street food|stall|food court|hawker/.test(s) ? "Street food" : "Restaurant"};
@@ -137,7 +148,10 @@ function osmIndex(cc){
   const known = D.places.map(p => ({n:p.n, lat:p.lat, lng:p.lng}));
   fs.mkdirSync(OUT, {recursive:true});
   const report = [];
+  const only = (process.argv[2] || "").toUpperCase();          // node tools/wv-research.js th   rebuilds just Thailand
   for (const [cc, cities] of Object.entries(CITIES)){
+    if (only && cc !== only) continue;
+    let failed = [];
     const idx = osmIndex(cc), out = [], seen = new Set();
     for (const [page, city, clat, clng] of cities){
       const centre = {lat:clat, lng:clng};
@@ -145,7 +159,7 @@ function osmIndex(cc){
       try { const ds = await districts(page); if (ds.length) pages = pages.concat(ds); } catch(e){}
       let n = 0, placedByName = 0;
       for (const pg of pages){
-        let doc; try { doc = await raw(pg); } catch(e){ console.warn("  skip", pg, e.message); continue; }
+        let doc; try { doc = await raw(pg); } catch(e){ console.warn("  skip", pg, e.message); failed.push(pg); continue; }
         await sleep(300);
         const edited = (doc.text.match(/\blastedit\s*=\s*(\d{4}-\d{2})/g) || []).length;
         for (const f of listings(doc.text)){
@@ -188,6 +202,8 @@ function osmIndex(cc){
       report.push(`${cc} ${city}: ${n} places (${placedByName} placed by name)`);
       console.log(report[report.length - 1]);
     }
+    // a page that couldn't be downloaded would silently drop a whole city: keep the last good file instead
+    if (failed.length){ console.error(`${cc}: ${failed.length} pages didn't download (${failed.slice(0, 5).join(", ")}…): not saved, run it again later`); continue; }
     fs.writeFileSync(path.join(OUT, cc.toLowerCase() + ".json"), JSON.stringify({v:1, made:"2026-11-24", src:"Wikivoyage listings (CC BY-SA 3.0)", places:out}));
     console.log(`${cc}: ${out.length} places, ${(fs.statSync(path.join(OUT, cc.toLowerCase() + ".json")).size / 1024).toFixed(0)} KB`);
   }
