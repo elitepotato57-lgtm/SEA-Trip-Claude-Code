@@ -1055,3 +1055,5 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .gm-round,.gp-photo,.gp-card,.gm-reveal{animation:gmFade .25s ease-out}
 @keyframes gmFade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.gm-leave,.msg-wrap .msg-pop,.gm-round,.gp-photo,.gp-card,.gm-reveal{animation:none}}
+/* links inside a callout (sources in the guides): a bigger tap area without moving the text */
+.callout a{padding:9px 0}

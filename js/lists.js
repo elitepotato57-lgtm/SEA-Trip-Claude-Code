@@ -197,7 +197,9 @@ function listTest(cat){
 function listItems(cat){
   const st = ui.lists[cat], pt = focusPt(), run = listRun[cat], test = listTest(cat);
   let cur = D.places.filter(p => p.c === cat && test(p));
-  if (!pt.none && st.radius) cur = cur.filter(p => dist(pt, p) <= st.radius);
+  // researched places count only nearby too (the same 40 km as the map's places unless a distance is set): with thousands of them,
+  // "Cheapest first" in Phnom Penh mustn't put a Bangkok dorm at the top. With no place picked, they're all listed.
+  if (!pt.none) cur = cur.filter(p => dist(pt, p) <= (st.radius || 40));
   const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius) && !curTwin(p));     // a researched twin is shown instead
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
   const all = sortItems(cur.concat(osm), how, pt.none ? null : pt);
