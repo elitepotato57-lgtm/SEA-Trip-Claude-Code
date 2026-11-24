@@ -77,10 +77,13 @@ function listings(s){
   }
   return out;
 }
+// &amp; &ocirc; &#8211; … in wiki text: the character itself
+const ENT = {amp:"&", lt:"<", gt:">", quot:"\"", apos:"'", ndash:"–", mdash:"—", hellip:"…", deg:"°", times:"×", eacute:"é", egrave:"è", ocirc:"ô", ecirc:"ê", acirc:"â", agrave:"à", aacute:"á", uacute:"ú", ugrave:"ù", oacute:"ó", ograve:"ò", iacute:"í", igrave:"ì"};
+const entity = e => e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENT[e.toLowerCase()];
 // wiki text to plain text
 const plain = s => String(s || "").replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/g, "").replace(/<!--[\s\S]*?-->/g, "")
   .replace(/\{\{\s*(?:km|mi|convert)\s*\|\s*([\d.]+)[^}]*\}\}/gi, "$1 km").replace(/\{\{[^{}]*\}\}/g, "").replace(/\[\[(?:[^|\]]*\|)?([^\]]*)\]\]/g, "$1")
-  .replace(/\[https?:\/\/\S+\s+([^\]]+)\]/g, "$1").replace(/\[https?:\/\/[^\]]+\]/g, "").replace(/'{2,}/g, "").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ")
+  .replace(/\[https?:\/\/\S+\s+([^\]]+)\]/g, "$1").replace(/\[https?:\/\/[^\]]+\]/g, "").replace(/'{2,}/g, "").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (m, e) => entity(e) ?? m)
   .replace(/\s+/g, " ").trim();
 const fold = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 // a name without the words every place has ("Mad Monkey Hostel" and "Mad Monkey Phnom Penh" are both "mad monkey")
