@@ -118,11 +118,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/camera.js`: camera translator. `js/tools-more.js`: budget, weather, Wi-Fi, guide, emergency, assistant, deals.
 - `js/offline.js`: Tools › Offline & backup (city packs, backup/restore). Packs can include up to 150 free Wikimedia Commons
   landmark photos per city (500 px, credits kept); cards and the details sheet use them first (`PACK_PHOTOS`). Never store Google photos.
-- `js/docs.js`: Tools › Documents.
+- `js/docs.js`: Tools › Documents. Tickets are named kind · person · route (`docKind`, `docPerson`; old ones renamed once by `docsUpgrade`, never a name the user typed) and transport documents are grouped per journey (`docTrips`). There is no top fade anywhere any more (statusfade removed 25 Nov 2026; status bar style "black").
 - `js/trips.js`: Tools › Trips (Dylan, 23 Nov 2026): Start a trip / End trip records the phone's own GPS while the app is open
   (`trkKeep`: 40 m or 10 min; stretches with the app closed are dashed, `trkSegments`); after it, photos picked from the library go
   on the trip's map by their own EXIF location, else by the route's position at the time they were taken (`exifRead`, `trkPlace`),
   with a Photos switch (`S.tripPhotos`). Everything in IndexedDB `sea-trip-trips`, on the phone only. `S.tripOn` = the trip recording.
+  Share live (Dylan, 25 Nov 2026): `tripl/{uid}` {n,s,e,p,t} readable only by friends in `tripok/{uid}` (`trkSendLive`, every 45 s while recording; `trkShareSheet` also sends a WhatsApp link `#tools/trips?f=<uid>`); friends see it under Friends' trips (`trkFriendPage`). Firebase may return a list as an object, so read lists with `Object.values`.
   Different from the journal experiment in js/road.js (places marked "Been here").
 - `js/road.js` (after detail.js): life on the road, all experiments: Tools › Fair price (`FAIR`, `fairAnswer`), Heads-ups (`HEADSUP`,
   scams per route stop), Events (`EVENTS`, Full Moon Parties from `FULL_MOONS`), Trip journal (`S.been`, `S.visits`, `wrapped()`),

@@ -333,7 +333,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.setInputFiles("#docAdd", makePdf(["AirAsia BOARDING PASS", "Passenger MR SMITH/JOHN", "Flight FD 3436   Gate 12   Seat 14A",
     "DMK Bangkok Don Mueang to CNX Chiang Mai", "Departure 02 Dec 2026 07:15"]));
   await page.waitForFunction(() => document.querySelector('#docList [data-doc]'), null, {timeout:30000}).catch(() => {});
-  ok(await page.evaluate(() => /Flight DMK → CNX, 2 Dec/.test(document.querySelector("#docList").textContent)), "a PDF boarding pass is read and filed under Flights");
+  ok(await page.evaluate(() => { const t = document.querySelector("#docList").innerText.replace(/\s+/g, " "); return /DMK → CNX, 2 Dec/.test(t) && /Boarding pass · John Smith/.test(t); }), "a PDF boarding pass is read, named (type and passenger) and filed under its journey in Flights");
   const ocr = await page.evaluate(async () => {
     const c = document.createElement("canvas"); c.width = 1100; c.height = 420; const g = c.getContext("2d");
     g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#111"; g.font = "bold 44px Arial";

@@ -29,7 +29,8 @@ function makeFake(){
     if (top === "phones") return p.length === 2 && (a === uid || get(["pallow", a, uid]) === true);
     if (top === "pallow" || top === "sos") return a === uid;
     if (top === "push") return p.length === 2 && (a === uid || get(["pushok", a, uid]) === true);
-    if (top === "pushok") return a === uid;
+    if (top === "pushok" || top === "tripok") return a === uid;
+    if (top === "tripl") return p.length >= 2 && (a === uid || get(["tripok", a, uid]) === true);
     if (top === "gkey") return get(["gkeyok", uid]) === true || get(["admins", uid]) === true;
     if (top === "gkeyok") return get(["admins", uid]) === true || (p.length === 2 && a === uid);
     if (top === "gkeyask" || top === "stats") return get(["admins", uid]) === true;
@@ -64,6 +65,8 @@ function makeFake(){
     if (top === "pallow") return a === uid;
     if (top === "push") return p.length === 2 && a === uid && (val == null || (typeof val.endpoint === "string" && val.endpoint.startsWith("https://") && val.endpoint.length < 600 && typeof val.p256dh === "string" && typeof val.auth === "string"));
     if (top === "pushok") return a === uid && p.length <= 3;
+    if (top === "tripok") return a === uid && p.length <= 3;
+    if (top === "tripl") return p.length === 2 && a === uid && (val == null || (typeof val.n === "string" && val.n.length <= 60 && val.s != null && val.p != null && typeof val.p === "object"));
     if (top === "gkey" || top === "gkeyok") return get(["admins", uid]) === true && (top === "gkey" ? p.length === 1 : p.length === 2);
     if (top === "gkeyask") return p.length === 2 && (a === uid || get(["admins", uid]) === true);
     if (top === "stats") return p.length >= 2 && a === uid;

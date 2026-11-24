@@ -76,7 +76,28 @@ function docRoute(text, section){
 const shortDate = iso => { try { return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {day:"numeric", month:"short"}); } catch(e){ return iso; } };
 const prettyFile = f => String(f || "Document").replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 50) || "Document";
 
-/* returns {section, name, date, route} from the text read off the document plus its file name */
+/* who a ticket is for: "MURPHY/DYLAN MR" on boarding passes, or "Passenger: Dylan Murphy" / "Passenger name ..." on confirmations */
+const titleCase = s => s.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+function docPerson(text){
+  const t = String(text || "");
+  const slash = /\b([A-Z][A-Z'-]{1,24})\s?\/\s?([A-Z][A-Z'-]{1,24})(?:\s+[A-Z][A-Z'-]{1,24})?(?:\s*(?:MR|MRS|MS|MISS|MSTR|DR))?\b/.exec(t);
+  if (slash && !/^(GATE|SEAT|FROM|TO|BOARDING|FLIGHT|DATE|CLASS|ZONE|SEQ)$/.test(slash[1])) return titleCase(`${slash[2]} ${slash[1]}`);
+  const lab = /(?:passenger(?:\s+name)?|name of passenger|traveller|guest(?:\s+name)?|lead (?:passenger|guest))\s*[:\-]?\s*(?:mr|mrs|ms|miss|dr)?\.?\s*([A-Za-z][A-Za-z'-]+(?:\s+[A-Za-z][A-Za-z'-]+){1,2})/i.exec(t);
+  if (lab){
+    // stop at the first word that isn't part of a name ("Sam Jones Flight FD 3014" is Sam Jones)
+    const w = []; for (const x of lab[1].split(/\s+/)){ if (/^(flight|from|to|booking|seat|date|ticket|name|details|information|class|ref|reference|departure|arrival|adult|child)$/i.test(x)) break; w.push(x); }
+    if (w.length >= 2) return titleCase(w.join(" "));
+  }
+  return "";
+}
+// what sort of travel document it is
+function docKind(all, section){
+  if (/boarding pass|boarding time|boarding group|\bgate closes\b|\bseq(uence)?\b.*\bseat\b/i.test(all)) return "Boarding pass";
+  if (/e-?ticket|itinerary receipt|ticket number/i.test(all)) return "E-ticket";
+  if (/booking confirm|confirmation|reservation|itinerary|booking reference|your booking/i.test(all)) return "Booking confirmation";
+  return {flight:"Flight", bus:"Bus ticket", train:"Train ticket", ferry:"Ferry ticket"}[section] || "Ticket";
+}
+/* returns {section, name, date, route, trip, person, kind} from the text read off the document plus its file name */
 function classifyDoc(text, filename){
   const all = `${filename || ""}\n${text || ""}`;
   const score = {};
@@ -93,11 +114,13 @@ function classifyDoc(text, filename){
   const date = docDate(all), route = section === "other" ? null : docRoute(all, section);
   const when = date ? `, ${shortDate(date)}` : "";
   const way = route ? ` ${route[0]} → ${route[1]}` : "";
-  let name;
-  if (section === "flight") name = `Flight${way}${when}`;
-  else if (section === "bus") name = `Bus${way}${when}`;
-  else if (section === "train") name = `Train${way}${when}`;
-  else if (section === "ferry") name = `Ferry${way}${when}`;
+  let name, trip = "", person = "", kind = "";
+  if (/^(flight|bus|train|ferry)$/.test(section)){
+    // "Boarding pass · Dylan Murphy · LHR → BKK, 26 Nov": what it is, whose it is, which journey (the journey groups them in the list)
+    person = docPerson(text); kind = docKind(all, section);
+    trip = `${route ? `${route[0]} → ${route[1]}` : {flight:"Flight", bus:"Bus", train:"Train", ferry:"Ferry"}[section]}${when}`;
+    name = [kind, person, trip].filter(Boolean).join(" · ");
+  }
   else if (section === "stay"){
     const site = (/(booking\.com|agoda|hostelworld|airbnb|trip\.com|expedia)/i.exec(all) || [])[1];
     const place = (/^.*\b(hostel|hotel|resort|guest ?house|bungalows?|villa|inn|lodge)\b.*$/im.exec(text || "") || [])[0];
@@ -108,7 +131,7 @@ function classifyDoc(text, filename){
   else if (section === "insurance"){ const ins = (/(world nomads|safetywing|axa|allianz|aviva|direct line|post office|staysure|columbus|true traveller|battleface)/i.exec(all) || [])[1]; name = ins ? `Travel insurance (${ins.replace(/\b\w/g, c => c.toUpperCase())})` : "Travel insurance"; }
   else if (section === "tour") name = (/(klook|getyourguide|viator)/i.exec(all) ? "Booking: " : "Ticket") + (route ? way : "") + when;
   else name = prettyFile(filename);
-  return {section, name: name.replace(/^Booking: $/, "Booking").trim(), date, route};
+  return {section, name: name.replace(/^Booking: $/, "Booking").trim(), date, route, trip, person, kind};
 }
 
 /* ---------- storage on the phone (IndexedDB) ---------- */
@@ -210,12 +233,21 @@ async function addDocFile(file, onStage){
     else { onStage && onStage("Reading the text in the picture"); thumb = await thumbFrom(file); text = await ocrImage(file); }
   } catch(e){ /* couldn't read it: it's still kept, sorted by its file name */ }
   const c = classifyDoc(text, file.name);
-  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:c.name, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
+  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:c.name, trip:c.trip || "", v:2, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
     size:file.size, added:new Date().toISOString(), date:c.date, text:text.slice(0, 4000), thumb, blob:file};
   await Docs.put(doc);
   return doc;
 }
 
+// documents added before 25 Nov 2026 were all just "Flight …": name them again from their text (never one you renamed yourself)
+async function docsUpgrade(list){
+  for (const d of list){
+    if (d.v === 2) continue;
+    d.v = 2;
+    if (!d.own && /^(flight|bus|train|ferry)$/.test(d.section) && d.text){ const c = classifyDoc(d.text, ""); if (c.section === d.section){ d.name = c.name; d.trip = c.trip; } }
+    try { await Docs.put(d); } catch(e){}
+  }
+}
 /* ---------- the page: Tools > Documents ---------- */
 const docUI = {q:"", busy:"", list:null};
 TOOL_PAGES.docs = root => {
@@ -245,7 +277,7 @@ TOOL_PAGES.docs = root => {
 };
 async function paintDocs(){
   const el = $("#docList"); if (!el) return;
-  let list = []; try { list = await Docs.all(); } catch(e){ el.innerHTML = emptyBlock("Couldn't open your documents", "<div>Try closing and reopening the app.</div>"); return; }
+  let list = []; try { list = await Docs.all(); await docsUpgrade(list); } catch(e){ el.innerHTML = emptyBlock("Couldn't open your documents", "<div>Try closing and reopening the app.</div>"); return; }
   const q = foldText(docUI.q);
   if (q) list = list.filter(d => foldText(`${d.name} ${d.text} ${DOC_BY_ID[d.section].l}`).includes(q));
   if (!list.length){ el.innerHTML = q ? `<p class="note" style="margin-top:12px">Nothing matches “${esc(docUI.q)}”.</p>` : emptyBlock("No documents yet", "<div>Add your boarding passes, bookings and TDAC so they're here with no signal.</div>"); return; }
@@ -253,11 +285,18 @@ async function paintDocs(){
     const secs = DOC_SECTIONS.filter(s => s.grp === g).map(s => [s, list.filter(d => d.section === s.id)]).filter(([, ds]) => ds.length);
     if (!secs.length) return "";
     return `<div class="sect"><h2>${esc(g)}</h2></div>` + secs.map(([s, ds]) => `${secs.length > 1 || s.l !== g ? `<h3 class="doc-sub">${icon(s.ic, "i s")}${esc(s.l)}</h3>` : ""}
-      <div class="docs">${ds.map(d => `<button class="doc" type="button" data-doc="${esc(d.id)}">
+      ${docTrips(s, ds).map(([trip, dd]) => `${trip ? `<div class="doc-trip">${esc(trip)}${dd.length > 1 ? ` <small>${dd.length} documents</small>` : ""}</div>` : ""}<div class="docs">${dd.map(d => `<button class="doc" type="button" data-doc="${esc(d.id)}">
         <span class="doc-ph" style="${d.thumb ? `background-image:url(${d.thumb})` : ""}">${d.thumb ? "" : icon(s.ic)}</span>
-        <span class="doc-txt"><b>${esc(d.name)}</b><small>${d.date ? esc(niceDate(d.date)) + " · " : ""}${/pdf/.test(d.mime) ? "PDF" : "Photo"} · ${fmtBytes(d.size)}</small></span>${icon("chevr", "i s")}</button>`).join("")}</div>`).join("");
+        <span class="doc-txt"><b>${esc(trip && d.name.endsWith(" · " + trip) ? d.name.slice(0, -(" · " + trip).length) : d.name)}</b><small>${d.date ? esc(niceDate(d.date)) + " · " : ""}${/pdf/.test(d.mime) ? "PDF" : "Photo"} · ${fmtBytes(d.size)}</small></span>${icon("chevr", "i s")}</button>`).join("")}</div>`).join("")}`).join("");
   }).join("");
   el.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => openDoc(b.dataset.doc));
+}
+// flights (and buses, trains, ferries) in groups, one per journey (LHR → BKK, 26 Nov), soonest first; other sections in one group
+function docTrips(s, ds){
+  if (!/^(flight|bus|train|ferry)$/.test(s.id)) return [["", ds]];
+  const by = new Map();
+  ds.slice().sort((a, b) => String(a.date || "9").localeCompare(String(b.date || "9"))).forEach(d => { const k = d.trip || ""; (by.get(k) || by.set(k, []).get(k)).push(d); });
+  return [...by.entries()];
 }
 async function openDoc(id){
   const d = (await Docs.all()).find(x => x.id === id); if (!d) return;
@@ -291,7 +330,8 @@ async function openDoc(id){
     else window.open(url, "_blank", "noopener");
   };
   $("#docSave").onclick = async () => {
-    d.name = ($("#docName").value || "").trim().slice(0, 80) || d.name; d.section = DOC_BY_ID[$("#docSec").value] ? $("#docSec").value : d.section; d.date = $("#docDateIn").value || null;
+    const nn = ($("#docName").value || "").trim().slice(0, 80); if (nn && nn !== d.name) d.own = true;      // a name you typed is never renamed
+    d.name = nn || d.name; d.section = DOC_BY_ID[$("#docSec").value] ? $("#docSec").value : d.section; d.date = $("#docDateIn").value || null;
     await Docs.put(d); toast("Saved"); closeDetail(); paintDocs();
   };
   $("#docDel").onclick = async () => {

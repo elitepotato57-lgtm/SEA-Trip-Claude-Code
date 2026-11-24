@@ -183,7 +183,15 @@ test("a backup file is recognised and summarised", () => {
 /* ---------- Documents: naming and sorting ---------- */
 test("a boarding pass goes in Flights, named by its airports and date", () => {
   const c = A.classifyDoc("AirAsia BOARDING PASS\nPassenger MR SMITH/JOHN\nFlight FD 3436  Gate 12  Seat 14A\nDMK Bangkok Don Mueang  to  CNX Chiang Mai\nDeparture 02 Dec 2026 07:15  Boarding time 06:35", "boardingpass.pdf");
-  eq(c.section, "flight"); eq(c.name, "Flight DMK → CNX, 2 Dec"); eq(c.date, "2026-12-02");
+  eq(c.section, "flight"); eq(c.name, "Boarding pass · John Smith · DMK → CNX, 2 Dec"); eq(c.date, "2026-12-02");
+});
+test("documents: each ticket says what it is and whose it is, and flights group by journey", () => {
+  const a = A.classifyDoc("BOARDING PASS British Airways MURPHY/DYLAN MR From LHR To BKK Flight BA9 26 Nov 2026 Gate 22 Seat 34A", "IMG_1.jpg");
+  const b = A.classifyDoc("BOARDING PASS British Airways JONES/SAM MR From LHR To BKK Flight BA9 26 Nov 2026 Gate 22 Seat 34B", "IMG_2.jpg");
+  const c = A.classifyDoc("Booking confirmation AirAsia Passenger: Sam Jones Flight FD 3014 HKT Phuket to REP Siem Reap 12 Dec 2026 booking reference ABC123", "x.pdf");
+  eq([a.name, b.name, c.name], ["Boarding pass · Dylan Murphy · LHR → BKK, 26 Nov", "Boarding pass · Sam Jones · LHR → BKK, 26 Nov", "Booking confirmation · Sam Jones · HKT → REP, 12 Dec"]);
+  const g = A.docTrips({id:"flight"}, [{trip:c.trip, date:c.date}, {trip:a.trip, date:a.date}, {trip:b.trip, date:b.date}]);
+  eq(g.map(([t, ds]) => [t, ds.length]), [["LHR → BKK, 26 Nov", 2], ["HKT → REP, 12 Dec", 1]]);
 });
 test("a Booking.com confirmation goes in Accommodation, named after the hostel", () => {
   const c = A.classifyDoc("Booking.com\nYour booking is confirmed\nLub d Bangkok Siam Hostel\nCheck-in Sat 28 Nov 2026 from 14:00\nCheck-out Mon 30 Nov 2026\n2 nights, 1 room type: Bed in 8-Bed Dormitory", "Booking confirmation.pdf");
@@ -196,9 +204,9 @@ test("the TDAC goes in TDAC and visas", () => {
 test("insurance, a 12Go bus ticket and a ferry ticket", () => {
   eq(A.classifyDoc("SafetyWing Nomad Insurance\nCertificate of cover\nPolicy number 123456", "cert.pdf").name, "Travel insurance (SafetyWing)");
   const bus = A.classifyDoc("12Go e-ticket\nGreen Bus Thailand\nChiang Mai Arcade Bus Terminal 2 to Pai\n5 Dec 2026 08:30 Minivan", "ticket.pdf");
-  eq(bus.section, "bus"); eq(bus.name, "Bus Chiang Mai → Pai, 5 Dec");
+  eq(bus.section, "bus"); eq(bus.name, "E-ticket · Chiang Mai → Pai, 5 Dec");
   const ferry = A.classifyDoc("Lomprayah High Speed Catamaran\nKoh Tao Mae Haad Pier to Koh Phangan Thong Sala Pier\n12 Dec 2026", "lomprayah.pdf");
-  eq(ferry.section, "ferry"); eq(ferry.name, "Ferry Koh Tao → Koh Phangan, 12 Dec");
+  eq(ferry.section, "ferry"); eq(ferry.name, "Ferry ticket · Koh Tao → Koh Phangan, 12 Dec");
 });
 test("a photo with no useful text keeps a tidy version of its file name", () => {
   const c = A.classifyDoc("", "my_holiday-photo.JPG");
@@ -1474,6 +1482,16 @@ test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen far
     test("I'm lost: friends get the alert and can see your number; nobody else can", () => {
       ok(sosSent >= 1, "sent to " + sosSent); eq(sosAtSam.cl, "https://call.whatsapp.com/voice/abc123"); eq(sosAtSam.n, P1.frState().name);
       eq(samSees, "+447700900123"); eq(strangerSees, null); eq(forgeSos, 401); ok(/country code/.test(badNum), badNum);
+    });
+    // a trip shared live: Sam (a friend switched on) sees the route; someone not switched on can't read it
+    await P1.trkSetShare([me2.uid]);
+    await P1.trkSendLive({name:"Bangkok walk", start:1, end:null, pts:[[13.75, 100.5, 1000], [13.76, 100.51, 61000]]}, true);
+    const samTrip = await P2.trkFriendTrip(me1.uid), strangerTrip = await P3.trkFriendTrip(me1.uid);
+    await P1.trkSetShare([]);
+    const afterStop = await P2.trkFriendTrip(me1.uid);
+    test("Trips: a trip shared live reaches the friends switched on, nobody else, and stops when sharing is switched off", () => {
+      ok(samTrip && samTrip.name === "Bangkok walk" && samTrip.pts.length === 2 && samTrip.pts[1][2] === 61000, JSON.stringify(samTrip));
+      eq(strangerTrip, null); eq(afterStop, null);
     });
     // the developer (P3) shares a Google key with the friends they pick; usage counts reach only developers
     await P2.gkAsk();

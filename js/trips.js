@@ -129,6 +129,45 @@ function readTiff(v, t, out){
   if (isFinite(lat) && isFinite(lng) && (lat || lng)){ out.lat = gps[1] === "S" ? -lat : lat; out.lng = gps[3] === "W" ? -lng : lng; }
 }
 
+/* ---------- sharing a trip live with friends (Dylan, 25 Nov 2026) ----------
+   tripl/{uid}: the trip being shared {n name, s start, e end (0 while recording), p [[lat, lng, seconds]], t}, readable only by the
+   friends in tripok/{uid} (the same private Friends system as location sharing). Sent while the app is open, at most every 45 s.
+   A WhatsApp link opens it in the app (#tools/trips?f=<uid>), for friends it's shared with only. */
+const trkShareList = () => (S.tripShare || []).filter(u => frState().list[u]);
+let trkSentAt = 0;
+async function trkSendLive(t, force){
+  if (!t || !trkShareList().length || typeof frCfg !== "function" || !frCfg()) return;
+  if (!force && Date.now() - trkSentAt < 45e3)return;
+  trkSentAt = Date.now();
+  const k = Math.ceil(t.pts.length / 1500) || 1, pts = t.pts.filter((p, i) => i % k === 0 || i === t.pts.length - 1);
+  try { const me = await frMe(); await frDb("PUT", `tripl/${me.uid}`, {n:String(t.name).slice(0, 60), s:t.start, e:t.end || 0, p:pts.map(p => [+(+p[0]).toFixed(5), +(+p[1]).toFixed(5), Math.round(p[2] / 1000)]), t:{".sv":"timestamp"}}); } catch(e){}
+}
+async function trkSetShare(uids){
+  const me = await frMe(), before = new Set(S.tripShare || []), after = new Set(uids);
+  await Promise.all([...after].filter(u => !before.has(u)).map(u => frDb("PUT", `tripok/${me.uid}/${u}`, true)).concat([...before].filter(u => !after.has(u)).map(u => frDb("DELETE", `tripok/${me.uid}/${u}`))));
+  S.tripShare = [...after]; persist();
+  if (!after.size) await frDb("DELETE", `tripl/${me.uid}`).catch(() => {});
+  else await trkSendLive(await trkLoadCur(), true);
+}
+const trkLink = uid => `${location.origin}${location.pathname}#tools/trips?f=${encodeURIComponent(uid)}`;
+function trkShareSheet(){
+  const fl = Object.keys(frState().list || {}), on = new Set(trkShareList());
+  const sh = openSheet(`<div class="sheet-head"><h2 id="trk-sh-t">Share this trip live</h2><button class="icon-btn" type="button" data-close aria-label="Close">${icon("x")}</button></div>
+    ${!frCfg() ? `<p class="note">Set up Friends first (Tools › Friends).</p>` : !fl.length ? `<p class="note">Add your mates in Tools › Friends first.</p>` : `
+    <p class="note">They see your route and where you are now, in Trips › Friends’ trips. It updates while your app is open.</p>
+    ${fl.map(u => `<div class="fr-row"><span>${frAvatar(u, 32)}</span><div><b>${esc(frNameOf(u))}</b></div><button class="switch" type="button" data-tsh="${esc(u)}" aria-pressed="${on.has(u)}"><i></i></button></div>`).join("")}
+    <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="trkShSave">Save</button>
+      <a class="btn" id="trkWa" target="_blank" rel="noopener" href="#">${icon("send","i s")}Send on WhatsApp</a></div>
+    <p class="note">The WhatsApp link opens your trip in their app; it works only for the friends switched on here.</p>`}`, "trk-sh-t");
+  sh.querySelectorAll("[data-tsh]").forEach(b => b.onclick = () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")));
+  const pick = () => [...sh.querySelectorAll('[data-tsh][aria-pressed="true"]')].map(b => b.dataset.tsh);
+  const sv = sh.querySelector("#trkShSave"); if (sv) sv.onclick = async () => { sv.disabled = true; try { await trkSetShare(pick()); toast(pick().length ? `Shared live with ${pick().length} friend${pick().length === 1 ? "" : "s"}` : "Not shared"); closeDetail(); renderPage(); } catch(e){ toast(e.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : "No signal? Try again"); sv.disabled = false; } };
+  const wa = sh.querySelector("#trkWa");
+  if (wa) wa.onclick = async e => { e.preventDefault(); const me = await frMe(); const t = await trkLoadCur(); window.open(`https://wa.me/?text=${encodeURIComponent(`Follow my trip${t ? ` “${t.name}”` : ""} live in our SEA Trip app: ${trkLink(me.uid)}`)}`, "_blank", "noopener"); };
+}
+// a friend's shared trip, or null if they haven't shared one with you
+async function trkFriendTrip(uid){ try { const v = await frDb("GET", `tripl/${uid}`); return v && v.p ? {id:"f-" + uid, name:v.n, start:v.s, end:v.e || null, pts:Object.values(v.p || {}).map(p => [p[0], p[1], p[2] * 1000]), at:v.t, uid} : null; } catch(e){ return null; } }
+
 /* ---------- recording ---------- */
 let trkCur = null, trkWatchId = null, trkSaveT = 0, trkFixErr = "";
 const trkOn = () => !!S.tripOn;
@@ -143,6 +182,7 @@ function trkWatch(){
     if (!trkKeep(t.pts[t.pts.length - 1], fix)) return;
     t.pts.push([+fix.lat.toFixed(6), +fix.lng.toFixed(6), fix.at]);
     clearTimeout(trkSaveT); trkSaveT = setTimeout(() => Trk.putTrip(t).catch(() => {}), 1500);
+    trkSendLive(t);
     trkPaintLive(t);
   }, e => { trkFixErr = e && e.code === 1 ? "denied" : "unavailable"; trkPaintLive(trkCur); }, {enableHighAccuracy:true, maximumAge:15e3, timeout:30e3});
 }
@@ -164,7 +204,7 @@ async function trkStart(name){
 }
 async function trkEnd(){
   const t = await trkLoadCur(); trkUnwatch(); clearTimeout(trkSaveT);
-  if (t){ t.end = Date.now(); await Trk.putTrip(t); }
+  if (t){ t.end = Date.now(); await Trk.putTrip(t); await trkSendLive(t, true); }
   S.tripOn = ""; persist(); trkCur = null;
   return t;
 }
@@ -206,16 +246,18 @@ function trkCleanup(){
 TOOL_PAGES.trips = async (root, arg) => {
   trkCleanup();
   if (!("indexedDB" in window)){ root.innerHTML = toolHero("Trips", "Your route and photos") + `<div class="page">${emptyBlock("Not on this phone", "<p>This browser can’t keep trips. Open the app from your home screen.</p>")}</div>`; return; }
+  if (/^f=/.test(arg)) return trkFriendPage(root, decodeURIComponent(arg.slice(2)));
   if (arg) return trkTripPage(root, decodeURIComponent(arg));
   const [list, cur] = await Promise.all([Trk.trips().catch(() => []), trkLoadCur()]);
   if (ui.view !== "tools" || !/^trips/.test(ui.sub || "")) return;
   const past = list.filter(t => t.end);
   root.innerHTML = toolHero("Trips", "Your route and photos, on a map") + `<div class="page trk">
     ${cur ? `<div class="trk-now"><span class="trk-dot" aria-hidden="true"></span><div><b>Recording: ${esc(cur.name)}</b><small id="trkLive">${trkLiveText(cur)}</small></div></div>
-      <div class="row" style="margin-top:10px"><a class="btn" href="#tools/trips?${enc(cur.id)}">${icon("map","i s")}See the route</a><button class="btn danger" type="button" id="trkEnd">${icon("check","i s")}End trip</button></div>`
+      <div class="row" style="margin-top:10px"><a class="btn" href="#tools/trips?${enc(cur.id)}">${icon("map","i s")}See the route</a><button class="btn" type="button" id="trkShare">${icon("users","i s")}${trkShareList().length ? `Shared with ${trkShareList().length}` : "Share live"}</button><button class="btn danger" type="button" id="trkEnd">${icon("check","i s")}End trip</button></div>`
     : `<label class="field">Name (optional)<input id="trkName" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Chiang Mai to Pai"></label>
       <button class="btn primary wide" type="button" id="trkStart" style="margin-top:8px">${icon("route","i s")}Start a trip</button>`}
     ${explain("trk-how", `<p class="note" style="margin-top:10px">Your route is recorded from your phone’s GPS while the app is open. An iPhone doesn’t let web apps use GPS once they’re closed or the screen is locked, so a stretch with the app closed shows as a dashed straight line. After the trip, add your photos: each goes where it was taken. Everything stays on this phone.</p>`)}
+    <div id="trkFriends"></div>
     <div class="sect"><h2>Your trips</h2></div>
     ${past.length ? `<div class="trk-list">${past.map(t => { const s = trkStats(t); return `<a class="trk-row" href="#tools/trips?${enc(t.id)}"><span class="ti">${icon("route")}</span><span><b>${esc(t.name)}</b><small>${esc(trkWhen(t.start))} · ${trkKmText(s.km)} · ${trkDurText(s.ms)}</small></span>${icon("chevr","i s")}</a>`; }).join("")}</div>`
       : `<p class="note">No finished trips yet.</p>`}
@@ -225,7 +267,28 @@ TOOL_PAGES.trips = async (root, arg) => {
     if (!await askConfirm("End this trip? The route stops recording.", "End trip")) return;
     const t = await trkEnd(); if (t) go("#tools/trips?" + enc(t.id)); else renderPage();
   };
+  const shb = $("#trkShare"); if (shb) shb.onclick = trkShareSheet;
+  trkPaintFriends();
 };
+// Friends' trips: the friends who are sharing a trip with you
+async function trkPaintFriends(){
+  const box = $("#trkFriends"); if (!box || typeof frCfg !== "function" || !frCfg()) return;
+  const ids = Object.keys(frState().list || {}); if (!ids.length) return;
+  const got = (await Promise.all(ids.map(trkFriendTrip))).filter(Boolean);
+  if (!box.isConnected || !got.length) return;
+  box.innerHTML = `<div class="sect"><h2>Friends’ trips</h2></div><div class="trk-list">${got.map(t => `<a class="trk-row" href="#tools/trips?f=${enc(t.uid)}"><span class="ti">${frAvatar(t.uid, 32)}</span><span><b>${esc(frNameOf(t.uid))}: ${esc(t.name)}</b><small>${t.end ? "Ended" : `<span class="trk-dot sm"></span> Live`} · ${trkKmText(trkStats(t).km)}${t.at ? ` · updated ${esc(agoText(t.at))}` : ""}</small></span>${icon("chevr","i s")}</a>`).join("")}</div>`;
+}
+// a friend's trip on a map, refreshed every 30 s while you look at it
+async function trkFriendPage(root, uid){
+  const t = await trkFriendTrip(uid);
+  if (ui.view !== "tools" || !/^trips/.test(ui.sub || "")) return;
+  if (!t){ root.innerHTML = toolHero("Trips", "") + `<div class="page">${emptyBlock("Not shared with you", "<p>Ask them to switch you on in Trips › Share live (you need to be friends in the app).</p>")}</div>`; return; }
+  root.innerHTML = hero({title:`${frNameOf(uid)}: ${t.name}`, sub:`${trkWhen(t.start)}${t.end ? " to " + trkWhen(t.end) : ", live now"}`, back:["#tools/trips", "Trips"]}) + `<div class="page trk">
+    <p class="trk-stats"><b>${trkKmText(trkStats(t).km)}</b> · ${trkDurText(trkStats(t).ms)}${t.at ? ` · updated ${esc(agoText(t.at))}` : ""}</p>
+    ${t.pts.length ? `<div id="trkMap" class="tmap trk-map" role="application" aria-label="Map of their route"></div>` : `<p class="note">No route yet.</p>`}</div>`;
+  if (t.pts.length) trkDrawMap(t, []);
+  if (!t.end){ const k = ui.sub; setTimeout(() => { if (ui.view === "tools" && ui.sub === k) renderPage(); }, 30000); }
+}
 function trkLiveText(t){
   if (!t) return "";
   const s = trkStats(t);
@@ -291,6 +354,7 @@ function trkDrawMap(t, onMap){
       attributionControl:false, dragRotate:false, pitchWithRotate:false, touchPitch:false});
   } catch(err){ el.remove(); return; }
   trkMap.__trip = t.id;
+  if (/^f-/.test(t.id)) t.end = t.end || null;
   // no signal for the street map: the route and photos still show on a plain background (no error)
   trkMap.on("error", () => {});
   trkMap.addControl(new maplibregl.AttributionControl({compact:true, customAttribution:"© OpenStreetMap"}));

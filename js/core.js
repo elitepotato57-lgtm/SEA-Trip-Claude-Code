@@ -1,7 +1,7 @@
 /* ============================================================
    00-core: helpers, icons, constants, saved state, money, distance
    ============================================================ */
-const VERSION = "2.27.1";
+const VERSION = "2.28.0";
 // Google photos: paste your Google Maps API key between the quotes so everyone using this file gets photos.
 const GOOGLE_KEY_IN_FILE = "";
 
@@ -27,7 +27,7 @@ function expSet(id, on){
   expClasses();
 }
 // each experiment also gets a class on <html> (x-<id>), for the ones that are mostly CSS
-EXPERIMENTS.push({id:"statusfade", n:"Fade behind the clock", d:"On the map only, a dark fade behind the phone’s clock that ends at the bottom of the search bar."});
+EXPERIMENTS.push({id:"statusfade", n:"Fade behind the clock", d:"Removed (25 Nov 2026): no fade anywhere."});
 function expClasses(){ try { EXPERIMENTS.forEach(x => document.documentElement.classList.toggle("x-" + x.id, exp(x.id))); } catch(e){} }
 
 /* ---------- helpers ---------- */
@@ -217,7 +217,7 @@ function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {
 // v: the saved-state version (2 = the test location is off unless someone picked one)
 const S_DEFAULTS = {v:2, countryMode:"auto", country:"TH", rates:{}, testLoc:"off", gkey:"", nearClosed:false,
   saved:{}, budget:{total:"", cur:"GBP", days:"", items:[]}, stay:{cin:"", cout:"", guests:2}, focus:null, live:null, mapView:null, seenDiscover:false, look:"night", design:{on:false}, packs:{}, packPhotos:true, lastBackup:null, split:{people:[], items:[], del:[]}, friends:{on:false, name:"", list:{}}, dev:false, devGranted:false, savedTrips:[], dayLook:false, mapsApp:"google", funny:false,
-  arrived:{}, visits:{}, been:{}, entered:{}, tripOn:"", tripPhotos:true};
+  arrived:{}, visits:{}, been:{}, entered:{}, tripOn:"", tripPhotos:true, tripShare:[]};
 const S_SAVED = loadState();
 let S = Object.assign({}, S_DEFAULTS, S_SAVED);
 // Before version 2 every phone started with a pretend location of Bangkok, which then hid the real GPS position.
