@@ -626,7 +626,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const sea = await A.pg.evaluate(() => { const g = document.querySelector("#gmBox .sf-grid.big"); return g ? {right:Math.round(g.getBoundingClientRect().right), cells:g.children.length, ships:g.querySelectorAll(".ship").length} : null; });
     ok(sea && sea.cells === 64 && sea.ships === 12 && sea.right <= 393, "Sink the fleet: an 8×8 sea with your 4 boats, fitting the screen " + JSON.stringify(sea));
     // placing: tap a boat to turn it, drag one to a new spot (the fleet still has 4 boats that never touch)
-    const placeA = await A.pg.evaluate(() => { const g = gmCache.fleet, b = sfBoats(g); return {before:g, si:b[3].si, cell:b[3].cells[0], across:b[3].across}; });
+    // a boat with room to turn round (the fleet is random; one with no room stays put and says so)
+    const placeA = await A.pg.evaluate(() => { const g = gmCache.fleet, b = sfBoats(g), x = b.slice().reverse().find(x => sfRotate(g, x.si, x.cells[0])) || b[3]; return {before:g, si:x.si, cell:x.cells[0], across:x.across, can:!!sfRotate(g, x.si, x.cells[0])}; });
     const box = async i => (await A.pg.$(`#sfPlace [data-i="${i}"]`)).boundingBox();
     const c0 = await box(placeA.cell); await A.pg.mouse.click(c0.x + c0.width / 2, c0.y + c0.height / 2); await A.pg.waitForTimeout(300);
     const turned = await A.pg.evaluate(si => sfBoats(gmCache.fleet)[si].across, placeA.si);
@@ -634,7 +635,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const from = await A.pg.evaluate(si => sfBoats(gmCache.fleet)[si].cells[0], placeA.si);
     if (free >= 0){ const a = await box(from), b = await box(free); await A.pg.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await A.pg.mouse.down(); await A.pg.mouse.move(b.x + b.width / 2, b.y + b.height / 2, {steps:6}); await A.pg.mouse.up(); await A.pg.waitForTimeout(300); }
     const placed = await A.pg.evaluate(([si, free]) => ({moved:sfBoats(gmCache.fleet)[si].cells[0] === free, boats:sfBoats(gmCache.fleet).every(x => x.cells.length === SF_SHIPS[x.si]), emoji:/[\u{1F300}-\u{1FAFF}]/u.test(document.querySelector("#gmBox .sf-grid").textContent)}), [placeA.si, free]);
-    ok(turned !== placeA.across && (free < 0 || placed.moved) && placed.boats && !placed.emoji, "Sink the fleet: tap a boat to turn it, drag it to move it; drawn squares, no emojis " + JSON.stringify({turned, free, placed}));
+    ok((turned !== placeA.across || !placeA.can) && (free < 0 || placed.moved) && placed.boats && !placed.emoji, "Sink the fleet: tap a boat to turn it, drag it to move it; drawn squares, no emojis " + JSON.stringify({turned, free, placed}));
     await A.pg.click("#sfReady"); await B.pg.click("#sfReady"); await A.pg.waitForTimeout(3000);
     const shooter = (await A.pg.$("#gmBox .sf-grid.go")) ? A : B, target = shooter === A ? B : A;
     await shooter.pg.click("#gmBox .sf-grid.go button.sf-c:not([disabled])"); await target.pg.waitForTimeout(3000);
