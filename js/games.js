@@ -585,7 +585,7 @@ async function paintTally(){
   const nameOf = u => frState().list[u] ? frNameOf(u) : gid && liveStore()[gid] && (liveStore()[gid].members || {})[u] || "Friend";
   const ids = (members && members.length ? [me, ...members.filter(u => u !== me)] : [me, ...Object.keys(f.list)]).filter(Boolean);
   const rows = await Promise.all(ids.map(async u => [u, await frDb("GET", `tally/${u}`).catch(() => null) || {}]));
-  if (!$("#gm-tally")) return;
+  if (!el.isConnected) return;                       // the page was redrawn while this was loading: the newer call draws it
   const tot = t => GAME_ORDER.reduce((a, g) => [a[0] + ((t[g] || {}).w || 0), a[1] + ((t[g] || {}).p || 0)], [0, 0]);
   const list = rows.map(([u, t]) => ({u, t, w:tot(t)[0], p:tot(t)[1]})).sort((a, b) => b.w - a.w || a.p - b.p);
   const forfeit = (groupFf != null ? groupFf : (lsGet("gm-forfeit", "") || "")).trim() || "Bottom of the table buys the next round";
@@ -594,10 +594,11 @@ async function paintTally(){
     <div class="gm-tally"><div class="gm-th"><span></span><span>Name</span>${GAME_ORDER.map(g => `<span title="${esc(GAMES[g].n)}">${GAMES[g].ic.slice(0, 2)}</span>`).join("")}<span>Wins</span></div>
     ${list.map((r, k) => `<div class="gm-tr ${r.u === me ? "me" : ""}"><span>${k === 0 && r.w ? "👑" : k + 1}</span><span>${r.u === me ? "You" : esc(nameOf(r.u))}</span>${GAME_ORDER.map(g => `<span>${((r.t[g] || {}).w) || 0}</span>`).join("")}<span><b>${r.w}</b><small>/${r.p}</small></span></div>`).join("")}</div>
     <label class="field gm-forfeit">Loser’s forfeit<input id="gm-ff" type="text" maxlength="80" value="${esc(forfeit)}" aria-label="Loser’s forfeit"></label>`;
-  $("#gm-ff").onchange = async e => {
+  const ffIn = el.querySelector("#gm-ff"); if (!ffIn) return;
+  ffIn.onchange = async e => {
     const v = e.target.value.trim().slice(0, 80);
     if (gid){ try { await frDb("PUT", `groups/${gid}/ff`, v); toast("Forfeit saved for the whole group"); } catch(err){ toast(err.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : "No signal? Try again"); } }
     else { lsSet("gm-forfeit", v); toast("Forfeit saved on your phone (start a split-costs group to share it)"); }
   };
-  const gs = $("#gm-grp"); if (gs) gs.onchange = () => { lsSet(GM_GROUP, gs.value); paintTally(); };
+  const gs = el.querySelector("#gm-grp"); if (gs) gs.onchange = () => { lsSet(GM_GROUP, gs.value); paintTally(); };
 }
