@@ -54,7 +54,9 @@ nav.tabs a[aria-current="page"]{background:var(--accent);color:var(--on-accent)}
 /* ---------- page header (hero) ---------- */
 .hero{position:relative;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 14px;background:var(--surface);overflow:hidden;isolation:isolate}
 .hero::before{content:"";position:absolute;inset:0;background:var(--hero,none) center/cover no-repeat;z-index:-2}
-.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,20,23,.55) 0%,rgba(18,20,23,.78) 55%,var(--bg) 100%);z-index:-1}
+/* the header photo stays clear at the top (Dylan, 24 Nov 2026: the old wash looked like a fade over every page); it darkens lower down, behind the title */
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,20,23,0) 0%,rgba(18,20,23,.12) 30%,rgba(18,20,23,.7) 70%,var(--bg) 100%);z-index:-1}
+.hero h1,.hero .sub{text-shadow:0 1px 6px rgba(0,0,0,.55)}
 .hero-top{display:flex;align-items:center;gap:8px;min-height:36px}
 .where{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:34px;padding:0 10px 0 8px;border-radius:var(--r);border:1px solid rgba(242,241,237,.22);background:rgba(18,20,23,.55);color:var(--ink);font-size:calc(13px * var(--ts,1));font-weight:600}
 .where .i{color:var(--muted)}
@@ -444,7 +446,7 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:calc(13px * var
 :root[data-look="paper"] h1,:root[data-look="paper"] h2,:root[data-look="paper"] .sheet h2,:root[data-look="paper"] .card h3,:root[data-look="paper"] .sheet h3{font-family:var(--serif);font-weight:600;letter-spacing:-.005em}
 :root[data-look="paper"] .chip{border-radius:999px}
 :root[data-look="paper"] .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-:root[data-look="paper"] .hero::after{background:linear-gradient(180deg,rgba(243,234,215,.62) 0%,rgba(243,234,215,.86) 55%,var(--bg) 100%)}
+:root[data-look="paper"] .hero::after{background:linear-gradient(180deg,rgba(243,234,215,0) 0%,rgba(243,234,215,.2) 30%,rgba(243,234,215,.8) 70%,var(--bg) 100%)}
 :root[data-look="paper"] .where,:root[data-look="paper"] .hbtn,:root[data-look="paper"] .crumb{background:rgba(251,245,232,.85);border-color:var(--line)}
 :root[data-look="paper"] .maplibregl-ctrl-attrib{background:rgba(251,245,232,.85)!important}
 :root[data-look="paper"] .map-top .sbar,:root[data-look="paper"] .map-chips .chip,:root[data-look="paper"] .map-side .icon-btn,
