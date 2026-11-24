@@ -244,7 +244,8 @@ const bigPhoto = src => src && /\/\d+px-/.test(src) ? src.replace(/\/\d+px-/, `/
    phone asks the image server for the picture straight away instead of looking it up first. One small file, kept offline. */
 let photoIndex = null;
 const loadPhotoIndex = () => photoIndex || (photoIndex = (typeof fetch === "undefined" ? Promise.resolve(null)
-  : getJSON(PLACES_BASE + "photos.json", {timeout:15000}).then(j => j && j.f ? j.f : null).catch(() => { photoIndex = null; return null; })));
+  : getJSON(PLACES_BASE + "photos.json", {timeout:15000}).then(j => { photoIndexNow = j && j.f ? j.f : null; return photoIndexNow; }).catch(() => { photoIndex = null; return null; })));
+let photoIndexNow = null;          // the same index once it has arrived, for code that can't wait (Guess the price picking its rounds)
 const indexedPhoto = file => ({src:commonsThumb(file, PH_CARD) || `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=${PH_CARD}`,
   page:`https://commons.wikimedia.org/wiki/File:${enc(file.replace(/ /g, "_"))}`, by:"Photo: Wikimedia Commons"});
 /* A typical photo for the kind of place (a toilet, an ATM, a 7-Eleven, a beach…) when the place itself has none: stored with the

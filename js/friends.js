@@ -722,6 +722,10 @@ async function frSendSticker(to, id){
 let frMsgShown = new Set();
 function frMsgPopup(){
   if (typeof document === "undefined" || $("#msgRoot")) return;
+  if (typeof gmPlaying === "function" && gmPlaying()){                     // mid-game: the popup waits (js/games.js)
+    if (!frMsgPopup.held && Object.entries(frMsgs || {}).some(([id, mm]) => mm && mm.f && !frMsgShown.has(id))){ frMsgPopup.held = 1; gmHold("New message", () => { frMsgPopup.held = 0; frMsgPopup(); }); }
+    return;
+  }
   const next = Object.entries(frMsgs || {}).filter(([id, mm]) => mm && mm.f && !frMsgShown.has(id)).sort((a, b) => (a[1].t || 0) - (b[1].t || 0))[0];
   if (!next) return;
   const [id, mm] = next; frMsgShown.add(id);

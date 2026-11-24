@@ -739,16 +739,31 @@ html:root .crumb.fr-addbtn,html:root:root:root .crumb.fr-addbtn{background:#E3FA
 .sf-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin:0 auto;padding:4px;border-radius:var(--r-s);background:#1E5263}
 .sf-grid.big{width:100%;max-width:340px}
 .sf-grid.small{width:100%;max-width:184px;gap:2px;padding:3px}
-.sf-c{aspect-ratio:1;width:100%;border:0;padding:0;border-radius:4px;background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;font-size:16px;line-height:1}
-.sf-grid.small .sf-c{border-radius:2px;font-size:9px}
+/* Sink the fleet, drawn (no emojis): water with a light wave pattern, grey hulls with a rounded bow, fire for a hit, a white splash for a miss */
+.sf-c{position:relative;aspect-ratio:1;width:100%;border:0;padding:0;border-radius:3px;color:#fff;overflow:hidden;
+  background:repeating-radial-gradient(circle at 0 100%,rgba(255,255,255,.08) 0 1.5px,transparent 1.5px 6px),linear-gradient(160deg,#2b84a4,#16627d)}
+.sf-grid.small .sf-c{border-radius:2px}
 button.sf-c{cursor:pointer}
 button.sf-c:disabled{cursor:default;opacity:1}
-.sf-grid.go button.sf-c:not(:disabled){background:rgba(255,255,255,.18)}
-.sf-c.ship{background:#9AA5AE}
-.sf-c.miss{background:rgba(255,255,255,.05)}
-.sf-c.hit{background:#7A2E26}
-.sf-c.sunk{background:#C2453A;box-shadow:inset 0 0 0 2px #fff}
-.sf-grid.small .sf-c.sunk{box-shadow:inset 0 0 0 1px #fff}
+.sf-grid.go button.sf-c:not(:disabled){background:repeating-radial-gradient(circle at 0 100%,rgba(255,255,255,.12) 0 1.5px,transparent 1.5px 6px),linear-gradient(160deg,#3a9ec0,#1e7895)}
+.sf-c.ship::before{content:"";position:absolute;background:linear-gradient(#a4afb8,#6c7881);box-shadow:inset 0 -2px 0 rgba(0,0,0,.25)}
+.sf-c.ship.h::before{left:0;right:0;top:20%;bottom:20%}
+.sf-c.ship.v::before{top:0;bottom:0;left:20%;right:20%}
+.sf-c.ship.h.bow::before{left:8%;border-radius:50% 0 0 50%}.sf-c.ship.h.stern::before{right:8%;border-radius:0 25% 25% 0}
+.sf-c.ship.v.bow::before{top:8%;border-radius:50% 50% 0 0}.sf-c.ship.v.stern::before{bottom:8%;border-radius:0 0 25% 25%}
+.sf-c.ship.h.bow.stern::before,.sf-c.ship.v.bow.stern::before{border-radius:40%}
+.sf-c.ship:not(.h):not(.v)::before{inset:20%;border-radius:40%}
+.sf-c.hit::after,.sf-c.miss::after{content:"";position:absolute;inset:0}
+.sf-c.hit::after{background:radial-gradient(circle,#ffe08a 0 14%,#ff8a3d 15% 32%,#d8452f 33% 46%,transparent 47%)}
+.sf-c.miss::after{background:radial-gradient(circle,transparent 0 20%,rgba(255,255,255,.9) 21% 28%,transparent 29%)}
+.sf-c.sunk::before{background:linear-gradient(#4a5258,#2e3438)}
+.sf-c.ship.peek::before{opacity:.35}
+.sf-grid.edit{touch-action:none;user-select:none;-webkit-user-select:none}
+.sf-grid.edit .sf-c.ship{cursor:grab}
+.sf-c.ghost::before{background:linear-gradient(#cfe8d8,#8fc7a5)}
+.sf-grid.bad .sf-c.ghost::before{background:linear-gradient(#f2b5ab,#d26a5a)}
+.sf-peek{width:24px;height:24px;margin-right:6px;padding:0;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--muted);vertical-align:middle;display:inline-grid;place-items:center}
+.sf-peek[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
 /* 3. Liar's dice */
 .ld-mine{display:flex;justify-content:center;gap:4px;font-size:44px;line-height:1;min-height:48px;margin:6px 0 2px}
 .ld-mine span{display:inline-block}
@@ -1025,3 +1040,18 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .town-in{margin:4px 0 8px}
 .town-sugs{margin-bottom:10px;max-height:46vh;overflow-y:auto}
 .dist-from + .town-in{margin-top:6px}
+/* Guess the price: the photo of the place, or of where the journey goes */
+.gp-photo{margin:6px 0 8px;position:relative;border-radius:var(--r);overflow:hidden;background:var(--raised);aspect-ratio:16/10}
+.gp-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.gp-photo figcaption{position:absolute;left:8px;bottom:6px;font-size:calc(11px * var(--ts,1));color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+/* a game holds the whole screen; leaving takes two taps */
+.sheet.gm-sheet{height:100%;max-height:100%;border-radius:0;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.sheet.gm-sheet .grab{display:none}
+.gm-leave{position:sticky;bottom:0;margin:12px -4px 0;padding:14px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--raised);box-shadow:0 -8px 24px rgba(0,0,0,.35);animation:gmUp .2s ease-out}
+.gm-leave .row{margin-top:10px;justify-content:flex-end}
+@keyframes gmUp{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+/* smoother: popups from friends slide in, game boards fade between rounds */
+.msg-wrap .msg-pop{animation:gmUp .22s ease-out}
+.gm-round,.gp-photo,.gp-card,.gm-reveal{animation:gmFade .25s ease-out}
+@keyframes gmFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.gm-leave,.msg-wrap .msg-pop,.gm-round,.gp-photo,.gp-card,.gm-reveal{animation:none}}

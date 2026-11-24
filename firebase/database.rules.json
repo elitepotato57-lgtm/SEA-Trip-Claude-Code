@@ -42,6 +42,10 @@
           ".write": "auth != null && root.child('groups').child($gid).child('members').child(auth.uid).exists() && (newData.exists() || root.child('owner').val() === auth.uid)",
           ".validate": "newData.isString() && newData.val().length <= 30"
         },
+        "ff": {
+          ".write": "auth != null && root.child('groups').child($gid).child('members').child(auth.uid).exists()",
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 80)"
+        },
         "members": {
           "$uid": {
             ".write": "auth != null && ((root.child('owner').val() === auth.uid && root.child('groups').child($gid).child('members').child(auth.uid).exists()) || (root.child('groups').child($gid).child('members').child(auth.uid).exists() && !data.exists() && newData.exists()) || (!root.child('groups').child($gid).exists() && $uid === auth.uid))",

@@ -821,6 +821,25 @@ test("Liar's dice: guesses must go up, turns skip anyone who's out, last one wit
   eq(A.GAMES.dice.result(s), null); eq(A.GAMES.dice.result({p:["a", "b"], n:{a:0, b:2}}).w, ["b"]);
   eq(A.ldRoll(5).length, 5); ok(/^[1-6]{5}$/.test(A.ldRoll(5)));
 });
+test("Sink the fleet: boats are moved by dragging and turned by tapping, never off the sea or touching another", () => {
+  // a known fleet: the 4-boat across the top row, the rest well away
+  const g0 = ".".repeat(64).split(""); [0, 1, 2, 3].forEach(i => g0[i] = "0"); [40, 48, 56].forEach(i => g0[i] = "1"); [45, 53, 61].forEach(i => g0[i] = "2"); [30, 31].forEach(i => g0[i] = "3");
+  const g = g0.join("");
+  eq(A.sfBoats(g).map(b => [b.cells.length, b.across]), [[4, true], [3, false], [3, false], [2, true]]);
+  const t = A.sfRotate(g, 0, 0); eq(A.sfBoats(t)[0].cells, [0, 8, 16, 24], "turned round the tapped square, now down");
+  eq(A.sfPlace(g, 0, 0, 5, true), null, "off the edge of the sea");
+  eq(A.sfPlace(g, 3, 4, 0, true), null, "touching another boat (corner to corner counts)");
+  eq(A.sfMove(g, 3, 30, 12), null, "square 12 touches the long boat's corner");
+  const m = A.sfMove(g, 3, 30, 20); eq(A.sfBoats(m)[3].cells, [20, 21], "dragged by its first square to square 20");
+  eq(A.sfMove(g, 3, 31, 21), m, "dragged by its second square: the same place");
+  ok(!/[^.0-3]/.test(m) && A.sfBoats(m).every(b => b.cells.length === A.SF_SHIPS[b.si]));
+  eq(A.sfPart(g, 0), "ship h bow"); eq(A.sfPart(g, 3), "ship h stern"); eq(A.sfPart(g, 48), "ship v"); eq(A.sfPart(g, 5), "");
+});
+test("Guess the price: every round has a photo (the place's own, or where the journey goes) and journeys say how far", () => {
+  const qs = A.gpQuestions(); ok(qs.length === 5, qs.length);
+  qs.forEach(k => { const it = A.gpItem(k); ok(it && it.img && it.img.src, k); if (k[0] === "e") ok(/About \d+ km/.test(it.sub), it.sub); });
+  eq(A.GAMES.where.n, "Where in SEA");
+});
 test("Guess the price uses only researched prices (never estimates), and the closest guess wins each round", () => {
   for (let n = 0; n < 10; n++){
     const q = A.gpQuestions(); eq(q.length, 5);
