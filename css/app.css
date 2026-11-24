@@ -1018,3 +1018,6 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 /* journey cards: the note under a price ("so far, not counting…", "lowest fare seen") wraps instead of running off the card */
 .trip .sum .price{max-width:58%;min-width:0}
 .trip .price small{white-space:normal;overflow-wrap:anywhere}
+/* list filters: the review slider snaps to any, 1, 2, 3, 4 or 5 stars */
+.rate-sl .ticks{display:flex;justify-content:space-between;font-size:calc(11px * var(--ts,1));color:var(--muted);margin-top:2px;padding:0 2px}
+.pf-unk{margin-top:16px}

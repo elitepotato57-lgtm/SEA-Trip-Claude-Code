@@ -48,6 +48,7 @@ function openFirst(arr, top = 60){
 }
 // a researched price in pounds, or the low end of the estimate (in its own currency: rupiah estimates are not baht)
 const gbpOrEst = it => { const g = gbpMin(it); if (g != null) return g; const e = estPrice(it); return e ? toGBP(e.lo, e.cur || "THB") : null; };
+const minRLabel = r => !r ? "Any rating" : r >= 5 ? "5 stars only" : `${r} stars and up`;
 function passRating(it, minR){ return !minR || (it.r != null && it.r / 2 >= minR); }
 
 /* ---------- small renderers ---------- */
@@ -182,7 +183,9 @@ function listTest(cat){
     if (st.picks && !it.cur_) return false;
     if (st.open){ const o = isOpenNow(it); if (!o || !o.open) return false; }
     if (words.length){ const hay = foldText(`${it.n} ${it.nt || ""} ${it.area || ""} ${(it.cu || []).join(" ")} ${kindLabel(it)}`); if (!words.every(w => hay.includes(w))) return false; }
-    if (!passPF(it, cat)) return false;                                            // the same maximum-price rule as the map (js/estimate.js)
+    const why = pfReason(it, cat);                                                  // the same maximum-price rule as the map (js/estimate.js)
+    if (why && why !== "unknown") return false;
+    if (why === "unknown") return "u";                                               // no saved price: listed after the ones that fit
     if (it.cur_ ? !passRating(it, st.minR) : st.minR) return false;                // no ratings in OpenStreetMap, so a review filter leaves them out
     return true;
   };
@@ -193,7 +196,12 @@ function listItems(cat){
   if (!pt.none && st.radius) cur = cur.filter(p => dist(pt, p) <= st.radius);
   const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius));
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
-  return photoFirst(sortItems(cur.concat(osm), how, pt.none ? null : pt));
+  const all = sortItems(cur.concat(osm), how, pt.none ? null : pt);
+  // with a maximum price: the places that fit first, then those with no saved price (they might fit; check them)
+  if (!pfOn(cat)){ listItems.fit = -1; return photoFirst(all); }
+  const fit = all.filter(p => test(p) === true), unk = all.filter(p => test(p) === "u");
+  listItems.fit = fit.length;
+  return photoFirst(fit).concat(unk);
 }
 function listKey(cat){ const st = ui.lists[cat], pt = focusPt(); return JSON.stringify([pt.lat, pt.lng, st.radius, st.chip, [...st.flags], st.q, st.open, st.picks, st.minR, ui.pf[cat], st.sort === "top"]); }
 const isKnown = p => !!(p.wd || p.wp || p.wpx || p.x);
@@ -240,7 +248,13 @@ function paintListBody(cat){
         `<div>${st.radius ? "Widen the distance to see the nearest places." : "Try loosening a filter or clearing the search."}</div>`,
         `${st.radius ? `<button class="btn small" data-anywhere type="button">Show anywhere</button>` : ""}<button class="btn small" data-clear type="button">Clear filters</button>`);
   } else {
-    html += `<div class="cards">${items.slice(0, st.shown).map(p => placeCard(p, pt)).join("")}</div>`;
+    const fit = listItems.fit, shown = items.slice(0, st.shown);
+    if (fit >= 0){
+      // the price-filtered list: what fits, then a heading, then the places with no saved price
+      const a = shown.slice(0, fit), b = shown.slice(fit);
+      html += a.length ? `<div class="cards">${a.map(p => placeCard(p, pt)).join("")}</div>` : `<p class="note" style="margin-top:8px">No place with a saved price fits ${esc(pfSummary(cat))} here yet.</p>`;
+      if (items.length > fit) html += `<div class="sect pf-unk"><h2>No saved price (${(items.length - fit).toLocaleString("en-GB")})</h2></div><p class="note">These might fit your budget: tap one for its booking links to check.</p>` + (b.length ? `<div class="cards">${b.map(p => placeCard(p, pt)).join("")}</div>` : "");
+    } else html += `<div class="cards">${shown.map(p => placeCard(p, pt)).join("")}</div>`;
     if (items.length > st.shown) html += `<button class="btn wide" type="button" id="listMore" style="margin-top:10px">Show more (${(items.length - st.shown).toLocaleString("en-GB")} left)</button>`;
     html += `<p class="note" style="margin-top:12px">Researched places carry prices, ratings and sources. The rest come from OpenStreetMap (© OpenStreetMap contributors) and show only what volunteers have recorded.</p>`;
   }
@@ -301,15 +315,17 @@ function renderList(cat){
   const st = ui.lists[cat], copy = LIST_COPY[cat], root = $("#pageview");
   const nFilters = (st.radius ? 1 : 0) + (st.sort !== DEFAULT_SORT[cat] ? 1 : 0) + (pfOn(cat) ? 1 : 0) + (st.minR ? 1 : 0) + st.flags.size + (st.picks ? 1 : 0);
   const sorts = cat === "gaff" ? [["top","Recommended"],["near","Nearest"],["cheap","Cheapest first"],["rated","Best reviewed"],["dear","Priciest first"],["match","Best match"]]
-              : cat === "munch" ? [["near","Nearest"],["top","Recommended"],["cheap","Cheapest first"],["dear","Priciest first"]]
-              : [["top","Recommended"],["near","Nearest"],["az","A to Z"]];
+              : cat === "munch" ? [["near","Nearest"],["top","Recommended"],["cheap","Cheapest first"],["dear","Priciest first"],["rated","Best reviewed"]]
+              : [["top","Recommended"],["near","Nearest"],["cheap","Cheapest first"],["dear","Priciest first"],["rated","Best reviewed"]];
   let fp = "";
   if (st.filters){
     fp = `<div class="fpanel" id="fpanel">
       <div class="dist"><div class="note"><span>Distance</span><b id="l-distlab">${radiusLabel(st.radius)}</b></div><input type="range" id="l-dist" min="1" max="${RADIUS_MAX + 1}" step="1" value="${st.radius ? Math.min(st.radius, RADIUS_MAX) : RADIUS_MAX + 1}" aria-label="Distance in kilometres, up to 50 plus" ${focusPt().none ? "disabled" : ""}><div class="dist-ends"><span>0</span><span>25 km</span><span>50+</span></div></div>
       ${distFromField()}
+      <div class="dist rate-sl"><div class="note"><span>Reviews</span><b id="l-rlab">${minRLabel(st.minR)}</b></div><input type="range" id="l-minr" min="0" max="5" step="1" value="${Math.round(+st.minR || 0)}" aria-label="Lowest review stars">
+        <div class="ticks" aria-hidden="true"><span>Any</span><span>1★</span><span>2★</span><span>3★</span><span>4★</span><span>5★</span></div></div>
       <div class="controls"><label class="field">Sort<select data-sort>${sorts.map(([v, l]) => `<option value="${v}" ${st.sort === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      ${cat === "gaff" ? `<label class="field">Reviews<select data-minr>${[[0,"Any"],[4,"4 stars and up"],[4.5,"4.5 stars and up"]].map(([v, l]) => `<option value="${v}" ${+st.minR === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
+
 </div>
       <div class="map-chips mfilt pf-row">${pfControls(cat)}</div>
       ${cat === "gaff" ? `<div><div class="note" style="margin-bottom:4px">Rooms and facilities (only where the information exists)</div><div class="flags">${GAFF_FLAGS.map(f => `<button class="chip soft" type="button" data-flag="${f.id}" aria-pressed="${st.flags.has(f.id)}">${f.l}</button>`).join("")}</div></div>` : ""}
@@ -351,7 +367,8 @@ function bindList(cat){
   const so = root.querySelector("[data-sort]"); if (so) so.onchange = () => { st.sort = so.value; renderPage(); };
   bindPF(root, cat, () => renderPage());
   bindDistFrom(root);
-  const mr = root.querySelector("[data-minr]"); if (mr) mr.onchange = () => { st.minR = +mr.value; renderPage(); };
+  const mr = $("#l-minr");
+  if (mr){ mr.oninput = () => { $("#l-rlab").textContent = minRLabel(+mr.value); }; mr.onchange = () => { st.minR = +mr.value; renderPage(); }; }
   const pk = root.querySelector("[data-picks]"); if (pk) pk.onclick = () => { st.picks = !st.picks; renderPage(); };
   if (cat === "gaff"){
     const ci = $("#st-in"), co = $("#st-out"), sg = $("#st-g"), gn = $("#st-gn");

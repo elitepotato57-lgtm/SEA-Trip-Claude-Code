@@ -589,8 +589,10 @@ const CHIPS = {
   gaff: [
     {id:"all", l:"All stays"},
     {id:"hostel", l:"Hostels", ic:"bed", f:it => it.k === "hostel"},
-    {id:"hotel", l:"Hotels", ic:"bed", f:it => ["hotel","resort","motel","apartment"].includes(it.k)},
-    {id:"guesthouse", l:"Guesthouses", ic:"bed", f:it => ["guesthouse","bungalow","campsite","hut"].includes(it.k)}
+    {id:"hotel", l:"Hotels", ic:"bed", f:it => ["hotel","resort","motel"].includes(it.k) && !/\bvilla/i.test(it.n || "")},
+    {id:"guesthouse", l:"Guesthouses", ic:"bed", f:it => ["guesthouse","campsite","hut"].includes(it.k) && !/\bvilla/i.test(it.n || "")},
+    // OpenStreetMap has no "villa" kind: villas are mapped as bungalows or apartments, or have it in their name
+    {id:"villa", l:"Villas & apartments", ic:"bed", f:it => ["bungalow","apartment"].includes(it.k) || /\bvilla/i.test(it.n || "")}
   ],
   munch: [
     {id:"all", l:"All", ic:"food"},
