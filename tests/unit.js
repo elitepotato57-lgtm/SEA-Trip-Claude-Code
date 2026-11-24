@@ -832,7 +832,7 @@ test("Sink the fleet: boats are moved by dragging and turned by tapping, never o
   eq(A.sfMove(g, 3, 30, 12), null, "square 12 touches the long boat's corner");
   const m = A.sfMove(g, 3, 30, 20); eq(A.sfBoats(m)[3].cells, [20, 21], "dragged by its first square to square 20");
   eq(A.sfMove(g, 3, 31, 21), m, "dragged by its second square: the same place");
-  ok(!/[^.0-3]/.test(m) && A.sfBoats(m).every(b => b.cells.length === A.SF_SHIPS[b.si]));
+  ok(!/[^.0-3]/.test(m) && A.sfBoats(m).every(b => b.cells.length === [4, 3, 3, 2][b.si]));
   eq(A.sfPart(g, 0), "ship h bow"); eq(A.sfPart(g, 3), "ship h stern"); eq(A.sfPart(g, 48), "ship v"); eq(A.sfPart(g, 5), "");
 });
 test("Guess the price: every round has a photo (the place's own, or where the journey goes) and journeys say how far", () => {
