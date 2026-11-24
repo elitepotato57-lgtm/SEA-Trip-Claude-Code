@@ -193,7 +193,10 @@ async function pdfText(blob, maxPages = 3){
 }
 async function pdfPageImage(pdf, n, width){
   const page = await pdf.getPage(n);
-  const v1 = page.getViewport({scale:1}), scale = width / v1.width, vp = page.getViewport({scale});
+  const v1 = page.getViewport({scale:1});
+  let scale = width / v1.width; const px = v1.width * v1.height * scale * scale;
+  if (px > 4e6) scale *= Math.sqrt(4e6 / px);                                 // iPhones refuse very big pictures (a long receipt): keep under 4 million pixels
+  const vp = page.getViewport({scale});
   const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
   await page.render({canvasContext:c.getContext("2d"), viewport:vp, canvas:c}).promise;
   return c;
@@ -298,6 +301,7 @@ function docTrips(s, ds){
   ds.slice().sort((a, b) => String(a.date || "9").localeCompare(String(b.date || "9"))).forEach(d => { const k = d.trip || ""; (by.get(k) || by.set(k, []).get(k)).push(d); });
   return [...by.entries()];
 }
+const docFileName = d => d.name.replace(/[\\/:*?"<>|]+/g, " ").trim() + (/pdf/.test(d.mime) ? ".pdf" : "." + ((d.mime.split("/")[1] || "jpg").replace("jpeg", "jpg")));
 async function openDoc(id){
   const d = (await Docs.all()).find(x => x.id === id); if (!d) return;
   const url = URL.createObjectURL(d.blob);
@@ -306,7 +310,10 @@ async function openDoc(id){
       <button class="icon-btn" type="button" data-close aria-label="Close">${icon("x")}</button></div>
     <div class="sheet-body">
       <div id="docView" class="doc-view">${isPdf ? `<p class="note">Opening the PDF…</p>` : `<img src="${url}" alt="${esc(d.name)}">`}</div>
-      <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="docShare">${icon("share", "i s")}Share or open in…</button></div>
+      <div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn primary" type="button" id="docShare">${icon("share", "i s")}Share or open in…</button>
+        <a class="btn" id="docFull" href="${url}" target="_blank" rel="noopener">Open full screen</a>
+        <a class="btn" id="docDown" href="${url}" download="${esc(docFileName(d))}">${icon("download", "i s")}Save to phone</a></div>
+      <p class="note">It's kept in the app, so it opens with no signal. Save to phone also puts a copy in the Files app.</p>
       <h3 style="margin-top:16px">Details</h3>
       <label class="field">Name<input type="text" id="docName" value="${esc(d.name)}" maxlength="80"></label>
       <label class="field">Section<select id="docSec">${DOC_SECTIONS.map(s => `<option value="${s.id}" ${s.id === d.section ? "selected" : ""}>${esc(s.grp === s.l ? s.l : s.grp + ": " + s.l)}</option>`).join("")}</select></label>
@@ -319,13 +326,14 @@ async function openDoc(id){
       const lib = await loadPdfjs(); const pdf = await lib.getDocument({data:new Uint8Array(await d.blob.arrayBuffer())}).promise;
       const box = $("#docView"); if (!box) return; box.innerHTML = "";
       const width = Math.min(1200, (box.clientWidth || 360) * (window.devicePixelRatio || 1));
-      for (let i = 1; i <= Math.min(pdf.numPages, 8); i++){ const c = await pdfPageImage(pdf, i, width); c.className = "doc-page"; box.appendChild(c); }
+      let shown = 0;
+      for (let i = 1; i <= Math.min(pdf.numPages, 8); i++){ try { const c = await pdfPageImage(pdf, i, width); c.className = "doc-page"; box.appendChild(c); shown++; } catch(e){} }
+      if (!shown) throw new Error("no pages");
       if (pdf.numPages > 8) box.insertAdjacentHTML("beforeend", `<p class="note">First 8 of ${pdf.numPages} pages. Use “Share or open in…” for the rest.</p>`);
-    } catch(e){ const box = $("#docView"); if (box) box.innerHTML = `<p class="note">Couldn't show this PDF here. Use “Share or open in…”.</p>`; }
+    } catch(e){ const box = $("#docView"); if (box) box.innerHTML = `<iframe class="doc-frame" src="${url}" title="${esc(d.name)}"></iframe><p class="note">Shown with the phone's own viewer. If it's blank, tap Open full screen.</p>`; }
   }
   $("#docShare").onclick = async () => {
-    const ext = isPdf ? ".pdf" : "." + ((d.mime.split("/")[1] || "jpg").replace("jpeg", "jpg"));
-    const file = new File([d.blob], d.name.replace(/[\\/:*?"<>|]+/g, " ").trim() + ext, {type:d.mime});
+    const file = new File([d.blob], docFileName(d), {type:d.mime});
     if (navigator.canShare && navigator.canShare({files:[file]})){ try { await navigator.share({files:[file], title:d.name}); } catch(e){} }
     else window.open(url, "_blank", "noopener");
   };

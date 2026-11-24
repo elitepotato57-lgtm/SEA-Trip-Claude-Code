@@ -1057,3 +1057,7 @@ html.x-daylight[data-look="paper"]{--muted:#4E412F;--faint:#6A5B45}
 .doc-trip{margin:12px 2px 6px;font-weight:700;font-size:calc(14px * var(--ts,1))}
 .doc-trip small{font-weight:500;color:var(--muted)}
 .trk-dot.sm{display:inline-block;width:8px;height:8px;vertical-align:middle;margin-right:2px}
+/* iOS 26 blurs whatever scrolls under the clock (its own effect, not the app's). A solid strip there means nothing ever scrolls
+   under it, so there's nothing to blur. Not on the map, where the map runs under the clock (Dylan, 25 Nov 2026). */
+html:not([data-view="map"]) body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:3500;pointer-events:none}
+.doc-frame{width:100%;height:70vh;border:1px solid var(--line);border-radius:var(--r-m,12px);background:#fff}

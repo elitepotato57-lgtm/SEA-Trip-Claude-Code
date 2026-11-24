@@ -51,7 +51,7 @@ function emptyBlock(title, body, actions = ""){ return `<div class="empty"><b>${
 
 /* ---------- page dispatcher ---------- */
 function renderPage(){
-  const v = ui.view;
+  const v = ui.view; document.documentElement.dataset.view = v;
   if (typeof detachTransportMap === "function") detachTransportMap();
   if (v === "gaffs") renderList("gaff");
   else if (v === "munch") renderList("munch");
