@@ -442,7 +442,9 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const uidA = await A.pg.evaluate(() => frMyId()), uidB = await B.pg.evaluate(() => frMyId());
     const fb1 = await B.pg.evaluate(uid => ({row:(document.querySelector(`[data-frloc="${uid}"]`) || {}).textContent || "", col:getComputedStyle(document.querySelector(`[data-frav="${uid}"] .fr-av`)).getPropertyValue("--c").trim(), tiles:[...document.querySelectorAll(".fr-tiles .tool b")].map(b => b.textContent)}), uidA);
     ok(/Seen just now/.test(fb1.row) && /^#/.test(fb1.col) && fb1.tiles.join() === "Map,Split costs,Play", "Sam's Friends page: Dylan in the list in his own colour, and Map / Split costs / Play as separate screens " + JSON.stringify(fb1));
-    await B.pg.click(`[data-frgo="${uidA}"]`); await B.pg.waitForTimeout(4500);
+    await B.pg.click(`[data-frgo="${uidA}"]`); await B.pg.waitForTimeout(1500);
+    // the glide takes longer on a busy machine: wait for the map to stop moving (up to 10 s) before checking what it shows
+    await B.pg.waitForFunction(() => typeof map !== "undefined" && map && !map.isMoving(), null, {timeout:10000}).catch(() => {}); await B.pg.waitForTimeout(500);
     const mp = await B.pg.evaluate(uid => { const b = map.getBounds(), d = frLocs[uid], me = frMeHere(); const chips = [...document.querySelectorAll("#mapEss .chip")].map(c => c.textContent.trim());
       return {view:ui.view, both:b.contains([d.lng, d.lat]) && b.contains([me.lng, me.lat]), pin:[...document.querySelectorAll("#map .fr-pin")].some(p => /Dylan/.test(p.getAttribute("aria-label")) && p.offsetWidth <= 32), first:chips[0], pressed:document.querySelector("#mapEss [data-essfr]").getAttribute("aria-pressed")}; }, uidA);
     ok(mp.view === "map" && mp.both && mp.pin && mp.first === "Friends" && mp.pressed === "true", "tapping Dylan opens the normal map with Friends (first Essential) on, gliding to show both of them " + JSON.stringify(mp));
