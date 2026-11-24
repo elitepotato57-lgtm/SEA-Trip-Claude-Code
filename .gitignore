@@ -2,3 +2,4 @@ node_modules/
 .claude/
 .venv/
 *.osm.pbf
+node_modules
