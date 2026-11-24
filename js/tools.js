@@ -436,6 +436,9 @@ function setupPage(){
     <button class="btn small" id="resetRates" type="button" style="margin-top:10px">Clear my own rates</button>
     <p class="note" style="margin-top:10px">Built-in rates checked on: ${D.rateSources.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}.</p>
   </section>
+  <section class="block" id="appUpdate"><h2>Update</h2>
+    <p>This phone has version <b>${VERSION}</b>. On slow signal the app can keep using the copy saved on the phone; this fetches the newest one now (your saved cities, documents, trips and everything you've saved stay).</p>
+    <button class="btn" type="button" id="updNow">${icon("download","i s")}Update now</button></section>
   <section class="block" id="aboutData"><h2>About the data</h2>
     <p>Version ${VERSION}: ${D.places.filter(p => p.c === "gaff").length} researched gaffs, ${D.places.filter(p => p.c === "munch").length} food spots, ${D.places.filter(p => p.c === "cool").length} activities, and a transport network across all seven countries of ${D.net.hubs.length} places and ${D.net.edges.length} connections. Prices and ratings were checked in ${esc(D.checked)}.</p>
     <p>${m ? `On top of that, ${Object.values(m.groups).reduce((a, g) => a + g.n, 0).toLocaleString("en-GB")} places in ${esc(listAnd(PLACE_DBS.map(db => (D.countries[db.cc] || {name:db.cc}).name)))} from OpenStreetMap (data as of ${esc((m.osm || "").slice(0, 10))}).` : "The wider places list loads from OpenStreetMap data when you have signal."} © OpenStreetMap contributors, Open Database Licence. Street map tiles by OpenFreeMap, © OpenMapTiles.</p>
@@ -447,7 +450,19 @@ function setupPage(){
     </details>
   </section></div>`;
 }
+// Settings › Update now: forget the app's saved copy (never the saved cities, photos packs or funny-mode media) and load the newest
+async function updateNow(){
+  if (navigator.onLine === false){ toast("Needs signal"); return; }
+  toast("Getting the newest version…");
+  try {
+    const keep = /packs|media|tiles|places/;
+    if (window.caches) for (const k of await caches.keys()) if (!keep.test(k)) await caches.delete(k);
+    if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.update().catch(() => {});
+  } catch(e){}
+  location.reload();
+}
 function bindSetup(){
+  const up = $("#updNow"); if (up) up.onclick = updateNow;
   const root = $("#pageview");
   $("#testLoc").onchange = e => {
     S.testLoc = e.target.value; persist();
