@@ -136,7 +136,7 @@ function placeCard(it, pt){
   if (km != null) line.push(`<span>${distShort(km)}</span>`);
   const blurb = it.cur_ ? (it.s && it.s[0]) : it.desc;      // one line on why it is worth a look, when we have one
   const tags = [];
-  if (it.cur_) tags.push(it.verified ? '<span class="tag pick">Researched</span>' : '<span class="tag warn">Not checked yet</span>');
+  if (it.cur_) tags.push(it.wv ? '<span class="tag">Wikivoyage</span>' : it.verified ? '<span class="tag pick">Researched</span>' : '<span class="tag warn">Not checked yet</span>');
   if (it.cur_ && it.c === "gaff" && it.d && /^(Included|Free)/.test(it.d.breakfast || "")) tags.push('<span class="tag good">Breakfast included</span>');
   if (it.cur_ && it.c === "cool") (it.t || []).slice(0, 2).forEach(t => tags.push(`<span class="tag">${esc(t)}</span>`));
   if (it.osm){
@@ -165,7 +165,9 @@ const radiusLabel = r => r ? `Within ${r} km` : "50+ km (any distance)";
 const likelyPhoto = it => !!(it.pic || ((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
 // the list opens on a card with a photo: the first such place in the current order moves to the top, the rest keep their order
 function photoFirst(items){
-  const i = items.slice(0, 80).findIndex(likelyPhoto);
+  const pt = focusPt(), first = items[0];
+  const nearEnough = it => pt.none || !first || dist(pt, it) <= Math.max(3, dist(pt, first) * 2);
+  const i = items.slice(0, 80).findIndex(it => likelyPhoto(it) && nearEnough(it));
   return i > 0 ? [items[i]].concat(items.slice(0, i), items.slice(i + 1)) : items;
 }
 const LIST_COPY = {
@@ -196,7 +198,7 @@ function listItems(cat){
   const st = ui.lists[cat], pt = focusPt(), run = listRun[cat], test = listTest(cat);
   let cur = D.places.filter(p => p.c === cat && test(p));
   if (!pt.none && st.radius) cur = cur.filter(p => dist(pt, p) <= st.radius);
-  const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius));
+  const osm = pt.none ? [] : run.osm.filter(p => test(p) && (!st.radius || dist(pt, p) <= st.radius) && !curTwin(p));     // a researched twin is shown instead
   const how = (st.sort === "near" || st.sort === "top") && pt.none ? (cat === "cool" ? "az" : "cheap") : st.sort;
   const all = sortItems(cur.concat(osm), how, pt.none ? null : pt);
   // with a maximum price: the places that fit first, then those with no saved price (they might fit; check them)
@@ -204,6 +206,12 @@ function listItems(cat){
   const fit = all.filter(p => test(p) === true), unk = all.filter(p => test(p) === "u");
   listItems.fit = fit.length;
   return photoFirst(fit).concat(unk);
+}
+// the Wikivoyage places arrived after the page was drawn: show them (lists, the map)
+function afterResearch(){
+  const cat = Object.keys(VIEW_OF_CAT).find(c => VIEW_OF_CAT[c] === ui.view);
+  if (cat && $("#listBody")) paintListBody(cat);
+  if (ui.view === "map" && typeof refreshMapData === "function" && typeof map !== "undefined" && map) refreshMapData();
 }
 function listKey(cat){ const st = ui.lists[cat], pt = focusPt(); return JSON.stringify([pt.lat, pt.lng, st.radius, st.chip, [...st.flags], st.q, st.open, st.picks, st.minR, ui.pf[cat], st.sort === "top"]); }
 const isKnown = p => !!(p.wd || p.wp || p.wpx || p.x);

@@ -161,8 +161,10 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(cheap.ok && cheap.n > 0 && cheap.n < before, `£2 a dish keeps only places at or under £2 (${cheap.n} of ${before})`);
   // the same filter, the same answer in the Munch list
   await page.goto(BASE + "#munch"); await page.waitForTimeout(3000);
-  const lst = await page.evaluate(() => ({max:ui.pf.munch.max, all:listItems("munch").every(p => passPF(p, "munch")), note:!!document.querySelector(".pf-note")}));
-  ok(lst.max === 2 && lst.all && !lst.note, "the Munch list keeps the £2 maximum from the map and applies the same rule, with no explanation taking up room " + JSON.stringify(lst));
+  // (Dylan, 24 Nov 2026) places with no saved price aren't hidden by a maximum: they come after the ones that fit, under their own heading
+  const lst = await page.evaluate(() => { const it = listItems("munch"), fit = listItems.fit; return {max:ui.pf.munch.max, fitOk:it.slice(0, fit).every(p => passPF(p, "munch")),
+    restUnknown:it.slice(fit).every(p => pfReason(p, "munch") === "unknown"), head:!it.slice(fit).length || !!document.querySelector(".pf-unk"), note:!!document.querySelector(".pf-note")}; });
+  ok(lst.max === 2 && lst.fitOk && lst.restUnknown && lst.head && !lst.note, "the Munch list keeps the £2 maximum from the map: what fits first, then the places with no saved price under their own heading " + JSON.stringify(lst));
   // list polish: the distance slider (1 to 50 km, then 50+), a photo card first, stars under the name, no long price note
   await page.goto(BASE + "#activities"); await page.waitForTimeout(3500);
   await page.click("#l-filters"); await page.waitForTimeout(400);
@@ -186,7 +188,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   ok(await page.evaluate(() => ui.pf.munch.max === 3.5 && ui.pf.munch.cur === "GBP" && document.querySelector("#mapFilt .pf-in").classList.contains("on") && mapRun.items.every(p => passPF(p, "munch"))), "typing 3.5 sets a £3.50 maximum");
   await page.fill('#mapFilt [data-pfamt]', "-3"); await page.press('#mapFilt [data-pfamt]', "Enter"); await page.waitForTimeout(500);
   ok(await page.evaluate(() => ui.pf.munch.max > 0 && document.querySelector('#mapFilt [data-pfamt]').getAttribute("aria-invalid") === "true"), "a negative custom amount is refused");
-  ok(await page.evaluate(() => !document.querySelector("#mapFilt [data-mr]")), "no star filter (places have no ratings to filter on)");
+  ok(await page.evaluate(() => document.querySelectorAll("#mapFilt [data-mr]").length === 6), "star chips on the map: any, 1 to 5 stars (Dylan, 24 Nov 2026)");
   await page.click('#mapFilt [data-pfp=""]'); await page.waitForTimeout(600);
   ok(await page.evaluate(() => ui.pf.munch.max === null), "Any clears the maximum");
   await page.click('#mapChips [data-cat="munch"]'); await page.waitForTimeout(1500);

@@ -509,6 +509,7 @@ function openDetail(id){
   if (it.best) facts.push(fact("Best time", esc(it.best)));
   if (it.busy) facts.push(fact("How busy", esc(it.busy)));
   if (it.ad) facts.push(fact("Address", thaiPair(it.ad, "sayAddr"), true));
+  if (it.hrs) facts.push(fact("Hours", `${esc(it.hrs)}<div class="note">As Wikivoyage gives them</div>`));
   if (it.ph) facts.push(fact("Phone", `<a href="tel:${esc(it.ph.replace(/[^+\d]/g, ""))}">${esc(it.ph)}</a>`));
   if (it.web) facts.push(fact("Website", `<a href="${esc(it.web)}" target="_blank" rel="noopener">${esc(it.web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "").slice(0, 40))}</a>`));
   const soc = [it.fb && `<a href="${esc(socialLink(it.fb, "https://www.facebook.com/"))}" target="_blank" rel="noopener">Facebook</a>`, it.ig && `<a href="${esc(socialLink(it.ig, "https://www.instagram.com/"))}" target="_blank" rel="noopener">Instagram</a>`, it.ln && `Line: ${esc(it.ln)}`].filter(Boolean);
@@ -556,7 +557,8 @@ function openDetail(id){
   if (it.c === "gaff") body += bookingBlock(it);
   body += detailActions(it, ref);
   if (it.ap) body += `<p class="note">The pin is approximate. Directions goes to the real address.</p>`;
-  if (it.cur_) body += `<div class="srcs">${it.verified ? `Checked ${esc(it.chk)}. Sources: ${it.src.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}` : "Not checked yet. Prices are typical, not looked up, so confirm on the day."}${it.osmid ? ". Location and contact details from OpenStreetMap." : ""}</div>`;
+  if (it.wv) body += `<div class="srcs">From Wikivoyage’s listing${it.chk ? `, last edited ${esc(it.chk)}` : ""}${it.pt ? `. Price as written there: “${esc(it.pt)}”` : ""}. Check the price and opening times before you go. Source: ${it.src.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")} (CC BY-SA).</div>`;
+  else if (it.cur_) body += `<div class="srcs">${it.verified ? `Checked ${esc(it.chk)}. Sources: ${it.src.map(s => `<a href="${esc(s[1])}" target="_blank" rel="noopener">${esc(s[0])}</a>`).join(", ")}` : "Not checked yet. Prices are typical, not looked up, so confirm on the day."}${it.osmid ? ". Location and contact details from OpenStreetMap." : ""}</div>`;
   else body += `<div class="srcs">From OpenStreetMap${it.ts ? `, last edited ${esc(monthName(it.ts))}` : ""}${it.cd ? `, checked on site ${esc(it.cd)}` : ""}. © OpenStreetMap contributors. ${L_osm(it) ? `<a href="${esc(L_osm(it))}" target="_blank" rel="noopener">See or fix this listing</a>` : ""}</div>`;
 
   openSheet(`<div class="sheet-head"><div><span class="kind"><span class="dot"></span>${esc(kindLabel(it))}${it.cur_ && it.c === "cool" && it.t.length > 1 ? `, ${esc(it.t.slice(1).join(", ").toLowerCase())}` : ""}</span>

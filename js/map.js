@@ -434,7 +434,7 @@ function refreshMapData(){
           for (const g of groups) for (const leaf of Places.leavesIn(g, bb)){
             needed.add(leaf.key);
             const got = Places.loaded(leaf);
-            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k))){ if (passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } else if (PF_GRP[p.c]){ const r = pfReason(p, p.c); if (r) hidden[r] = (hidden[r] || 0) + 1; } } }
+            if (got){ for (const p of got) if (inBB(p) && (g !== "ess" || ek.has(p.k)) && !curTwin(p)){ if (passMapFilter(p)){ feats.push(featOf(p)); items.push(p); } else if (PF_GRP[p.c]){ const r = pfReason(p, p.c); if (r) hidden[r] = (hidden[r] || 0) + 1; } } }
             else {
               loading = true; waiting.push([g, leaf.bb]);
               if (!mapRun.pending.has(leaf.key)){

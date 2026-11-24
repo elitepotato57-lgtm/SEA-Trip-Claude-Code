@@ -54,13 +54,42 @@ const essOfKind = k => ESS.find(e => e.kinds.includes(k));
 const CUR_KIND = {Hostel:"hostel", Guesthouse:"guesthouse", Hotel:"hotel", Villa:"hotel", Restaurant:"restaurant", Cafe:"cafe", Market:"market", Markets:"market",
   "Street food":"fastfood", Temples:"temple", Beaches:"beach", Views:"viewpoint", Hikes:"peak", Diving:"dive", Waterfalls:"waterfall", Nightlife:"bar",
   Museums:"museum", Excursions:"attraction", Hub:"bus"};
-D.places.forEach(p => {
-  p.cur_ = true;                                   // researched by hand
+function prepCur(p){
+  p.cur_ = true;                                   // researched (by hand, or from Wikivoyage's listings: p.wv)
   p.k = (p.t || []).map(t => CUR_KIND[t]).find(Boolean) || (p.c === "gaff" ? "hostel" : p.c === "munch" ? "restaurant" : p.c === "cool" ? "attraction" : "bus");
   if (p.c === "move") p.k = /airport/i.test(p.n) ? "airport" : /pier|ferry|port/i.test(p.n) ? "ferry" : /railway|train|station|terminal/i.test(p.n) && !/bus/i.test(p.n) ? "train" : "bus";
   p.area = p.city;
-});
+  if (p.img && !p.pic && typeof p.img === "string") p.pic = [`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(p.img.replace(/ /g, "_"))}?width=640`,
+    `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(p.img.replace(/ /g, "_"))}`, "Photo named in the Wikivoyage listing, Wikimedia Commons"];
+}
+D.places.forEach(prepCur);
 const CUR_BY_ID = Object.fromEntries(D.places.map(p => [p.id, p]));
+/* A grid of researched places (cells about 1 km), so a map place with the same name a few hundred metres away is known to be
+   the same place, and lists and the map show it once: the researched one, with its price and source. */
+const CUR_GRID = new Map(), curCell = (lat, lng) => Math.round(lat * 100) + "," + Math.round(lng * 100);
+const curIndex = p => { const k = curCell(p.lat, p.lng); (CUR_GRID.get(k) || CUR_GRID.set(k, []).get(k)).push(p); };
+D.places.forEach(curIndex);
+const CUR_GENERIC = /\b(the|hostel|hotel|guest ?house|guesthouse|resort|restaurant|cafe|bar|and|boutique|inn|homestay|villa|bungalows?)\b/g;
+const curCore = s => foldText(s || "").replace(CUR_GENERIC, " ").replace(/\s+/g, " ").trim();
+const curSameName = (a, b) => { const x = curCore(a), y = curCore(b); return !!x && !!y && (x === y || (Math.min(x.length, y.length) >= 5 && (x.includes(y) || y.includes(x)))); };
+function curTwin(it){
+  if (!it || it.cur_ || !isFinite(it.lat)) return null;
+  const la = Math.round(it.lat * 100), ln = Math.round(it.lng * 100);
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const p of CUR_GRID.get((la + a) + "," + (ln + b)) || [])
+    if (p.c === it.c && dist(p, it) < 0.35 && curSameName(p.n, it.n)) return p;
+  return null;
+}
+/* more researched places: Wikivoyage's listings for the cities we're likely to visit in Thailand, Cambodia and Vietnam
+   (tools/wv-research.js), loaded after the app starts so it opens just as fast, then kept offline like the rest of places/ */
+const RESEARCH_FILES = ["th", "kh", "vn"];
+function addResearch(list){
+  let n = 0;
+  for (const p of list || []){ if (!p || CUR_BY_ID[p.id] || !isFinite(p.lat)) continue; prepCur(p); D.places.push(p); CUR_BY_ID[p.id] = p; curIndex(p); n++; }
+  return n;
+}
+const researchReady = typeof fetch === "undefined" ? Promise.resolve(0) : Promise.all(RESEARCH_FILES.map(cc =>
+  getJSON(`places/research/${cc}.json`, {timeout:30000}).then(j => addResearch(j && j.places)).catch(() => 0)))
+  .then(ns => { const n = ns.reduce((a, b) => a + b, 0); if (n && typeof afterResearch === "function") setTimeout(afterResearch, 0); return n; });
 
 /* ---------- OpenStreetMap places, loaded tile by tile ---------- */
 const PLACES_BASE = "places/";
