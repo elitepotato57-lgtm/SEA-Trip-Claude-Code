@@ -207,3 +207,16 @@ Wikivoyage page (read 23 Nov 2026), Seat 61, AirAsia's Full Moon Party guide and
   for 24 flights (the lowest one-way fare seen, shown as "from £x … check live"). Legs priced by phase 4 were left alone.
   Left without a price: 38 of 247, none on the route; every stop on the route has a fully priced way to the next (a unit test checks).
 - **Journey cards**: the "so far, not counting…" note wraps instead of running off the card.
+
+## 24 Nov 2026: Dylan's big list (filters, games, far more places)
+- Lists: a maximum price no longer hides places with no saved price (they follow under "No saved price"); this was the "only 3 places,
+  whatever the sort" bug. Reviews slider 1-5 stars (map star chips too); Villas & apartments chip; Activities sorts like the others; type a
+  town in Where are you looking? and Measured from; Munch shows Google's kind of place when OpenStreetMap doesn't say what's sold.
+- Fade: none on other pages; on the map it ends at the bottom of the search bar. Surf never says "none here". Transport maps taller.
+- Chiang Mai → Pai: the minivan (150–250 baht) is the cheapest dependable way; the 80-baht songthaew usually refuses foreigners (noted on the leg).
+- About 2,800 researched places from Wikivoyage's listings for Thailand, Cambodia and Vietnam (Phnom Penh 5 → about 70, Siem Reap 5 → 116,
+  Hanoi 6 → 110, Bangkok 40 → over 600), each with Wikivoyage as the source and its last-edit date, the price as written.
+- Games: drag/turn boats, a drawn sea, developer peek; Guess the price always with a photo and distances, typed guesses kept, photos
+  preloaded; Where in SEA; full-screen games with a two-step exit and held popups; Trip tally shared with the split-costs group.
+- Photos: Google's daily allowance per phone (30) is why only a few cards show photos; raising it costs money, so it's Dylan's call.
+  Free photos: tools/photo-near.js (Commons, by place and name) is running across about 12,500 places.

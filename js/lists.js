@@ -162,7 +162,7 @@ function placeCard(it, pt){
 const RADIUS_MAX = 50;                                   // the distance slider runs 1 to 50 km, then "50+" (0 = any distance)
 const radiusLabel = r => r ? `Within ${r} km` : "50+ km (any distance)";
 // a place we expect to show a real photo: a free photo link that passes the photo rules, one saved with a city, or one seen before
-const likelyPhoto = it => !!(it.pic || ((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
+const likelyPhoto = it => !!(it.pic || (typeof photoIndexNow !== "undefined" && photoIndexNow && photoIndexNow[it.id]) || ((it.wp || it.wd) && photoPlaceOk(it)) || (cph[it.id] && cph[it.id].src) || (typeof PACK_PHOTOS !== "undefined" && PACK_PHOTOS.has(it.id)));
 // the list opens on a card with a photo: the first such place in the current order moves to the top, the rest keep their order
 function photoFirst(items){
   const pt = focusPt(), first = items[0];

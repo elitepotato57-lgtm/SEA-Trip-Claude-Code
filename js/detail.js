@@ -269,7 +269,7 @@ const freePhoto = async it => {
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it);
   if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
-  const ix = (it.wp || it.wd || it.osm) ? await loadPhotoIndex() : null;
+  const ix = (it.wp || it.wd || it.osm || it.wv) ? await loadPhotoIndex() : null;
   if (ix){
     if (ix[it.id] && photoFileOk(it, ix[it.id])) return indexedPhoto(ix[it.id]);
     if (it.osm) return kindPhoto(it);     // the index covers every map place with a photo: none listed means a typical one

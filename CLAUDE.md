@@ -39,6 +39,10 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
 - `js/shell.js`: tabs, routing, sheets, location. `js/lists.js`: place cards and the Gaffs/Munch/Activities pages. Their Filters have
   "Measured from" (`distFromField`): the distance is from where you are or any trip destination (it sets the same `S.focus` as the place button).
   Rows that scroll sideways (`.scroller`, `.map-chips`, the price rows) never scroll up and down (`overflow-y:hidden`).
+  With a maximum price set, places with no saved price aren't hidden: they come after the ones that fit, under "No saved price"
+  (`listItems.fit`). Reviews is a 1-5 star slider (`st.minR`), shared with the map's star chips; `rate5` uses researched ratings, else
+  Google ratings the phone has seen. Every list sorts by Recommended, Nearest, Cheapest, Priciest, Best reviewed. Where are you looking? and
+  Measured from have a type-a-town box (`townMatches`, `bindTownBox`: trip towns offline, OpenStreetMap search with signal).
 - `js/map.js`: the MapLibre map, per-category clusters, the filter row (price, or transport type). The app opens on the map with
   nothing selected (`ui.mapCats` starts empty; Dylan, 23 Nov 2026). The statusfade fade is on the map only and stops above the search bar.
 - Surf: `D.surf` (hand-researched surf breaks with sources and photos in `img/surf/`, written by `node tools/surf-spots.js`) becomes
@@ -63,7 +67,12 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   (members only); invites `invites/{uid}/{from}` `{g,n,t,p}` (`gmInvited`/`openParty`); Trip tally `tally/{uid}` `{game:{w,p}}`
   (each finished game against someone counts once per phone; the loser's forfeit is kept on the phone). Turn games are written only by
   the player whose turn it is; Play again writes the new game and its number together (PATCH) so nothing is counted twice.
-  Each game shows its rules the first time (`gm-seen`), and from the ? button.
+  Each game shows its rules the first time (`gm-seen`), and from the ? button. A game fills the screen (`gmLockSheet`); leaving takes the X
+  then Leave (`gmAskLeave`); messages and invites wait until you leave (`gmHold`/`gmAfter`; I'm lost still pops up). Sink the fleet: drag a
+  boat to move it, tap to turn it (`sfMove`, `sfRotate`, `sfPlace`), drawn in CSS (`sfPart`), developers get a peek button. Guess the price
+  only uses rounds with a photo (`gpPhoto`; journeys show the destination's photo and the distance) and keeps a half-typed guess across
+  redraws; every photo is loaded at the start (`gmPreload`). "Where in SEA". The Trip tally is for the people in a split-costs group,
+  with the group's shared forfeit (`groups/{gid}/ff`).
 - Activities on the map open a row of sections like Essentials (`ui.doKinds`, `CHIPS.cool` with `kinds`), including **Boozas** (id `boozer`, no explainer toast): bars,
   pubs, clubs and bottle shops (kind `liquor`, added to built folders by `node tools/osm/add-booze.js`; extract.py keeps them now).
 - `js/funny.js`: funny mode (Settings › Funny mode, `S.funny`, off by default; nothing runs while it's off). Munch slides `img/tom-fried.jpg` across (no box, big text),
@@ -143,6 +152,13 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   numbers (`js/tools-more.js`; `GUIDES` entries can carry their own `checked` date), destinations (`D.cities`, `DEST_NOTE`, Explore sections
   in `js/places.js`/`js/lists.js`: Indonesia by island group, Malaysia and Malaysian Borneo). The app follows `S.country`.
   Researched gaffs/munch/activities (`D.places`) exist for Thailand, Indonesia's original 17 destinations and a few main cities elsewhere.
+  **Wikivoyage researched places** (24 Nov 2026): `node tools/wv-research.js` turns every Sleep/Eat/Drink/See/Do listing on the Wikivoyage
+  pages of ~55 cities in Thailand, Cambodia and Vietnam (Bangkok's district pages too) into researched places (`wv:true`, price as written
+  in `pt` and parsed into `p`, `hrs`, `ad`, `web`, the listing's photo as `img` → `pic`, never temples), about 2,800, in
+  `places/research/{th,kh,vn}.json`, loaded after start (`researchReady`, `addResearch` in js/places.js). A map place with the same name
+  within 350 m is the same place and only the researched one shows (`curTwin`). Listings without a position are placed only if exactly
+  one OpenStreetMap place nearby has that name. `node tools/photo-near.js` finds a place's own photo on Commons (taken within 250 m, the
+  title naming it) → `places/photos-near.json`, merged into photos.json with `--merge`.
 - `vendor/`: MapLibre, pdf.js, Tesseract.js (see `vendor/README.md`). `media/`: funny mode's video and sound (not pre-cached; saved on first use).
 - `tests/`: `run-all.js` (what `npm test` runs: unit and smoke with experiments off, then again with `SEA_EXP=all`), `unit.js` (logic, in Node), `smoke.js` (phone-size browser run; `EXPON` when all on), `load.js`, `serve.js`, `sweep.js` (not in npm test: taps hundreds of
   cards across every country and reports sheets that don't open, JS errors, photos lost between card and sheet), `check-new.js` (Map button, Boozer, typical photos, journey sheet).
