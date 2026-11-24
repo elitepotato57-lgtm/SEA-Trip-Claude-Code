@@ -265,7 +265,8 @@ function kindPhoto(it){
     credit:`Typical ${label}, not this exact place. Photo: ${by}, ${lic}, Wikimedia Commons`, typical:label};
 }
 const freePhoto = async it => {
-  if (it.pic) return {src:it.pic[0], page:it.pic[1], by:"Photo: Wikimedia Commons", credit:it.pic[2]};      // stored with the app: instant, works offline
+  if (localPic(it)) return {src:it.pic[0], page:it.pic[1], by:"Photo: Wikimedia Commons", credit:it.pic[2]};      // stored with the app: instant, works offline
+  if (it.pic){ const pk = photoPlaceOk(it) ? await savedPhoto(it) : null; return pk ? {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c} : {src:it.pic[0], page:it.pic[1], by:"Photo: Wikimedia Commons", credit:it.pic[2]}; }
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it);
   if (pk) return {src:pk.s, page:pk.p, by:"Photo: Wikimedia Commons", credit:pk.c};
@@ -297,8 +298,12 @@ const cphSave = debounce(() => {
 }, 800);
 const googleFor = it => !!googleKey() && it.c !== "move" && it.c !== "ess";     // Google only for stays, food and things to do
 const googlePhotoFor = it => googleFor(it) && !templeLike(it);                   // nobody has looked at Google's temple photos
+// a photo stored with the app (surf spots) is instant; one on the internet (a Wikivoyage listing's) comes after the city's saved photo,
+// so a place saved for offline shows its photo with no signal
+const localPic = it => it.pic && !/^https?:/.test(it.pic[0]);
 async function cardPhoto(it){
-  if (it.pic) return it.pic[0];
+  if (localPic(it)) return it.pic[0];
+  if (it.pic){ const pk = photoPlaceOk(it) ? await savedPhoto(it) : null; return pk ? pk.s : it.pic[0]; }
   if (!photoPlaceOk(it)) return null;
   const pk = await savedPhoto(it); if (pk) return pk.s;          // saved with a city: free, and works offline
   const hit = cph[it.id], now = Date.now();
