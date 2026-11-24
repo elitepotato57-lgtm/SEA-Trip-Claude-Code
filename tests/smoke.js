@@ -932,7 +932,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     const tp = await page.evaluate(() => ({on:S.tripOn, sub:ui.sub, map:!!document.querySelector("#trkMap canvas"), w:document.documentElement.scrollWidth}));
     ok(!tp.on && /^trips\?/.test(tp.sub) && tp.map && tp.w <= 393, "Trips: End trip opens the trip with its route on a map " + JSON.stringify(tp));
     await page.setInputFiles("#trkFiles", [path.join(__dirname, "fixtures", "photo-gps.jpg"), path.join(__dirname, "fixtures", "photo-nogps.jpg")]);
-    await page.waitForTimeout(4000);
+    // the pins go on once the trip's map has loaded, which can take a while on a busy machine
+    await page.waitForFunction(() => document.querySelectorAll("#trkMap .trk-pin").length >= 2, null, {timeout:15000}).catch(() => {});
     const ph = await page.evaluate(() => ({pins:document.querySelectorAll("#trkMap .trk-pin").length, off:document.querySelectorAll(".trk-grid .trk-thumb").length, note:document.querySelector("#trkAddNote").textContent}));
     ok(ph.pins === 2 && ph.off === 0, "Trips: both photos go on the map (one by its own location, one by the route at that time) " + JSON.stringify(ph));
     await page.click("#trkPh"); await page.waitForTimeout(200);
