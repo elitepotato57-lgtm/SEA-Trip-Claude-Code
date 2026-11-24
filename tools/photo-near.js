@@ -58,16 +58,22 @@ const nearCity = (cc, p) => (CITIES[cc] || []).some(([lat, lng, r]) => A.dist({l
   console.log(`${todo.length} places to look for a photo of`);
   const out = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : {f:{}, tried:{}};
   let found = 0, k = 0;
-  for (const p of todo){
-    k++; if (out.tried[p.id]) continue;
-    const w = words(p.n); if (!w.length){ out.tried[p.id] = 1; continue; }
+  const one = async p => {
+    const w = words(p.n); if (!w.length){ out.tried[p.id] = 1; return; }
     const j = await getJSON(`https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=${p.lat}%7C${p.lng}&gsradius=250&gsnamespace=6&gslimit=60&format=json`);
+    if (!j) return;                                                     // no answer: tried again next run
     out.tried[p.id] = 1;
-    const files = ((j && j.query && j.query.geosearch) || []).map(x => x.title.replace(/^File:/, "")).filter(t => /\.(jpe?g|png|webp)$/i.test(t) && !/buddha|map|plan|logo|diagram|sign\b/i.test(t));
+    const files = ((j.query && j.query.geosearch) || []).map(x => x.title.replace(/^File:/, "")).filter(t => /\.(jpe?g|png|webp)$/i.test(t) && !/buddha|map|plan|logo|diagram|sign\b/i.test(t));
     const hit = files.find(t => { const ft = " " + fold(t.replace(/\.\w+$/, "")) + " "; return w.every(x => ft.includes(" " + x + " ")); });
     if (hit){ out.f[p.id] = hit; found++; }
-    if (k % 50 === 0){ fs.writeFileSync(OUT, JSON.stringify(out)); console.log(`  ${k}/${todo.length}, ${found} photos found`); }
-    await sleep(120);
+  };
+  // six at a time (Commons copes; each waits its turn on a "slow down")
+  const left = todo.filter(p => !out.tried[p.id]);
+  console.log(`${left.length} still to look at`);
+  for (let i = 0; i < left.length; i += 6){
+    await Promise.all(left.slice(i, i + 6).map(one));
+    k = i + 6;
+    if (k % 120 === 0){ fs.writeFileSync(OUT, JSON.stringify(out)); console.log(`  ${k}/${left.length}, ${found} photos found`); }
   }
   fs.writeFileSync(OUT, JSON.stringify(out));
   console.log(`done: ${Object.keys(out.f).length} photos (${found} new this run)`);
