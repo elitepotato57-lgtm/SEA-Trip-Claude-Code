@@ -52,6 +52,40 @@ function sfRandomFleet(){
     if (ok) return g.join("");
   }
 }
+// the boats in a fleet: [{si, cells, across}]
+const sfBoats = g => SF_SHIPS.map((len, si) => { const cells = [...g].map((v, i) => v === String(si) ? i : -1).filter(i => i >= 0); return {si, cells, across:cells.length < 2 || cells[1] - cells[0] === 1}; });
+// boat si with its first cell at row r, column c, across or down: the new fleet, or null if it runs off the sea or touches another boat
+function sfPlace(g, si, r, c, across){
+  const len = SF_SHIPS[si];
+  if (r < 0 || c < 0 || (across ? c + len > SF_N || r >= SF_N : r + len > SF_N || c >= SF_N)) return null;
+  const a = [...g].map(v => v === String(si) ? "." : v);
+  const cells = Array.from({length:len}, (_, k) => across ? r * SF_N + c + k : (r + k) * SF_N + c);
+  for (const i of cells){
+    const y = Math.floor(i / SF_N), x = i % SF_N;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){ const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < SF_N && xx >= 0 && xx < SF_N && a[yy * SF_N + xx] !== ".") return null; }
+  }
+  cells.forEach(i => a[i] = String(si));
+  return a.join("");
+}
+// tap a boat: it turns round, keeping the tapped square in it where it fits (null if there's no room)
+function sfRotate(g, si, tapped){
+  const b = sfBoats(g)[si], len = SF_SHIPS[si], across = !b.across, at = b.cells.indexOf(tapped) >= 0 ? b.cells.indexOf(tapped) : 0;
+  const r0 = Math.floor((b.cells[at] != null ? b.cells[at] : b.cells[0]) / SF_N), c0 = (b.cells[at] != null ? b.cells[at] : b.cells[0]) % SF_N;
+  const order = [at].concat(Array.from({length:len}, (_, k) => k).filter(k => k !== at));
+  for (const k of order){ const t = sfPlace(g, si, across ? r0 : r0 - k, across ? c0 - k : c0, across); if (t) return t; }
+  return null;
+}
+// drag a boat: the square it was picked up by goes to the square under the finger
+function sfMove(g, si, grabbed, to){
+  const b = sfBoats(g)[si], k = Math.max(0, b.cells.indexOf(grabbed)), r = Math.floor(to / SF_N), c = to % SF_N;
+  return sfPlace(g, si, b.across ? r : r - k, b.across ? c - k : c, b.across);
+}
+// how a square of a boat is drawn: across or down, the bow (first square) and the stern (last)
+function sfPart(g, i){
+  const v = g[i]; if (!v || v === ".") return "";
+  const x = i % SF_N, L = x > 0 && g[i - 1] === v, R = x < SF_N - 1 && g[i + 1] === v, U = i >= SF_N && g[i - SF_N] === v, Dn = g[i + SF_N] === v, across = L || R;
+  return `ship ${across ? "h" : "v"}${(across ? !L : !U) ? " bow" : ""}${(across ? !R : !Dn) ? " stern" : ""}`;
+}
 const sfShipsLeft = (fleet, shots) => SF_SHIPS.filter((len, si) => [...fleet].some((v, i) => v === String(si) && shots[i] !== "x")).length;
 const sfAllSunk = (fleet, shots) => !!fleet && [...fleet].every((v, i) => v === "." || shots[i] === "x");
 const sfSunkCells = (fleet, shots) => { const s = new Set(); SF_SHIPS.forEach((len, si) => { const cells = [...fleet].map((v, i) => v === String(si) ? i : -1).filter(i => i >= 0); if (cells.every(i => shots[i] === "x")) cells.forEach(i => s.add(i)); }); return s; };
@@ -65,11 +99,21 @@ const ldTotal = s => ldAlive(s).reduce((t, u) => t + s.n[u], 0);
 const ldOk = (s, q, f) => q >= 1 && f >= 1 && f <= 6 && q <= ldTotal(s) && (!s.bid || q > s.bid.q || (q === s.bid.q && f > s.bid.f));
 const ldBidText = b => `${gmWord(b.q)} ${b.f}${b.q === 1 ? "" : "s"}`;
 /* ---------- 4 and 5: the quiz games (the same rounds: everyone answers, the closest wins) ---------- */
-// Guess the price: only researched prices (places with a price, journeys with a fare), never estimates
+// Guess the price: only researched prices (places with a price, journeys with a fare), never estimates, and only ones with a
+// photo (Dylan, 24 Nov 2026: "otherwise it's impossible"): a place's own photo (the photo rules apply: no temples, no Buddhas),
+// and for a journey, the photo of where it goes, with the distance
+function gpPhoto(p){
+  if (p.pic) return {src:p.pic[0], by:"Photo: Wikimedia Commons"};
+  const f = typeof photoIndexNow !== "undefined" && photoIndexNow ? photoIndexNow[p.id] : null;
+  if (f && typeof photoFileOk === "function" && photoFileOk(p, f) && photoPlaceOk(p)) return {src:commonsThumb(f, 640) || indexedPhoto(f).src, by:"Photo: Wikimedia Commons"};
+  return null;
+}
+const gpEdgeDest = e => { const h = Object.values(D.net.hubs).find(x => x[0] === e.b); return h ? (DEST_IMG[h[1]] ? h[1] : DEST_IMG[h[4]] ? h[4] : null) : null; };
 function gpQuestions(){
-  const pl = D.places.filter(p => p.p && p.p.length && p.cur && p.cur !== "GBP" && !/budget|evening/.test(p.pu || "")).map(p => "p:" + p.id);
-  const ed = D.net.edges.map((e, i) => e.p && e.p.length && e.cur && e.cur !== "GBP" ? "e:" + i : "").filter(Boolean);
-  return gmShuffle(gmShuffle(pl).slice(0, 4).concat(gmShuffle(ed).slice(0, 2))).slice(0, 5);
+  const pl = D.places.filter(p => p.p && p.p.length && p.p[0] > 0 && p.cur && p.cur !== "GBP" && !/budget|evening/.test(p.pu || "") && gpPhoto(p)).map(p => "p:" + p.id);
+  const ed = D.net.edges.map((e, i) => e.p && e.p.length && e.cur && e.cur !== "GBP" && !e.from && gpEdgeDest(e) ? "e:" + i : "").filter(Boolean);
+  const nPl = Math.min(pl.length, ed.length ? 3 : 5);
+  return gmShuffle(gmShuffle(pl).slice(0, nPl).concat(gmShuffle(ed).slice(0, 5 - nPl))).slice(0, 5);
 }
 const gpHub = id => { const h = Object.values(D.net.hubs).find(x => x[0] === id); return h ? h[1] : id; };
 function gpItem(key){
@@ -77,11 +121,14 @@ function gpItem(key){
   if (t === "p"){
     const p = D.places.find(x => x.id === id); if (!p) return null;
     const what = p.c === "gaff" ? (p.pu || "per night").replace(/, from$/, "") : p.c === "cool" ? (p.pu || "entry") : (p.pu || "per dish");
-    return {q:`${p.n}, ${p.city}`, sub:what, p:p.p, cur:p.cur, ic:p.c === "gaff" ? "bed" : p.c === "munch" ? "food" : "ticket", src:p.rs || (p.src && p.src[0] && p.src[0][0]) || ""};
+    return {q:`${p.n}, ${p.city}`, sub:what, p:p.p, cur:p.cur, ic:p.c === "gaff" ? "bed" : p.c === "munch" ? "food" : "ticket", src:p.rs || (p.src && p.src[0] && p.src[0][0]) || "", img:gpPhoto(p)};
   }
   const e = D.net.edges[+id]; if (!e) return null;
   const ic = /flight|plane/i.test(e.mode) ? "plane" : /train/i.test(e.mode) ? "train" : /ferry|boat|speed/i.test(e.mode) ? "ship" : "bus";
-  return {q:`${e.mode} from ${gpHub(e.a)} to ${gpHub(e.b)}`, sub:e.op ? `${e.op}, one way` : "one way", p:e.p, cur:e.cur, ic, src:(e.src && e.src[0] && e.src[0][0]) || ""};
+  const ha = Object.values(D.net.hubs).find(x => x[0] === e.a), hb = Object.values(D.net.hubs).find(x => x[0] === e.b);
+  const km = ha && hb ? Math.round(dist({lat:ha[2], lng:ha[3]}, {lat:hb[2], lng:hb[3]})) : null, dn = gpEdgeDest(e);
+  return {q:`${e.mode} from ${gpHub(e.a)} to ${gpHub(e.b)}`, sub:`${km ? `About ${km} km as the crow flies${e.dur ? `, ${fRange(e.dur[0], e.dur[1])}` : ""}. ` : ""}${e.op ? `${e.op}, one way` : "One way"}`, p:e.p, cur:e.cur, ic, src:(e.src && e.src[0] && e.src[0][0]) || "",
+    img:dn ? {src:DEST_IMG[dn], by:`Photo: ${dn}, where it goes`} : null};
 }
 // how far off a guess is: 0 inside the real range, else the gap as a share of the price
 function gpOff(item, g){ const lo = Math.min(...item.p), hi = Math.max(...item.p); return g >= lo && g <= hi ? 0 : g < lo ? (lo - g) / lo : (g - hi) / hi; }
@@ -89,6 +136,11 @@ function gpOff(item, g){ const lo = Math.min(...item.p), hi = Math.max(...item.p
 function wwQuestions(){ return gmShuffle(Object.keys(DEST_IMG).filter(n => D.cities.some(c => c[0] === n))).slice(0, 5); }
 const wwCity = n => { const c = D.cities.find(x => x[0] === n); return c ? {n, lat:c[1], lng:c[2]} : null; };
 
+// every photo of the game, asked for at the start so each round's shows at once
+function gmPreload(srcs){
+  const want = srcs.filter(Boolean).join("|"); if (!want || gmCache.pre === want) return;
+  gmCache.pre = want; gmCache.preImgs = srcs.filter(Boolean).map(s => { const im = new Image(); im.decoding = "async"; im.src = s; return im; });
+}
 // the same scoring for both quiz games: per round, the closest answer(s) win a point
 function quizScores(game, s){
   const q = gmArr(s.q), sc = {}; gmArr(s.p).forEach(u => sc[u] = 0);
@@ -108,7 +160,7 @@ const GAMES = {
     init:p => ({p:gmShuffle(p), b:".".repeat(C4_W * C4_H), t:0, last:-1}),
     result(s){ const w = c4Win(s.b); if (w) return {w:[gmArr(s.p)[w.v === "a" ? 0 : 1]]}; if (!s.b.includes(".")) return {w:[]}; return null; }},
   fleet: {n:"Sink the fleet", ic:"🚢💥", min:2, max:2, d:"Find and sink their boats",
-    rules:["Hide your 4 boats: tap Shuffle until you like it, then Ready.", "Take turns tapping their sea to fire. 🔥 is a hit, 💦 is a miss.", "Sink all their boats first to win."],
+    rules:["Hide your 4 boats: drag them where you want and tap one to turn it round (or Shuffle), then Ready.", "Take turns tapping their sea to fire: a burst of fire is a hit, a splash is a miss.", "Sink all their boats first to win."],
     init:p => ({p:gmShuffle(p), t:0, f:{}, h:{}}),
     result(s){ const p = gmArr(s.p); for (let k = 0; k < 2; k++){ const them = p[1 - k]; if (sfAllSunk((s.f || {})[them], ((s.h || {})[them]) || "")) return {w:[p[k]]}; } return null; }},
   dice: {n:"Liar’s dice", ic:"🎲🤥", min:2, max:6, d:"Bluff about everyone’s dice",
@@ -121,7 +173,7 @@ const GAMES = {
     init:p => ({p, q:gpQuestions(), i:0, g:{}}),
     off(key, v){ const it = gpItem(key); return it ? gpOff(it, +v) : Infinity; },
     result(s){ if ((s.i || 0) < gmArr(s.q).length) return null; const sc = quizScores(this, s), top = Math.max(...Object.values(sc)); return {w:top > 0 ? Object.keys(sc).filter(u => sc[u] === top) : []}; }},
-  where: {n:"Where in the world", ic:"📸🗺️", min:1, max:8, d:"Guess the place from a photo",
+  where: {n:"Where in SEA", ic:"📸🗺️", min:1, max:8, d:"Guess the place from a photo",
     rules:["5 rounds. You see a photo of a trip destination.", "Tap the map where you think it is, then Lock in.", "The closest pin wins the round. Most rounds won wins."],
     init:p => ({p, q:wwQuestions(), i:0, g:{}}),
     off(key, v){ const c = wwCity(key), a = String(v).split(","); return c && a.length === 2 ? dist(c, {lat:+a[0], lng:+a[1]}) : Infinity; },
@@ -189,6 +241,7 @@ async function openParty(pid){
   openSheet(`<div class="sheet-head"><div><h2 id="gm-t">${g.ic} ${esc(g.n)}</h2><div class="note" id="gm-sub"></div></div>
       <div class="row gm-headbtns"><button class="icon-btn gm-help" type="button" id="gmHelp" aria-label="How to play">?</button><button class="icon-btn" data-close aria-label="Close">${icon("x")}</button></div></div>
     <div class="gm" id="gmBox" data-pid="${esc(pid)}"><p class="note">Loading…</p></div>`, "gm-t");
+  gmLockSheet();
   $("#gmHelp").onclick = () => gmShowRules(party.g, $("#sheetRoot .sheet"));
   if (!gmSeen(party.g)) gmShowRules(party.g, $("#sheetRoot .sheet"));
   if (!(party.j || {})[me.uid]) frDb("PUT", `parties/${pid}/j/${me.uid}`, true).catch(() => {});
@@ -200,7 +253,7 @@ async function openParty(pid){
     set:(path, v) => { party = frSetIn(party, path, v); const w = ctx.put(path, v); paint(); return w; },
     patch:obj => { for (const [k, v] of Object.entries(obj)) party = frSetIn(party, k, v); const w = frDb("PATCH", `parties/${pid}`, obj).catch(frFail); paint(); return w; }};
   const gone = () => { const box = $("#gmBox"); return !box || box.dataset.pid !== pid; };
-  const stop = () => { clearInterval(watch); if (gmStop && gmPid === pid){ gmStop(); gmStop = null; gmEnd(); } };
+  const stop = () => { clearInterval(watch); if (gmStop && gmPid === pid){ gmStop(); gmStop = null; gmEnd(); } gmAfter(); };
   const paint = () => {
     if (gone()){ stop(); return; }
     try { gmPaint($("#gmBox"), ctx); } catch(e){ console.error(e); }
@@ -210,6 +263,28 @@ async function openParty(pid){
   const watch = setInterval(() => { if (gone()) stop(); }, 1500);       // closed the sheet: stop following the game
   paint();
 }
+/* A game holds the whole screen (Dylan, 24 Nov 2026: a notification stopped his game): tapping outside does nothing, the X
+   asks first, and messages and invites wait until you leave (with a small note). "I'm lost" alerts still pop up at once. */
+const gmPlaying = () => typeof document !== "undefined" && !!document.querySelector("#gmBox");
+let gmWaiting = [];
+function gmLockSheet(){
+  const sh = $("#sheetRoot .sheet"), bd = $("#sheetRoot .backdrop"); if (!sh) return;
+  sh.classList.add("gm-sheet");
+  if (bd){ bd.removeAttribute("data-close"); bd.onclick = null; }
+  const x = sh.querySelector(".sheet-head [data-close]"); if (x){ x.removeAttribute("data-close"); x.onclick = gmAskLeave; }
+}
+function gmAskLeave(){
+  const sh = $("#sheetRoot .sheet"); if (!sh || sh.querySelector(".gm-leave")) return;
+  sh.insertAdjacentHTML("beforeend", `<div class="gm-leave" role="alertdialog" aria-labelledby="gm-lv"><b id="gm-lv">Leave the game?</b>
+    <p class="note">It carries on without you; come back to it from Friends › Play.</p>
+    <div class="row"><button class="btn" type="button" id="gmStay">Keep playing</button><button class="btn danger" type="button" id="gmLeave">Leave</button></div></div>`);
+  $("#gmStay").onclick = () => { const l = sh.querySelector(".gm-leave"); if (l) l.remove(); };
+  $("#gmLeave").onclick = () => { closeDetail(); gmAfter(); };
+  $("#gmStay").focus();
+}
+// something arrived mid-game: a small note now, the popup once the game is closed
+function gmHold(what, run){ gmWaiting.push(run); toast(`${what}: it’ll pop up when you leave the game`); }
+function gmAfter(){ if (gmPlaying() || !gmWaiting.length) return; const w = gmWaiting; gmWaiting = []; setTimeout(() => w.forEach(f => { try { f(); } catch(e){} }), 400); }
 // when a game closes or a new one starts: the Where in the world map, and a dice roll still waiting to be sent
 function gmEnd(){ clearTimeout(gmCache.rollT); if (gmCache.mapI){ try { gmCache.mapI.remove(); } catch(e){} gmCache.mapI = null; } }
 const gmName = (ctx, u) => u === ctx.me ? "You" : esc(frState().list[u] ? frNameOf(u) : ((ctx.party.m || {})[u] || "Friend"));
@@ -268,6 +343,32 @@ function paintC4(box, ctx, s, res){
     ctx.set("s", Object.assign({}, s, {b:nb, t:1 - (s.t || 0), last:i}));
   });
 }
+// placing boats by finger: press on a boat and drag it (a ghost shows where it would go, red if it can't), or tap it to turn it
+function sfBindPlace(box, redraw){
+  const grid = box.querySelector("#sfPlace"); if (!grid) return;
+  let drag = null;
+  const cellAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest && el.closest("#sfPlace [data-i]") ? +el.closest("[data-i]").dataset.i : null; };
+  const show = g2 => grid.querySelectorAll("[data-i]").forEach(c => { const i = +c.dataset.i; c.className = "sf-c " + sfPart(g2 || gmCache.fleet, i) + (drag && g2 && g2[i] === String(drag.si) ? " ghost" : ""); });
+  grid.addEventListener("pointerdown", e => {
+    const i = cellAt(e.clientX, e.clientY); if (i == null || gmCache.fleet[i] === ".") return;
+    drag = {si:+gmCache.fleet[i], from:i, at:i, moved:false, ok:null}; grid.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  grid.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const i = cellAt(e.clientX, e.clientY); if (i == null || i === drag.at) return;
+    drag.at = i; drag.moved = true;
+    drag.ok = sfMove(gmCache.fleet, drag.si, drag.from, i);
+    grid.classList.toggle("bad", !drag.ok); show(drag.ok);
+  });
+  const end = () => {
+    if (!drag) return;
+    const d = drag; drag = null; grid.classList.remove("bad");
+    if (!d.moved){ const t = sfRotate(gmCache.fleet, d.si, d.from); if (t) gmCache.fleet = t; else toast("No room to turn it round there"); }
+    else if (d.ok) gmCache.fleet = d.ok;
+    redraw();
+  };
+  grid.addEventListener("pointerup", end); grid.addEventListener("pointercancel", end);
+}
 function paintFleet(box, ctx, s, res){
   const p = gmArr(s.p), me = ctx.me, them = p.find(u => u !== me), f = s.f || {}, h = s.h || {};
   const blank = ".".repeat(SF_N * SF_N);
@@ -275,28 +376,33 @@ function paintFleet(box, ctx, s, res){
   if (!f[me] || !f[them]){
     if (!gmCache.fleet) gmCache.fleet = sfRandomFleet();
     const placed = !!f[me];
+    const fl = f[me] || gmCache.fleet;
     box.innerHTML = `<p class="gm-msg">${placed ? `Ready. Waiting for ${gmName(ctx, them)} to hide their boats…` : "Hide your boats"}</p>
-      <div class="sf-grid big mine">${[...(f[me] || gmCache.fleet)].map(v => `<span class="sf-c ${v === "." ? "" : "ship"}"></span>`).join("")}</div>
+      ${placed ? "" : `<p class="note gm-c">Drag a boat to move it, tap it to turn it round. Boats can’t touch.</p>`}
+      <div class="sf-grid big mine ${placed ? "" : "edit"}" id="sfPlace">${[...fl].map((v, i) => `<span class="sf-c ${sfPart(fl, i)}" data-i="${i}"></span>`).join("")}</div>
       ${placed ? "" : `<div class="row gm-row"><button class="btn" type="button" id="sfShuffle">Shuffle</button><button class="btn primary" type="button" id="sfReady">Ready</button></div>`}`;
     if (!placed){
       $("#sfShuffle").onclick = () => { gmCache.fleet = sfRandomFleet(); paintFleet(box, ctx, s, res); };
       $("#sfReady").onclick = () => ctx.set(`s/f/${me}`, gmCache.fleet);
+      sfBindPlace(box, () => paintFleet(box, ctx, s, res));
     }
     return;
   }
   const turn = p[s.t || 0], myTurn = !res && turn === me;
   const theirShots = h[them] || blank, myShots = h[me] || blank;           // h[x]: shots fired at x's sea
   const sunkThem = sfSunkCells(f[them], theirShots), sunkMe = sfSunkCells(f[me], myShots);
+  const peek = S.dev && gmCache.peek;
   box.innerHTML = `<p class="gm-msg">${res ? "" : myTurn ? "Your turn: fire at their sea" : `${gmName(ctx, them)} is aiming…`}</p>
-    <div class="sf-lbl">${gmName(ctx, them)}’s sea <small>${sfShipsLeft(f[them], theirShots)} of ${SF_SHIPS.length} boats left</small></div>
-    <div class="sf-grid big ${myTurn ? "go" : ""}">${[...theirShots].map((v, i) => `<button type="button" class="sf-c ${v === "x" ? "hit" : v === "o" ? "miss" : ""} ${sunkThem.has(i) ? "sunk" : ""} ${res && v === "." && f[them][i] !== "." ? "ship" : ""}" data-sf="${i}" ${myTurn && v === "." ? "" : "disabled"} aria-label="Row ${Math.floor(i / SF_N) + 1}, column ${i % SF_N + 1}${v === "x" ? ", hit" : v === "o" ? ", miss" : ""}">${v === "x" ? "🔥" : v === "o" ? "💦" : ""}</button>`).join("")}</div>
+    <div class="sf-lbl">${S.dev ? `<button class="sf-peek" type="button" id="sfPeek" aria-pressed="${!!peek}" aria-label="Developer: show their boats">${icon("search","i xs")}</button>` : ""}${gmName(ctx, them)}’s sea <small>${sfShipsLeft(f[them], theirShots)} of ${SF_SHIPS.length} boats left</small></div>
+    <div class="sf-grid big ${myTurn ? "go" : ""}">${[...theirShots].map((v, i) => `<button type="button" class="sf-c ${v === "x" ? "hit" : v === "o" ? "miss" : ""} ${sunkThem.has(i) ? "sunk " + sfPart(f[them], i) : ""} ${(res || peek) && v === "." && f[them][i] !== "." ? sfPart(f[them], i) + (peek && !res ? " peek" : "") : ""}" data-sf="${i}" ${myTurn && v === "." ? "" : "disabled"} aria-label="Row ${Math.floor(i / SF_N) + 1}, column ${i % SF_N + 1}${v === "x" ? ", hit" : v === "o" ? ", miss" : ""}">${v === "x" ? "🔥" : v === "o" ? "💦" : ""}</button>`).join("")}</div>
     <div class="sf-lbl">Your fleet <small>${sfShipsLeft(f[me], myShots)} of ${SF_SHIPS.length} left</small></div>
-    <div class="sf-grid small">${[...f[me]].map((v, i) => `<span class="sf-c ${v === "." ? "" : "ship"} ${myShots[i] === "x" ? "hit" : myShots[i] === "o" ? "miss" : ""} ${sunkMe.has(i) ? "sunk" : ""}">${myShots[i] === "x" ? "🔥" : myShots[i] === "o" ? "·" : ""}</span>`).join("")}</div>`;
+    <div class="sf-grid small">${[...f[me]].map((v, i) => `<span class="sf-c ${sfPart(f[me], i)} ${myShots[i] === "x" ? "hit" : myShots[i] === "o" ? "miss" : ""} ${sunkMe.has(i) ? "sunk" : ""}"></span>`).join("")}</div>`;
+  const pk = $("#sfPeek"); if (pk) pk.onclick = () => { gmCache.peek = !gmCache.peek; paintFleet(box, ctx, s, res); };
   if (!myTurn) return;
   box.querySelectorAll("[data-sf]:not([disabled])").forEach(b => b.onclick = () => {
     const i = +b.dataset.sf, hit = f[them][i] !== ".";
     const shots = theirShots.slice(0, i) + (hit ? "x" : "o") + theirShots.slice(i + 1);
-    toast(hit ? (sfSunkCells(f[them], shots).has(i) ? "Hit and sunk! 💥" : "Hit! 🔥") : "Miss 💦");
+    toast(hit ? (sfSunkCells(f[them], shots).has(i) ? "Hit and sunk!" : "Hit!") : "Miss");
     ctx.set("s", Object.assign({}, s, {h:Object.assign({}, h, {[them]:shots}), t:1 - (s.t || 0)}));
   });
 }
@@ -367,10 +473,17 @@ function paintQuiz(box, ctx, s, res){
       <ol class="gm-ans">${offs.map(([u, o]) => `<li class="${o === best ? "win" : ""}">${gmName(ctx, u)}: ${ww ? `${Math.round(o)} km away` : `${esc(fmtG(gs[u]))}${o === 0 ? " · spot on!" : ""}`}${o === best ? " 🏆" : ""}</li>`).join("")}</ol>
       <button class="btn primary wide" type="button" id="gmNext">${i + 1 < q.length ? "Next round" : "See the winner"}</button></div>`;
   };
+  gmPreload(q.map(k => ww ? DEST_IMG[k] : (gpItem(k) || {}).img).map(x => x && (x.src || x)));
   if (!ww){
-    box.innerHTML = scores + head + `<div class="gp-card"><span class="gp-ic">${icon(item.ic)}</span><div><b>${esc(item.q)}</b><div class="note">${esc(item.sub)}</div></div></div>`
+    // what you'd typed stays when someone else's guess arrives and the screen redraws
+    const typed = $("#gpG"); if (typed && typed.value) gmCache.draft = {i, v:typed.value, f:document.activeElement === typed};
+    const ph = item.img ? `<figure class="gp-photo"><img src="${esc(item.img.src)}" alt="" decoding="async"><figcaption>${esc(item.img.by)}</figcaption></figure>` : "";
+    box.innerHTML = scores + head + ph + `<div class="gp-card"><span class="gp-ic">${icon(item.ic)}</span><div><b>${esc(item.q)}</b><div class="note">${esc(item.sub)}</div></div></div>`
       + (all ? reveal() : mine != null ? `<p class="gm-msg">You said ${esc(fmtG(mine))}. Waiting for ${p.filter(u => gs[u] == null).map(u => gmName(ctx, u)).join(", ")}…</p>`
         : `<div class="gp-in"><span>${esc(SYM[item.cur] || item.cur)}</span><input id="gpG" type="number" inputmode="decimal" min="0" step="any" placeholder="Your guess" aria-label="Your guess in ${esc(item.cur)}"><button class="btn primary" type="button" id="gpGo">Lock in</button></div>`);
+    const gIn = $("#gpG");
+    if (gIn && gmCache.draft && gmCache.draft.i === i){ gIn.value = gmCache.draft.v; if (gmCache.draft.f){ gIn.focus(); try { gIn.setSelectionRange(gIn.value.length, gIn.value.length); } catch(e){} } }
+    if (gIn) gIn.oninput = () => { gmCache.draft = {i, v:gIn.value, f:true}; };
     const go = $("#gpGo");
     if (go){ const send = () => { const v = parseFloat($("#gpG").value); if (!(v >= 0)){ toast("Type a price"); return; } ctx.set(`s/g/${i}/${me}`, v); }; go.onclick = send; $("#gpG").onkeydown = e => { if (e.key === "Enter") send(); }; }
   } else {
@@ -437,6 +550,7 @@ function wwPaintMap(ctx, ans){
 function gmInvited(uid, inv){
   if (!inv || !inv.p || !GAMES[inv.g]) return;
   if (gmPid === inv.p && $("#gmBox")) return;
+  if (gmPlaying()){ gmHold(`${frNameOf(uid)} wants to play ${GAMES[inv.g].n}`, () => gmInvited(uid, inv)); return; }
   askConfirm(`${frNameOf(uid)} wants to play ${GAMES[inv.g].n}`, "Play").then(yes => { if (yes) openParty(inv.p); });
 }
 
@@ -454,18 +568,36 @@ TOOL_PAGES["friends-play"] = root => {
   paintTally();
   paintFriendsLive(); frLoop();
 };
+/* The Trip tally is for the same people as a split-costs group (Dylan, 24 Nov 2026), with the group's shared forfeit;
+   no group yet: you and your friends, and the forfeit kept on this phone. */
+const GM_GROUP = "gm-group";
 async function paintTally(){
   const el = $("#gm-tally"); if (!el) return;
   const me = frMyId() || (await frMe().catch(() => null) || {}).uid, f = frState();
-  const ids = [me, ...Object.keys(f.list)].filter(Boolean);
+  const groups = typeof liveGroupsCached === "function" ? liveGroupsCached() : [];
+  const gid = groups.some(g => g.id === lsGet(GM_GROUP, "")) ? lsGet(GM_GROUP, "") : groups.length ? groups[0].id : "";
+  let members = null, groupFf = null;
+  if (gid){
+    const g = await frDb("GET", `groups/${gid}`).catch(() => null);
+    members = g && g.members ? Object.keys(g.members) : Object.keys((liveStore()[gid] || {}).members || {});
+    groupFf = g && typeof g.ff === "string" ? g.ff : null;
+  }
+  const nameOf = u => frState().list[u] ? frNameOf(u) : gid && liveStore()[gid] && (liveStore()[gid].members || {})[u] || "Friend";
+  const ids = (members && members.length ? [me, ...members.filter(u => u !== me)] : [me, ...Object.keys(f.list)]).filter(Boolean);
   const rows = await Promise.all(ids.map(async u => [u, await frDb("GET", `tally/${u}`).catch(() => null) || {}]));
   if (!$("#gm-tally")) return;
   const tot = t => GAME_ORDER.reduce((a, g) => [a[0] + ((t[g] || {}).w || 0), a[1] + ((t[g] || {}).p || 0)], [0, 0]);
   const list = rows.map(([u, t]) => ({u, t, w:tot(t)[0], p:tot(t)[1]})).sort((a, b) => b.w - a.w || a.p - b.p);
-  const forfeit = (lsGet("gm-forfeit", "") || "").trim() || "Bottom of the table buys the next round";
-  el.innerHTML = `<h2>Trip tally</h2><p class="note">Wins across every game, all trip.</p>
+  const forfeit = (groupFf != null ? groupFf : (lsGet("gm-forfeit", "") || "")).trim() || "Bottom of the table buys the next round";
+  el.innerHTML = `<h2>Trip tally</h2><p class="note">Wins across every game, all trip${gid ? ", for the people in your split-costs group" : ""}.</p>
+    ${groups.length > 1 ? `<label class="field">Group<select id="gm-grp">${groups.map(g => `<option value="${esc(g.id)}" ${g.id === gid ? "selected" : ""}>${esc(g.n)}</option>`).join("")}</select></label>` : ""}
     <div class="gm-tally"><div class="gm-th"><span></span><span>Name</span>${GAME_ORDER.map(g => `<span title="${esc(GAMES[g].n)}">${GAMES[g].ic.slice(0, 2)}</span>`).join("")}<span>Wins</span></div>
-    ${list.map((r, k) => `<div class="gm-tr ${r.u === me ? "me" : ""}"><span>${k === 0 && r.w ? "👑" : k + 1}</span><span>${r.u === me ? "You" : esc(frNameOf(r.u))}</span>${GAME_ORDER.map(g => `<span>${((r.t[g] || {}).w) || 0}</span>`).join("")}<span><b>${r.w}</b><small>/${r.p}</small></span></div>`).join("")}</div>
+    ${list.map((r, k) => `<div class="gm-tr ${r.u === me ? "me" : ""}"><span>${k === 0 && r.w ? "👑" : k + 1}</span><span>${r.u === me ? "You" : esc(nameOf(r.u))}</span>${GAME_ORDER.map(g => `<span>${((r.t[g] || {}).w) || 0}</span>`).join("")}<span><b>${r.w}</b><small>/${r.p}</small></span></div>`).join("")}</div>
     <label class="field gm-forfeit">Loser’s forfeit<input id="gm-ff" type="text" maxlength="80" value="${esc(forfeit)}" aria-label="Loser’s forfeit"></label>`;
-  $("#gm-ff").onchange = e => { lsSet("gm-forfeit", e.target.value.trim()); toast("Forfeit saved on your phone"); };
+  $("#gm-ff").onchange = async e => {
+    const v = e.target.value.trim().slice(0, 80);
+    if (gid){ try { await frDb("PUT", `groups/${gid}/ff`, v); toast("Forfeit saved for the whole group"); } catch(err){ toast(err.message === "permission" ? "Firebase refused it: re-publish the rules (FIREBASE-SETUP.md)" : "No signal? Try again"); } }
+    else { lsSet("gm-forfeit", v); toast("Forfeit saved on your phone (start a split-costs group to share it)"); }
+  };
+  const gs = $("#gm-grp"); if (gs) gs.onchange = () => { lsSet(GM_GROUP, gs.value); paintTally(); };
 }

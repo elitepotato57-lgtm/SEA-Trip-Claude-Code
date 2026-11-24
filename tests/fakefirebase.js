@@ -52,6 +52,7 @@ function makeFake(){
       if (p[2] === "members" && p.length === 4) return (isMember && isAdmin) || (isMember && get(p) === undefined && val != null) || (get(["groups", a]) === undefined && p[3] === uid);
       if (p[2] === "n" && p.length === 3) return isMember && (val != null || isAdmin);
       if (p[2] === "items" && p.length === 4) return isMember;
+      if (p[2] === "ff" && p.length === 3) return isMember && (val == null || (typeof val === "string" && val.length <= 80));      // the Trip tally's shared forfeit
       return false;
     }
     if (top === "mygroups") return p.length === 3 && (a === uid || !!get(["groups", b, "members", uid]));

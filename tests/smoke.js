@@ -561,7 +561,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     // Games (Friends › Play): Dylan starts Four in a row with Sam; Sam gets the invite on whatever screen he's on; both phones agree
     await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(1500);
     const pl = await A.pg.evaluate(() => ({games:[...document.querySelectorAll(".gm-tile b")].map(b => b.textContent), tally:!!document.querySelector("#gm-tally"), w:document.documentElement.scrollWidth}));
-    ok(pl.games.join() === "Four in a row,Sink the fleet,Liar’s dice,Guess the price,Where in the world" && pl.tally && pl.w <= 393, "Friends › Play: five games and the Trip tally " + JSON.stringify(pl));
+    ok(pl.games.join() === "Four in a row,Sink the fleet,Liar’s dice,Guess the price,Where in SEA" && pl.tally && pl.w <= 393, "Friends › Play: five games and the Trip tally " + JSON.stringify(pl));
     // start a game with Sam from Dylan's phone; Sam says yes to the popup; both get past the rules card
     const startWith = async (id, title) => {
       fb.tick(1000);                                                         // a new invite is newer than the last
@@ -575,6 +575,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
       await A.pg.waitForTimeout(3000);
       return ask;
     };
+    // leaving a game: the X asks first (Dylan, 24 Nov 2026), then Leave
+    const leave = async P => { await P.pg.click("#sheetRoot .sheet-head .icon-btn:not(.gm-help)"); await P.pg.waitForTimeout(250); const l = await P.pg.$("#gmLeave"); if (l) await l.click(); await P.pg.waitForTimeout(250); };
     await B.pg.goto(BASE + "#gaffs"); await B.pg.waitForTimeout(1200);
     await A.pg.click('#pageview [data-game="c4"]'); await A.pg.waitForTimeout(600);
     ok(await A.pg.evaluate(() => !!document.querySelector("#gmRules") && /Four in a row/.test(document.querySelector("#gmRules").textContent)), "the first time you open a game, its rules come up");
@@ -597,7 +599,12 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await Y.pg.click("#gmAgain"); await Y.pg.waitForTimeout(3500);
     const again = await X.pg.evaluate(() => ({end:!!document.querySelector("#gmBox .gm-end"), counters:document.querySelectorAll("#gmBox .c4-c.a, #gmBox .c4-c.b").length}));
     ok(!again.end && again.counters === 0 && JSON.stringify([fb.root.tally[uidX], fb.root.tally[uidY]]) === t1, "Play again: a fresh board on both phones, and the last game isn't counted twice " + JSON.stringify(again));
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    // a game holds the screen: the X only asks, tapping outside does nothing; Leave closes it
+    await A.pg.click("#sheetRoot .sheet-head .icon-btn:not(.gm-help)"); await A.pg.waitForTimeout(300);
+    await A.pg.mouse.click(196, 20); await A.pg.waitForTimeout(200);
+    const lv = await A.pg.evaluate(() => ({ask:!!document.querySelector(".gm-leave"), open:!!document.querySelector("#gmBox"), full:document.querySelector("#sheetRoot .sheet").classList.contains("gm-sheet")}));
+    ok(lv.ask && lv.open && lv.full, "a game fills the screen and leaving takes two taps (the X asks first) " + JSON.stringify(lv));
+    await A.pg.click("#gmLeave"); await A.pg.waitForTimeout(300); await leave(B); await A.pg.waitForTimeout(500);
     // Liar's dice: a guess, then Liar!, and both phones show the same reveal and dice left
     await startWith("dice");
     const turnP = async () => (await A.pg.$("#ldBid")) ? A : (await B.pg.$("#ldBid")) ? B : null;
@@ -611,27 +618,38 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
       const ra = await rd(A), rb = await rd(B);
       ok(/called Liar/.test(ra.reveal) && /loses? a die/.test(ra.reveal) && /called Liar/.test(rb.reveal) && Object.values(fb.root.parties).some(p => p.g === "dice" && p.s && Object.values(p.s.n).reduce((a, b) => a + b, 0) === 9), "Liar! reveals everyone's dice on both phones and the loser drops to four " + JSON.stringify({ra, rb}));
     }
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    await leave(A); await leave(B); await A.pg.waitForTimeout(500);
     // Sink the fleet: both hide their boats, then the first shot
     await startWith("fleet");
     const sea = await A.pg.evaluate(() => { const g = document.querySelector("#gmBox .sf-grid.big"); return g ? {right:Math.round(g.getBoundingClientRect().right), cells:g.children.length, ships:g.querySelectorAll(".ship").length} : null; });
     ok(sea && sea.cells === 64 && sea.ships === 12 && sea.right <= 393, "Sink the fleet: an 8×8 sea with your 4 boats, fitting the screen " + JSON.stringify(sea));
-    await A.pg.click("#sfShuffle"); await A.pg.click("#sfReady"); await B.pg.click("#sfReady"); await A.pg.waitForTimeout(3000);
+    // placing: tap a boat to turn it, drag one to a new spot (the fleet still has 4 boats that never touch)
+    const placeA = await A.pg.evaluate(() => { const g = gmCache.fleet, b = sfBoats(g); return {before:g, si:b[3].si, cell:b[3].cells[0], across:b[3].across}; });
+    const box = async i => (await A.pg.$(`#sfPlace [data-i="${i}"]`)).boundingBox();
+    const c0 = await box(placeA.cell); await A.pg.mouse.click(c0.x + c0.width / 2, c0.y + c0.height / 2); await A.pg.waitForTimeout(300);
+    const turned = await A.pg.evaluate(si => sfBoats(gmCache.fleet)[si].across, placeA.si);
+    const free = await A.pg.evaluate(si => { const g = gmCache.fleet; for (let i = 0; i < 64; i++) if (sfMove(g, si, sfBoats(g)[si].cells[0], i) && !sfBoats(g)[si].cells.includes(i)) return i; return -1; }, placeA.si);
+    const from = await A.pg.evaluate(si => sfBoats(gmCache.fleet)[si].cells[0], placeA.si);
+    if (free >= 0){ const a = await box(from), b = await box(free); await A.pg.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await A.pg.mouse.down(); await A.pg.mouse.move(b.x + b.width / 2, b.y + b.height / 2, {steps:6}); await A.pg.mouse.up(); await A.pg.waitForTimeout(300); }
+    const placed = await A.pg.evaluate(([si, free]) => ({moved:sfBoats(gmCache.fleet)[si].cells[0] === free, boats:sfBoats(gmCache.fleet).every(x => x.cells.length === SF_SHIPS[x.si]), emoji:/[\u{1F300}-\u{1FAFF}]/u.test(document.querySelector("#gmBox .sf-grid").textContent)}), [placeA.si, free]);
+    ok(turned !== placeA.across && (free < 0 || placed.moved) && placed.boats && !placed.emoji, "Sink the fleet: tap a boat to turn it, drag it to move it; drawn squares, no emojis " + JSON.stringify({turned, free, placed}));
+    await A.pg.click("#sfReady"); await B.pg.click("#sfReady"); await A.pg.waitForTimeout(3000);
     const shooter = (await A.pg.$("#gmBox .sf-grid.go")) ? A : B, target = shooter === A ? B : A;
     await shooter.pg.click("#gmBox .sf-grid.go button.sf-c:not([disabled])"); await target.pg.waitForTimeout(3000);
     const shot = await target.pg.evaluate(() => ({mine:document.querySelectorAll("#gmBox .sf-grid.small .hit, #gmBox .sf-grid.small .miss").length, myTurn:!!document.querySelector("#gmBox .sf-grid.go")}));
     ok(shot.mine === 1 && shot.myTurn, "the shot lands on the other phone's fleet, and it's their turn " + JSON.stringify(shot));
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await B.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(500);
+    await leave(A); await leave(B); await A.pg.waitForTimeout(500);
     // Guess the price, on your own: a researched price, your guess, the real one
     await A.pg.click('#pageview [data-game="price"]'); await A.pg.waitForTimeout(500);
     if (await A.pg.$("#gmRules")) await A.pg.click("#gmRulesOk");
     ok(await A.pg.evaluate(() => /Play on my own/.test(document.querySelector("#gmGo").textContent)), "the quiz games can be played on your own");
     await A.pg.click("#gmGo"); await A.pg.waitForTimeout(2000);
     await A.pg.fill("#gpG", "100"); await A.pg.click("#gpGo"); await A.pg.waitForTimeout(800);
-    const gp = await A.pg.evaluate(() => ({real:((document.querySelector("#gmBox .gm-reveal b") || {}).textContent || ""), right:Math.round(document.querySelector("#gmBox .gp-card").getBoundingClientRect().right)}));
-    ok(/Real price: \S/.test(gp.real) && gp.right <= 393, "Guess the price: lock in a guess and the real price shows " + JSON.stringify(gp));
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
-    // Where in the world: a destination photo and a map to drop a pin on
+    const gp = await A.pg.evaluate(() => ({real:((document.querySelector("#gmBox .gm-reveal b") || {}).textContent || ""), right:Math.round(document.querySelector("#gmBox .gp-card").getBoundingClientRect().right),
+      photo:!!document.querySelector("#gmBox .gp-photo img")}));
+    ok(/Real price: \S/.test(gp.real) && gp.right <= 393 && gp.photo, "Guess the price: a photo, lock in a guess and the real price shows " + JSON.stringify(gp));
+    await leave(A);
+    // Where in SEA: a destination photo and a map to drop a pin on
     await A.pg.click('#pageview [data-game="where"]'); await A.pg.waitForTimeout(500);
     if (await A.pg.$("#gmRules")) await A.pg.click("#gmRulesOk");
     await A.pg.click("#gmGo"); await A.pg.waitForTimeout(3500);
@@ -639,8 +657,8 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     if (wm){ const bb = await wm.boundingBox(); await A.pg.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.pg.waitForTimeout(400); }
     await A.pg.click("#wwGo").catch(() => {}); await A.pg.waitForTimeout(1500);
     const ww = await A.pg.evaluate(() => ({photo:(document.querySelector("#gmBox .ww-photo") || {}).naturalWidth || 0, it:((document.querySelector("#gmBox .gm-reveal b") || {}).textContent || ""), right:Math.round(document.querySelector("#wwMap").getBoundingClientRect().right)}));
-    ok(!!wm && ww.photo > 0 && /^It’s \S/.test(ww.it) && ww.right <= 393, "Where in the world: a photo, a map to tap, and the answer " + JSON.stringify(ww));
-    await A.pg.click("#sheetRoot .sheet-head [data-close]"); await A.pg.waitForTimeout(300);
+    ok(!!wm && ww.photo > 0 && /^It’s \S/.test(ww.it) && ww.right <= 393, "Where in SEA: a photo, a map to tap, and the answer " + JSON.stringify(ww));
+    await leave(A);
     await A.pg.goto(BASE + "#tools"); await A.pg.goto(BASE + "#tools/friends-play"); await A.pg.waitForTimeout(2500);
     const tl = await A.pg.evaluate(() => ({rows:[...document.querySelectorAll("#gm-tally .gm-tr")].map(r => r.innerText.replace(/\s+/g, " ")), recent:document.querySelectorAll("#gm-recent [data-party]").length, w:document.documentElement.scrollWidth}));
     ok(tl.rows.length === 2 && tl.rows.some(r => /👑/.test(r)) && tl.recent >= 3 && tl.w <= 393, "Friends › Play: the Trip tally with a crown for the leader, and games to carry on " + JSON.stringify(tl));

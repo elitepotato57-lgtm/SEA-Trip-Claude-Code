@@ -73,7 +73,7 @@ document.addEventListener("click", e => {
   if (o) openDetail(o.dataset.open);
 });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && $("#sheetRoot").innerHTML){ closeDetail(); return; }
+  if (e.key === "Escape" && $("#sheetRoot").innerHTML){ if (typeof gmPlaying === "function" && gmPlaying()){ gmAskLeave(); return; } closeDetail(); return; }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("[role=button][data-open]")){ e.preventDefault(); openDetail(e.target.dataset.open); }
 });
 
