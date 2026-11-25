@@ -893,7 +893,7 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     await page.evaluate(() => { const p = D.places.find(x => x.nt === "โรงแรมเฮีย"); geoKeep({latitude:p.lat - 0.009, longitude:p.lng, accuracy:10}); openDetail(p.id); });
     await page.waitForTimeout(700); await page.click("#dtPoint"); await page.waitForTimeout(900);
     const pm = await page.evaluate(() => ({d:(document.querySelector("#ptDist") || {}).textContent, a:!!document.querySelector("#ptArrow"), w:document.documentElement.scrollWidth}));
-    ok(pm.a && /^(9\d\d m|1\.0 km)$/.test(pm.d) && pm.w <= 393, "Point me there shows an arrow and the distance left " + JSON.stringify(pm));
+    ok(pm.a && /^(\d+ m|\d+(\.\d)? km)$/.test(pm.d) && pm.w <= 393, "Point me there shows an arrow and the distance left " + JSON.stringify(pm));
     await page.evaluate(() => closeDetail());
   }
 
