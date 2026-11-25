@@ -279,7 +279,7 @@ window.addEventListener("hashchange", () => setTimeout(() => Heading.sync(), 0))
 function addHeadingImages(){
   const col = cssv("--move") || "#7FB2D2";
   // the beam: a soft wedge pointing up (north), centred on the dot; the arrow: a navigation arrow for the direction of travel
-  const beam = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><defs><radialGradient id="g" cx="60" cy="60" r="56" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="${col}" stop-opacity=".75"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs><path d="M60 60 L37 8 A56 56 0 0 1 83 8 Z" fill="url(#g)"/></svg>`;
+  const beam = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><defs><radialGradient id="g" cx="60" cy="60" r="56" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="${col}" stop-opacity=".75"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs><path d="M60 60 L37 8 A56 56 0 0 1 83 8 Z" fill="url(#g)"/><path d="M60 28 L70 45 L50 45 Z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`;   // + an arrowhead on the dot (Dylan, 25 Nov 2026)
   const arrow = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><path d="M60 22 L76 56 L60 49 L44 56 Z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>`;
   [["me-beam", beam], ["me-arrow", arrow]].forEach(([name, svg]) => {
     const img = new Image(120, 120);

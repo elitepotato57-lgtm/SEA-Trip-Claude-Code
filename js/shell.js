@@ -157,7 +157,7 @@ const geoFresh = () => geoLast && Date.now() - geoLast.at < GEO_FRESH_MS ? geoLa
    closed, so asking on opening meant a question every launch; now it's asked only when something needs it (the location button,
    "near me", nearest). */
 async function locateIfAllowed(){
-  try { const p = navigator.permissions && await navigator.permissions.query({name:"geolocation"}); if (p && p.state === "granted") return locate(false); } catch(e){}
+  try { const p = navigator.permissions && await navigator.permissions.query({name:"geolocation"}); if (p && (p.state === "granted" || p.state === "denied")) return locate(false); } catch(e){}   // already answered: no question shows
 }
 function locate(prompted, done, quiet){
   const fin = () => { if (done) done(locStatus); };

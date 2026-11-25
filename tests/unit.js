@@ -1249,6 +1249,11 @@ test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen far
       eq(got, ["nearest toilet", "cheap noodles", "atm"]); ok(all.length >= 2);
     });
   }
+  test("Point me there: the arrow's direction, which way to turn and the distance left", () => {
+    eq(Math.round(A.bearingTo({lat:13.75, lng:100.5}, {lat:13.75, lng:100.6})), 90); eq(Math.round(A.bearingTo({lat:13.75, lng:100.5}, {lat:13.85, lng:100.5})), 0);
+    eq([A.ptTurn(5), A.ptTurn(45), A.ptTurn(-90), A.ptTurn(170)], ["Straight ahead", "Bear right", "Turn left", "Turn around"]);
+    eq([A.ptDist(0.234), A.ptDist(3.21), A.ptDist(42.4)], ["230 m", "3.2 km", "42 km"]);
+  });
   // asking once: a recent position is shared instead of asking the phone again, and one microphone recogniser is reused
   {
     let asks = 0, made = 0;

@@ -137,6 +137,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   `{fromHub: {at, to, early, bag, tips, src}}`; `night:true` marks sleeper options (tp-overnight). Thai route facts are written by
   `node tools/transport-route.js` (run after `tools/transport-asia.js`, which re-creates its own links). `TOWN` in js/transport.js
   is getting around each route stop (Wikivoyage).
+- **Point me there** (Dylan, 25 Nov 2026; end of js/detail.js, `pointMe`, `bearingTo`, `ptTurn`, `ptDist`): in a place's details when it isn't far; a big arrow toward the place (compass via `Heading`), the straight-line distance left and which way to turn, from GPS, works offline. The blue dot's compass beam has an arrowhead (`addHeadingImages` in js/map.js); the compass starts after the location button is tapped (iPhone asks on a tap).
 - `js/detail.js`: photos and the place details sheet, Google helpers (`googleKey`, daily allowance `G_DAILY`). Temples get no photo
   unless that exact picture was checked by eye (`PHOTO_CHECKED`); file names mentioning a Buddha are skipped. `js/boot.js`: starts the app.
 - `css/app.css`: tokens in `:root`, Paper Atlas overrides under `:root[data-look="paper"]`, Design Lab knobs

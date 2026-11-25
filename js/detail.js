@@ -467,7 +467,7 @@ function detailActions(it, ref){
         <button class="btn small" type="button" id="dtShare">${icon("share","i s")}Share</button>
         <a class="btn small" href="${esc(satLink(it.lat, it.lng, it.ap ? 16 : 18))}" target="_blank" rel="noopener">${icon("layers","i s")}Satellite</a>
         <button class="btn small" type="button" id="dtMap">${icon("map","i s")}On the map</button>
-        ${far ? "" : `<button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`}
+        ${far ? "" : `<button class="btn small" type="button" id="dtPoint">${icon("nav","i s")}Point me there</button><button class="btn small" type="button" id="dtPlan">${icon("route","i s")}Plan a journey</button>`}
         ${it.c === "move" || it.c === "ess" ? "" : `<a class="btn small" href="${esc(L_google(it.n + " " + it.city + " reviews"))}" target="_blank" rel="noopener">${icon("ext","i s")}Reviews</a>`}
       </div></div>`;
   }
@@ -475,6 +475,7 @@ function detailActions(it, ref){
   return `<div class="actions">
     <a class="btn ${far ? "" : "primary"}" href="${esc(L_dir(it))}" target="_blank" rel="noopener">${icon("nav")}Directions</a>
     ${far ? `<button class="btn primary" type="button" id="dtPlan">${icon("route")}Plan a journey here</button>` : ""}
+    ${far ? "" : `<button class="btn" type="button" id="dtPoint">${icon("nav")}Point me there</button>`}
     <a class="btn" href="${esc(L_apple(it))}" target="_blank" rel="noopener">${icon("nav")}Apple Maps</a>
     <button class="btn" type="button" id="dtMap">${icon("map")}Show on map</button>
     <button class="btn" type="button" data-save="${esc(it.id)}" aria-pressed="${isSaved(it.id)}">${icon("bookmark")}<span id="dtSaveTxt">${isSaved(it.id) ? "Saved" : "Save"}</span></button>
@@ -577,6 +578,7 @@ function openDetail(id){
   $("#dtMap").onclick = () => { closeDetail(); if (it.c !== "ess" && !ui.mapCats.has(it.c)) ui.mapCats.add(it.c); if (it.c === "ess"){ const e = essOfKind(it.k); if (e) ui.essKinds.add(e.id); } ui.mapSaved = false; ui.mapMode = "map"; ui.mapSel = it.id; flyTo(it, 16); go("#map"); };
   const shr = $("#dtShare"); if (shr) shr.onclick = () => shareIt(it);
   const drv = $("#dtDriver"); if (drv) drv.onclick = () => openDriverCard(it);
+  const pt = $("#dtPoint"); if (pt) pt.onclick = () => pointMe(it);
   const plan = $("#dtPlan"); if (plan) plan.onclick = () => { closeDetail(); ui.tp.to = {n:it.n, lat:it.lat, lng:it.lng}; ui.tp.sel = 0; go("#tools/transport"); };
   if (wantsSurf(it)) fillSurf(it);
   const box0 = $("#photoBox");
@@ -594,4 +596,43 @@ function openDetail(id){
   else if (cardSrc && (cardHit.g ? googlePhotoFor(it) : photoSrcOk(it, cardSrc))) photoInto(box0, it, {src:cardSrc, page:cardHit.g ? L_maps(it) : `https://commons.wikimedia.org/wiki/File:${enc(String(commonsFile(cardSrc) || "").replace(/ /g, "_"))}`, by:cardHit.g ? "Photo: Google Maps" : "Photo: Wikimedia Commons", google:cardHit.g});
   else wikiInto(box0, it);
   if (googleFor(it)) googleFacts(it);
+}
+
+/* ---------- Point me there (Dylan, 25 Nov 2026): the app's own directions ----------
+   A big arrow that points at the place, the distance left, and which way to turn. Straight line ("as the crow flies"), from the
+   phone's GPS and compass, so it works with no signal; streets aren't followed (that needs a map app's routing). */
+function bearingTo(a, b){
+  const r = Math.PI / 180, y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+const ptDist = km => km < 1 ? `${Math.max(10, Math.round(km * 100) * 10)} m` : `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+// which way to turn, from the angle between where you face and where the place is (-180..180, + = to the right)
+function ptTurn(d){
+  const a = Math.abs(d);
+  if (a <= 20) return "Straight ahead";
+  if (a >= 150) return "Turn around";
+  return `${a <= 60 ? "Bear" : "Turn"} ${d > 0 ? "right" : "left"}`;
+}
+function pointMe(it){
+  const dest = {lat:it.lat, lng:it.lng};
+  const sh = openSheet(`<div class="sheet-head"><h2 id="ptT">${esc(it.n)}</h2><button class="icon-btn" type="button" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="pt-wrap"><svg id="ptArrow" class="pt-arrow" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 6 L82 88 L50 70 L18 88 Z"/></svg>
+      <div class="pt-dist" id="ptDist">Finding you…</div><div class="pt-turn" id="ptTurn"></div>
+      <p class="note" id="ptNote">Straight-line distance. Hold the phone flat and turn until the arrow points up.</p></div>`, "ptT");
+  if (typeof Heading !== "undefined") Heading.askCompass();
+  let me = typeof geoFresh === "function" && geoFresh() ? geoFresh() : null, watch = null;
+  if (navigator.geolocation) watch = navigator.geolocation.watchPosition(p => { me = {lat:p.coords.latitude, lng:p.coords.longitude}; if (typeof geoKeep === "function") geoKeep(p.coords); },
+    e => { if (e && e.code === 1){ const d = $("#ptDist"); if (d) d.textContent = "Location is off"; } }, {enableHighAccuracy:true, maximumAge:2000, timeout:30000});
+  const tick = setInterval(() => {
+    const arrow = sh.querySelector("#ptArrow");
+    if (!arrow || !document.body.contains(arrow)){ clearInterval(tick); if (watch != null) navigator.geolocation.clearWatch(watch); return; }
+    if (!me) return;
+    const km = dist(me, dest), b = bearingTo(me, dest);
+    const h = typeof Heading !== "undefined" ? Heading.now() : null;
+    const rel = h ? ((b - h.deg + 540) % 360) - 180 : b;
+    arrow.style.transform = `rotate(${h ? rel : b}deg)`;
+    sh.querySelector("#ptDist").textContent = km < .025 ? "You're there" : ptDist(km);
+    sh.querySelector("#ptTurn").textContent = km < .025 ? "" : h ? ptTurn(rel) : "Compass off: the arrow points as on a map, with north up";
+  }, 250);
 }
