@@ -195,9 +195,24 @@ const Docs = {
     const db = await this.db();
     return new Promise((res, rej) => { const t = db.transaction("docs", mode); const st = t.objectStore("docs"); const out = fn(st); t.oncomplete = () => res(out && out.result !== undefined ? out.result : out); t.onerror = () => rej(t.error); });
   },
-  all(){ return this.tx("readonly", st => st.getAll()).then(r => (r || []).sort((a, b) => (b.date || b.added).localeCompare(a.date || a.added))); },
-  put(doc){ return this.tx("readwrite", st => st.put(doc)); },
-  del(id){ return this.tx("readwrite", st => st.delete(id)); },
+  /* Names, sections and dates are also kept beside the files (localStorage "sea-docs-meta"): on iPhone a file picked before
+     25 Nov 2026 can be stored as a link the phone won't copy again, and then saving the whole record failed ("Couldn't save"),
+     and every visit tried, and failed, to rename it again (the lag). Now a change always saves, and wins over the stored copy. */
+  meta(){ return lsGet("sea-docs-meta", {}) || {}; },
+  all(){
+    const m = this.meta();
+    return this.tx("readonly", st => st.getAll()).then(r => (r || []).map(d => m[d.id] ? Object.assign(d, m[d.id]) : d).sort((a, b) => String(b.date || b.added).localeCompare(String(a.date || a.added))));
+  },
+  async put(doc){
+    const keys = ["name", "section", "date", "trip", "person", "kind", "own", "ownSec", "ownDate", "v", "text", "file"];
+    try { await this.tx("readwrite", st => st.put(doc)); }
+    catch(e){
+      try { doc.blob = new Blob([await doc.blob.arrayBuffer()], {type:doc.mime || ""}); await this.tx("readwrite", st => st.put(doc)); }       // copy the file's bytes and try again
+      catch(e2){ const m = this.meta(); m[doc.id] = Object.fromEntries(keys.filter(k => doc[k] !== undefined).map(k => [k, k === "text" ? String(doc.text || "").slice(0, 4000) : doc[k]])); if (!lsSet("sea-docs-meta", m)) throw e2; return; }
+    }
+    const m = this.meta(); if (m[doc.id]){ delete m[doc.id]; lsSet("sea-docs-meta", m); }
+  },
+  del(id){ const m = this.meta(); if (m[id]){ delete m[id]; lsSet("sea-docs-meta", m); } return this.tx("readwrite", st => st.delete(id)); },
   async exportAll(){
     if (!("indexedDB" in window)) return [];
     let list = []; try { list = await this.all(); } catch(e){ return []; }
@@ -317,7 +332,7 @@ async function resortAll(onStage){
   const list = await Docs.all(); let moved = 0, renamed = 0;
   for (const [i, d] of list.entries()){
     onStage && onStage(`Checking ${i + 1} of ${list.length}: ${d.name}`);
-    if ((d.text || "").trim().length < 40 && d.blob) await rereadDoc(d);
+    if (!(d.text || "").trim() && d.blob) await rereadDoc(d);
     const sec = d.section, nm = d.name;
     if (resortDoc(d)){ if (d.section !== sec) moved++; if (d.name !== nm) renamed++; }
     d.v = 3; await Docs.put(d);
