@@ -271,6 +271,8 @@ async function thumbFrom(source){
   return t.toDataURL("image/jpeg", .72);
 }
 // read one file: work out what it is, make its picture, and keep it
+// the phone keeps its own copy of the file's contents, not a link to where it was picked from (which can vanish)
+async function docCopy(file){ try { return new Blob([await file.arrayBuffer()], {type:file.type || ""}); } catch(e){ return file; } }
 async function addDocFile(file, onStage){
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   const isImg = /^image\//.test(file.type);
@@ -282,7 +284,7 @@ async function addDocFile(file, onStage){
   } catch(e){ /* couldn't read it: it's still kept, sorted by its file name */ }
   const c = classifyDoc(text, file.name);
   const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), file:file.name, name:c.name, trip:c.trip || "", person:c.person || "", kind:c.kind || "", v:3, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
-    size:file.size, added:new Date().toISOString(), date:c.date, text:text.slice(0, 4000), thumb, blob:file};
+    size:file.size, added:new Date().toISOString(), date:c.date, text:text.slice(0, 4000), thumb, blob:await docCopy(file)};
   await Docs.put(doc);
   return doc;
 }
