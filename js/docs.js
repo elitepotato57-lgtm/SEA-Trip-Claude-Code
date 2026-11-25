@@ -34,6 +34,13 @@ const DOC_RULES = {
   tour:   [[/\btour\b|excursion|admission|entry ticket|klook|getyourguide|get your guide|viator|island hopping|snorkel|cooking class|muay thai|\bticket\b/i, 2]]
 };
 const DOC_PRIORITY = ["entry", "id", "insurance", "flight", "train", "ferry", "bus", "stay", "tour"];
+// words only one kind of document has: if they're there, that's what it is, whatever else it mentions
+const DOC_SURE = [
+  ["entry", /\btdac\b|digital arrival card|arrival card (?:no|number)|tdac\.immigration|\be-?visa\b|electronic visa|visa (?:grant|approval|approved)|approval letter|immigration\.gov|evisa\.gov/i],
+  ["id", /\bP<[A-Z]{3}[A-Z<]{5,}/],
+  ["insurance", /certificate of (?:insurance|cover)|policy schedule|insurance (?:certificate|policy)|policy (?:number|no\.?)\s*[:#]?\s*[A-Z0-9-]{5,}/i],
+  ["flight", /boarding pass|e-?ticket receipt|itinerary receipt/i]
+];
 const AIRPORTS = {BKK:"Bangkok", DMK:"Bangkok Don Mueang", CNX:"Chiang Mai", CEI:"Chiang Rai", HKT:"Phuket", USM:"Koh Samui", KBV:"Krabi", URT:"Surat Thani",
   HDY:"Hat Yai", TDX:"Trat", UTH:"Udon Thani", KKC:"Khon Kaen", NST:"Nakhon Si Thammarat", HHQ:"Hua Hin", LHR:"London Heathrow", LGW:"London Gatwick",
   MAN:"Manchester", BHX:"Birmingham", EDI:"Edinburgh", GLA:"Glasgow", DUB:"Dublin", DXB:"Dubai", DOH:"Doha", AUH:"Abu Dhabi", IST:"Istanbul",
@@ -78,17 +85,47 @@ const prettyFile = f => String(f || "Document").replace(/\.[a-z0-9]{2,5}$/i, "")
 
 /* who a ticket is for: "MURPHY/DYLAN MR" on boarding passes, or "Passenger: Dylan Murphy" / "Passenger name ..." on confirmations */
 const titleCase = s => s.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
-function docPerson(text){
-  const t = String(text || "");
-  const slash = /\b([A-Z][A-Z'-]{1,24})\s?\/\s?([A-Z][A-Z'-]{1,24})(?:\s+[A-Z][A-Z'-]{1,24})?(?:\s*(?:MR|MRS|MS|MISS|MSTR|DR))?\b/.exec(t);
-  if (slash && !/^(GATE|SEAT|FROM|TO|BOARDING|FLIGHT|DATE|CLASS|ZONE|SEQ)$/.test(slash[1])) return titleCase(`${slash[2]} ${slash[1]}`);
-  const lab = /(?:passenger(?:\s+name)?|name of passenger|traveller|guest(?:\s+name)?|lead (?:passenger|guest))\s*[:\-]?\s*(?:mr|mrs|ms|miss|dr)?\.?\s*([A-Za-z][A-Za-z'-]+(?:\s+[A-Za-z][A-Za-z'-]+){1,2})/i.exec(t);
-  if (lab){
-    // stop at the first word that isn't part of a name ("Sam Jones Flight FD 3014" is Sam Jones)
-    const w = []; for (const x of lab[1].split(/\s+/)){ if (/^(flight|from|to|booking|seat|date|ticket|name|details|information|class|ref|reference|departure|arrival|adult|child)$/i.test(x)) break; w.push(x); }
-    if (w.length >= 2) return titleCase(w.join(" "));
+const NOT_NAME = /^(gate|seat|from|to|boarding|flight|date|class|zone|seq|name|passenger|passengers|ticket|booking|e-?ticket|number|no|ref|reference|departure|arrival|adult|child|infant|economy|business|status|confirmed|terminal|airport|baggage|total|details|information|origin|destination|and|or|of|the|via|nationality|passport|male|female|dob|thailand|bangkok)$/i;
+// names the app already knows: you, your friends and the people in Split costs (so "Sam" on a group e-ticket is your Sam)
+function docKnownNames(){
+  const out = [];
+  try {
+    if (S.friends && S.friends.name) out.push(S.friends.name);
+    Object.values((S.friends && S.friends.list) || {}).forEach(f => { if (f && f.n) out.push(f.n); });
+    ((S.split && S.split.people) || []).forEach(p => out.push(p));
+  } catch(e){}
+  return [...new Set(out.map(n => String(n || "").trim()).filter(n => n.length >= 3 && n.length <= 30 && !NOT_NAME.test(n)))];
+}
+function docPeople(text){
+  const t = String(text || ""), found = [];
+  const add = n => { n = titleCase(n.replace(/\s+/g, " ").trim()); if (n && !found.some(x => x.toLowerCase() === n.toLowerCase())) found.push(n); };
+  const nameOk = parts => parts.length >= 2 && parts.every(w => !NOT_NAME.test(w) && w.length >= 2);
+  // "MURPHY/DYLAN MR": airline style, surname first
+  for (const m of t.matchAll(/\b([A-Z][A-Z'-]{1,24})\s?\/\s?([A-Z][A-Z'-]{1,24})(?:\s+(?!MR\b|MRS\b|MS\b|MISS\b|MSTR\b|DR\b)[A-Z][A-Z'-]{1,24})?(?:\s*(?:MR|MRS|MS|MISS|MSTR|DR))?\b/g))
+    if (nameOk([m[1], m[2]])) add(`${m[2]} ${m[1]}`);
+  // a TDAC or visa: "Family name MURPHY ... First name DYLAN"
+  const fam = /(?:family\s*name|surname|last\s*name)\s*[:\-]?\s*([A-Za-z][A-Za-z'-]{1,24})/i.exec(t), first = /(?:first\s*name|given\s*names?|forenames?)\s*[:\-]?\s*([A-Za-z][A-Za-z'-]{1,24})/i.exec(t);
+  if (fam && first && nameOk([first[1], fam[1]])) add(`${first[1]} ${fam[1]}`);
+  // "MR DYLAN MURPHY" or "Mr Dylan Murphy" in a passenger table
+  for (const m of t.matchAll(/\b(?:MR|MRS|MS|MISS|MSTR|MASTER|Mr|Mrs|Ms|Miss)\.?[ \t]+([A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+){1,2})/g)){
+    const w = []; for (const x of m[1].split(/[ \t]+/)){ if (NOT_NAME.test(x)) break; w.push(x); }
+    if (nameOk(w)) add(w.join(" "));
   }
-  return "";
+  if (!found.length){
+    const lab = /(?:passenger(?:\s+name)?|name of passenger|traveller|guest(?:\s+name)?|lead (?:passenger|guest)|passenger\(s\)|travellers?)[ \t]*[:\-]?\s*(?:mr|mrs|ms|miss|dr)?\.?[ \t]*([A-Za-z][A-Za-z'-]+(?:[ \t]+[A-Za-z][A-Za-z'-]+){1,2})/i.exec(t);
+    if (lab){ const w = []; for (const x of lab[1].split(/\s+/)){ if (NOT_NAME.test(x)) break; w.push(x); } if (nameOk(w)) add(w.join(" ")); }
+  }
+  // people the app knows, wherever they appear (full name first, then a first name on its own)
+  if (!found.length){
+    const low = t.toLowerCase();
+    docKnownNames().forEach(n => { const re = new RegExp(`(^|[^a-z])${n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z])`); if (re.test(low)) add(n); });
+  }
+  return found;
+}
+// one name, or "Dylan Murphy, Sam Jones +2" for a group booking
+function docPerson(text){
+  const p = docPeople(text);
+  return p.length <= 2 ? p.join(", ") : `${p.slice(0, 2).join(", ")} +${p.length - 2}`;
 }
 // what sort of travel document it is
 function docKind(all, section){
@@ -111,7 +148,12 @@ function classifyDoc(text, filename){
   let section = "other", best = 0;
   for (const sec of DOC_PRIORITY){ if (score[sec] > best){ best = score[sec]; section = sec; } }
   if (best < 3) section = "other";
-  const date = docDate(all), route = section === "other" ? null : docRoute(all, section);
+  /* What a document IS beats what it mentions: a TDAC or a visa lists your flight number, airport and hotel, and an insurance
+     certificate mentions flights, but they belong in their own sections (25 Nov 2026: a real TDAC was landing in Flights). */
+  const sure = DOC_SURE.find(([, re]) => re.test(all));
+  if (sure) section = sure[0];
+  const arrive = section === "entry" && /arrival date[^\n]{0,30}/i.exec(text || "");
+  const date = (arrive && docDate(arrive[0])) || docDate(text) || docDate(filename), route = section === "other" ? null : docRoute(all, section);
   const when = date ? `, ${shortDate(date)}` : "";
   const way = route ? ` ${route[0]} → ${route[1]}` : "";
   let name, trip = "", person = "", kind = "";
@@ -126,8 +168,11 @@ function classifyDoc(text, filename){
     const place = (/^.*\b(hostel|hotel|resort|guest ?house|bungalows?|villa|inn|lodge)\b.*$/im.exec(text || "") || [])[0];
     name = (place && place.trim().length <= 45 ? place.trim() : site ? `${site.replace(/^./, c => c.toUpperCase())} booking` : "Accommodation booking") + when;
   }
-  else if (section === "entry") name = /tdac|digital arrival card|arrival card/i.test(all) ? "TDAC arrival card" + when : /visa/i.test(all) ? "Visa" + when : "Entry document" + when;
-  else if (section === "id") name = /passport|p<gbr/i.test(all) ? "Passport" : "ID";
+  else if (section === "entry"){
+    person = docPerson(text);
+    name = (/tdac|digital arrival card|arrival card/i.test(all) ? "TDAC arrival card" : /visa/i.test(all) ? "Visa" : "Entry document") + (person ? " · " + person : "") + when;
+  }
+  else if (section === "id"){ person = docPerson(text); name = (/passport|p<[a-z]{3}/i.test(all) ? "Passport" : "ID") + (person ? " · " + person : ""); }
   else if (section === "insurance"){ const ins = (/(world nomads|safetywing|axa|allianz|aviva|direct line|post office|staysure|columbus|true traveller|battleface)/i.exec(all) || [])[1]; name = ins ? `Travel insurance (${ins.replace(/\b\w/g, c => c.toUpperCase())})` : "Travel insurance"; }
   else if (section === "tour") name = (/(klook|getyourguide|viator)/i.exec(all) ? "Booking: " : "Ticket") + (route ? way : "") + when;
   else name = prettyFile(filename);
@@ -166,7 +211,7 @@ const Docs = {
       if (!d || !d.id || typeof d.data !== "string" || !/^data:[\w.+\/-]+;base64,/.test(d.data)) continue;
       const blob = await (await fetch(d.data)).blob();
       const sec = DOC_BY_ID[d.section] ? d.section : "other";
-      await this.put({id:String(d.id), name:String(d.name || "Document").slice(0, 80), section:sec, mime:blob.type, size:blob.size, added:String(d.added || new Date().toISOString()),
+      await this.put({id:String(d.id), name:String(d.name || "Document").slice(0, 80), section:sec, file:String(d.file || "").slice(0, 120), own:!!d.own, ownSec:!!d.ownSec, mime:blob.type, size:blob.size, added:String(d.added || new Date().toISOString()),
         date:d.date || null, text:String(d.text || "").slice(0, 4000), thumb:typeof d.thumb === "string" && /^data:image\//.test(d.thumb) ? d.thumb : null, blob});
     }
   }
@@ -236,20 +281,46 @@ async function addDocFile(file, onStage){
     else { onStage && onStage("Reading the text in the picture"); thumb = await thumbFrom(file); text = await ocrImage(file); }
   } catch(e){ /* couldn't read it: it's still kept, sorted by its file name */ }
   const c = classifyDoc(text, file.name);
-  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:c.name, trip:c.trip || "", person:c.person || "", kind:c.kind || "", v:2, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
+  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), file:file.name, name:c.name, trip:c.trip || "", person:c.person || "", kind:c.kind || "", v:3, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
     size:file.size, added:new Date().toISOString(), date:c.date, text:text.slice(0, 4000), thumb, blob:file};
   await Docs.put(doc);
   return doc;
 }
 
-// documents added before 25 Nov 2026 were all just "Flight …": name them again from their text (never one you renamed yourself)
+/* Sorting a document again from what it says (and its file name): its section, unless you moved it yourself (ownSec), and
+   its name, whose it is and its journey, unless you typed its name yourself (own). Returns true if anything changed. */
+function resortDoc(d){
+  const c = classifyDoc(d.text || "", d.file || "");
+  const before = JSON.stringify([d.section, d.name, d.trip, d.person, d.kind, d.date]);
+  if (!d.ownSec) d.section = c.section;
+  if (!d.own && d.section === c.section){ d.name = c.name; d.trip = c.trip || ""; d.person = c.person || ""; d.kind = c.kind || ""; }
+  if (c.date && !d.ownDate) d.date = c.date;
+  return JSON.stringify([d.section, d.name, d.trip, d.person, d.kind, d.date]) !== before;
+}
+// read the document itself again (for ones saved before their text could be read, or read badly)
+async function rereadDoc(d){
+  const isPdf = /pdf/.test(d.mime || "");
+  try { d.text = (isPdf ? (await pdfText(d.blob)).text : await ocrImage(d.blob)).slice(0, 4000); } catch(e){}
+}
+// once, for documents saved before 25 Nov 2026's better sorting (version 3): sorted again from the text already read
 async function docsUpgrade(list){
   for (const d of list){
-    if (d.v === 2) continue;
-    d.v = 2;
-    if (!d.own && /^(flight|bus|train|ferry)$/.test(d.section) && d.text){ const c = classifyDoc(d.text, ""); if (c.section === d.section){ d.name = c.name; d.trip = c.trip; d.person = c.person; d.kind = c.kind; } }
+    if (d.v >= 3) continue;
+    d.v = 3; resortDoc(d);
     try { await Docs.put(d); } catch(e){}
   }
+}
+// the Sort again button: every document, reading any that have little or no text again first
+async function resortAll(onStage){
+  const list = await Docs.all(); let moved = 0, renamed = 0;
+  for (const [i, d] of list.entries()){
+    onStage && onStage(`Checking ${i + 1} of ${list.length}: ${d.name}`);
+    if ((d.text || "").trim().length < 40 && d.blob) await rereadDoc(d);
+    const sec = d.section, nm = d.name;
+    if (resortDoc(d)){ if (d.section !== sec) moved++; if (d.name !== nm) renamed++; }
+    d.v = 3; await Docs.put(d);
+  }
+  return {n:list.length, moved, renamed};
 }
 /* ---------- the page: Tools > Documents ---------- */
 const docUI = {q:"", busy:"", list:null};
@@ -257,6 +328,7 @@ TOOL_PAGES.docs = root => {
   root.innerHTML = toolHero("Documents", "Tickets, bookings and entry papers, kept on this phone") + `<div class="page">
     <div class="row" style="margin-top:4px"><label class="btn primary" style="cursor:pointer">${icon("upload", "i s")}Add photos or files<input type="file" id="docAdd" accept="image/*,application/pdf" multiple hidden></label></div>
     <p class="note" style="margin-top:6px">Boarding passes, booking confirmations, your TDAC, visa and insurance. Each one is read on your phone to name it and put it in the right section; nothing is uploaded. Screenshots work too.</p>
+    <button class="btn small" type="button" id="docResort" style="margin-top:8px">${icon("swap", "i s")}Sort all documents again</button>
     <div id="docBusy"></div>
     <label class="sbar" style="margin-top:10px"><span class="vis-hidden">Search documents</span>${icon("search")}<input type="search" id="docQ" placeholder="Search your documents" value="${esc(docUI.q)}"></label>
     <div id="docList"><p class="note" style="margin-top:12px">Loading…</p></div>
@@ -265,6 +337,14 @@ TOOL_PAGES.docs = root => {
   if (!("indexedDB" in window)){ $("#docList").innerHTML = emptyBlock("Not available here", "<div>This browser can't keep documents.</div>"); return; }
   paintDocs();
   $("#docQ").oninput = debounce(e => { docUI.q = e.target.value; paintDocs(); }, 150);
+  $("#docResort").onclick = async () => {
+    const b = $("#docResort"), busy = $("#docBusy"); b.disabled = true;
+    try {
+      const r = await resortAll(stage => { if (busy) busy.innerHTML = `<div class="callout">${icon("clock")}<div>${esc(stage)}…</div></div>`; });
+      toast(r.n ? `Sorted ${r.n} document${r.n === 1 ? "" : "s"} again: ${r.moved} moved, ${r.renamed} renamed` : "No documents yet");
+    } catch(e){ toast("Couldn't sort them: try again"); }
+    if (busy) busy.innerHTML = ""; b.disabled = false; paintDocs();
+  };
   $("#docAdd").onchange = async e => {
     const files = [...(e.target.files || [])]; e.target.value = "";
     const busy = $("#docBusy"); const added = [];
@@ -351,7 +431,10 @@ async function openDoc(id){
   const keep = async () => {
     const nn = ($("#docName").value || "").trim().slice(0, 80);
     if (nn && nn !== d.name){ d.own = true; d.kind = ""; d.person = ""; }                                  // a name you typed is never renamed
-    d.name = nn || d.name; d.section = DOC_BY_ID[$("#docSec").value] ? $("#docSec").value : d.section; d.date = $("#docDateIn").value || null;
+    const sec = DOC_BY_ID[$("#docSec").value] ? $("#docSec").value : d.section, dt = $("#docDateIn").value || null;
+    if (sec !== d.section) d.ownSec = true;                                                                // nor a section you picked
+    if (dt !== d.date) d.ownDate = true;
+    d.name = nn || d.name; d.section = sec; d.date = dt;
     await Docs.put(d);
     const h = $("#docTitle"); if (h) h.textContent = d.name;
   };

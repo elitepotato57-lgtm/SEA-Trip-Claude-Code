@@ -208,6 +208,34 @@ test("insurance, a 12Go bus ticket and a ferry ticket", () => {
   const ferry = A.classifyDoc("Lomprayah High Speed Catamaran\nKoh Tao Mae Haad Pier to Koh Phangan Thong Sala Pier\n12 Dec 2026", "lomprayah.pdf");
   eq(ferry.section, "ferry"); eq(ferry.name, "Ferry ticket · Koh Tao → Koh Phangan, 12 Dec");
 });
+test("documents: a real-looking TDAC goes in TDAC and visas with the person's name, even though it lists a flight, airport and hotel", () => {
+  const tdac = `THAILAND DIGITAL ARRIVAL CARD\nArrival Card No. TDAC2611ABCD\nPersonal Information\nFamily Name MURPHY\nFirst Name DYLAN\nPassport No. 123456789\nNationality GBR\nDate of Birth 01/01/2000\nTravel Information\nArrival Date 27/11/2026\nCountry/Territory where you Boarded UNITED KINGDOM\nMode of Travel AIR\nMode of Transport COMMERCIAL FLIGHT\nFlight No./Vehicle No. TG917\nDeparture Date 26/11/2026\nAccommodation HOTEL Lub d Bangkok Siam\nBKK Suvarnabhumi Airport`;
+  const c = A.classifyDoc(tdac, "Screenshot 2026-11-24.png");
+  eq([c.section, c.name], ["entry", "TDAC arrival card · Dylan Murphy, 27 Nov"]);
+  const visa = A.classifyDoc("Kingdom of Cambodia e-Visa\nSurname: JONES Given Names: SAM\nVisa Type: Tourist (T)\nFlight details PG 931 BKK to PNH 05 Jan 2027", "evisa.pdf");
+  eq([visa.section, visa.name], ["entry", "Visa · Sam Jones, 5 Jan"]);
+  const ins = A.classifyDoc("Certificate of insurance\nPolicy number TRV-99881\nCover for flight delays and missed departure\nAirline strike cover", "policy.pdf");
+  eq(ins.section, "insurance");
+});
+test("documents: e-tickets and boarding passes carry the person's name, from passenger tables, titles or names the app knows", () => {
+  const aa = A.classifyDoc("AirAsia\nE-TICKET / ITINERARY\nBooking number Q7ZK2P\nGuest details\n1. MR DYLAN MURPHY\nFlight FD 3014 Depart DMK 26 Dec 2026 10:20 Arrive CNX", "itinerary.pdf");
+  eq([aa.section, aa.person, aa.name], ["flight", "Dylan Murphy", "E-ticket · Dylan Murphy · DMK → CNX, 26 Dec"]);
+  const grp = A.classifyDoc("E-ticket receipt\nPassengers\nMURPHY/DYLAN MR\nJONES/SAM MR\nWILSON/BEN MR\nTG 917 LHR BKK 26 Nov 2026", "eticket.pdf");
+  eq(grp.person, "Dylan Murphy, Sam Jones +1");
+  const P = load(); P.S.friends.name = "Dylan"; P.S.friends.list = {u1:{n:"Tommy"}, u2:{n:"Ben"}};
+  const k = P.classifyDoc("12Go e-ticket\nGreen Bus Thailand\nTraveller: tommy\nChiang Mai to Pai\n5 Dec 2026 08:30", "t.pdf");
+  eq(k.person, "Tommy", "a friend's name the app knows");
+  eq(P.classifyDoc("12Go e-ticket Green Bus Thailand Chiang Mai to Pai 5 Dec 2026 Samui", "t.pdf").person, "", "no false match inside another word");
+});
+test("documents: sorting again fixes the section and name, but never one you moved or renamed yourself", () => {
+  const tdac = "Thailand Digital Arrival Card\nFamily Name MURPHY First Name DYLAN\nFlight No. TG917 Arrival Date 27/11/2026";
+  const d = {text:tdac, file:"x.png", section:"flight", name:"Flight, 27 Nov"};
+  ok(A.resortDoc(d)); eq([d.section, d.name], ["entry", "TDAC arrival card · Dylan Murphy, 27 Nov"]);
+  ok(!A.resortDoc(d), "sorting twice changes nothing");
+  const mine = {text:tdac, file:"x.png", section:"other", name:"My TDAC", own:true, ownSec:true, date:"2026-11-27"};
+  ok(!A.resortDoc(mine)); eq([mine.section, mine.name], ["other", "My TDAC"]);
+});
+
 test("a photo with no useful text keeps a tidy version of its file name", () => {
   const c = A.classifyDoc("", "my_holiday-photo.JPG");
   eq(c.section, "other"); eq(c.name, "my holiday photo");

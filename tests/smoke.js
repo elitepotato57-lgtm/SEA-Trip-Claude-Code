@@ -342,6 +342,18 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
     try { const d = await addDocFile(new File([blob], "IMG_2041.png", {type:"image/png"})); return {section:d.section, name:d.name}; } catch(e){ return {err:String(e)}; }
   });
   ok(ocr.section === "entry" && /TDAC/.test(ocr.name), "a picture of a TDAC is read on the phone and filed under TDAC and visas " + JSON.stringify(ocr));
+  // a TDAC PDF that also lists a flight, an airport and a hotel goes in TDAC and visas, named for its person (Dylan, 25 Nov 2026)
+  await page.setInputFiles("#docAdd", makePdf(["THAILAND DIGITAL ARRIVAL CARD", "Arrival Card No. TDAC2611ABCD", "Family Name MURPHY", "First Name DYLAN",
+    "Arrival Date 27/11/2026", "Mode of Transport COMMERCIAL FLIGHT", "Flight No./Vehicle No. TG917", "Departure Date 26/11/2026", "BKK Suvarnabhumi Airport", "Accommodation HOTEL"]));
+  await page.waitForFunction(() => /TDAC arrival card · Dylan Murphy/.test(document.querySelector("#docList").textContent), null, {timeout:30000}).catch(() => {});
+  const td = await page.evaluate(async () => (await Docs.all()).find(d => /TDAC/.test(d.name)) || {});
+  ok(td.section === "entry" && /TDAC arrival card · Dylan Murphy, 27 Nov/.test(td.name), "a TDAC PDF that mentions a flight goes in TDAC and visas, with the person's name " + JSON.stringify({s:td.section, n:td.name}));
+  // Sort all documents again: one put in the wrong section (as before the fix) goes back where it belongs
+  await page.evaluate(async () => { const d = (await Docs.all()).find(x => /TDAC/.test(x.name)); d.section = "flight"; d.name = "Flight, 27 Nov"; d.v = 3; await Docs.put(d); });
+  await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
+  await page.click("#docResort"); await page.waitForFunction(() => !document.querySelector("#docResort").disabled, null, {timeout:60000}).catch(() => {});
+  const rs = await page.evaluate(async () => (await Docs.all()).map(d => [d.section, d.name]));
+  ok(rs.some(([s, n]) => s === "entry" && /TDAC arrival card · Dylan Murphy/.test(n)) && !rs.some(([s, n]) => s === "flight" && /^Flight, 27 Nov/.test(n)), "Sort all documents again puts a misfiled TDAC back in TDAC and visas " + JSON.stringify(rs));
   const bk = await page.evaluate(async () => (await makeBackup()).docs.length);
   ok(bk >= 2, `documents go into the backup file (${bk})`);
   await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
