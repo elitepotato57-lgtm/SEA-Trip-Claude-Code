@@ -346,10 +346,10 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   await page.setInputFiles("#docAdd", makePdf(["THAILAND DIGITAL ARRIVAL CARD", "Arrival Card No. TDAC2611ABCD", "Family Name MURPHY", "First Name DYLAN",
     "Arrival Date 27/11/2026", "Mode of Transport COMMERCIAL FLIGHT", "Flight No./Vehicle No. TG917", "Departure Date 26/11/2026", "BKK Suvarnabhumi Airport", "Accommodation HOTEL"]));
   await page.waitForFunction(() => /TDAC arrival card · Dylan Murphy/.test(document.querySelector("#docList").textContent), null, {timeout:30000}).catch(() => {});
-  const td = await page.evaluate(async () => (await Docs.all()).find(d => /TDAC/.test(d.name)) || {});
+  const td = await page.evaluate(async () => (await Docs.all()).find(d => /MURPHY/.test(d.text || "")) || {});
   ok(td.section === "entry" && /TDAC arrival card · Dylan Murphy, 27 Nov/.test(td.name), "a TDAC PDF that mentions a flight goes in TDAC and visas, with the person's name " + JSON.stringify({s:td.section, n:td.name}));
   // Sort all documents again: one put in the wrong section (as before the fix) goes back where it belongs
-  await page.evaluate(async () => { const d = (await Docs.all()).find(x => /TDAC/.test(x.name)); d.section = "flight"; d.name = "Flight, 27 Nov"; d.v = 3; await Docs.put(d); });
+  await page.evaluate(async () => { const d = (await Docs.all()).find(x => /MURPHY/.test(x.text || "")); d.section = "flight"; d.name = "Flight, 27 Nov"; d.v = 3; await Docs.put(d); });
   await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1200);
   await page.click("#docResort"); await page.waitForFunction(() => !document.querySelector("#docResort").disabled, null, {timeout:60000}).catch(() => {});
   const rs = await page.evaluate(async () => (await Docs.all()).map(d => [d.section, d.name]));
