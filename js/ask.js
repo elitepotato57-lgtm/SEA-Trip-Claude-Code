@@ -279,8 +279,12 @@ const LISTEN_QUIET_MS = 1400;
 let recOne = null;
 function listen(onText, onDone){
   if (!SpeechRec) return false;
-  const rec = recOne || (recOne = new SpeechRec());
+  // One recogniser is reused (so the iPhone asks about the microphone once), but iPhones sometimes ignore a second start():
+  // if it hasn't started listening within 1.5 s, a fresh one is made and started instead.
+  let rec = recOne || (recOne = new SpeechRec());
   try { rec.abort(); } catch(e){}
+  let begun = false;
+  const tryStart = r => { r.onstart = r.onaudiostart = () => { begun = true; }; try { r.start(); return true; } catch(e){ return false; } };
   rec.lang = "en-GB"; rec.interimResults = true; rec.maxAlternatives = 1; rec.continuous = false;
   let final = "", heard = "", quiet = null, done = false;
   const finish = (text, err) => { if (done) return; done = true; clearTimeout(quiet); onDone(text, err); };
@@ -294,8 +298,14 @@ function listen(onText, onDone){
   };
   rec.onerror = e => { if (e.error === "no-speech" && heard) finish(heard.trim()); else finish(null, e.error); };
   rec.onend = () => finish((final || heard).trim());
-  try { rec.start(); } catch(e){ return false; }
-  return rec;
+  const handlers = ["onresult", "onerror", "onend"].map(k => [k, rec[k]]);
+  const fresh = () => { rec.onresult = rec.onerror = rec.onend = null; try { rec.abort(); } catch(e){} rec = recOne = new SpeechRec(); rec.lang = "en-GB"; rec.interimResults = true; rec.maxAlternatives = 1; rec.continuous = false;
+    handlers.forEach(([k, h]) => rec[k] = h); return tryStart(rec); };
+  if (!tryStart(rec)) setTimeout(() => { if (!fresh()) finish(null, "start"); }, 250);
+  setTimeout(() => { if (!begun && !done && !heard) fresh(); }, 1500);
+  setTimeout(() => { if (!done){ try { rec.abort(); } catch(e){} finish((final || heard).trim()); } }, 15000);   // never stuck "listening"
+  // what the caller holds: stopping always finishes, even if the iPhone never says it has ended
+  return {stop(){ try { rec.stop(); } catch(e){} setTimeout(() => finish((final || heard).trim()), 1200); }, abort(){ try { rec.abort(); } catch(e){} finish(""); }};
 }
 
 /* ---------- "top 5 temples", "cheapest 3 hostels", "worst 3 bars in Pai", "10 most expensive restaurants near me" ----------

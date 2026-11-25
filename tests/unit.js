@@ -1229,6 +1229,26 @@ test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen far
       ok(!!r && made.stopped, "listening was stopped after the pause"); eq(got, "nearest toilet"); eq(texts.slice(-1)[0], "nearest toilet");
     });
   }
+  // voice search again and again: an iPhone recogniser that ignores a second start(), and one that never says it has ended
+  {
+    const all = [];
+    function FakeRec(){ all.push(this); let starts = 0;
+      this.start = () => { starts++; if (starts > 1) return; setTimeout(() => this.onstart && this.onstart(), 10); };   // the second start() is ignored
+      this.stop = () => {}; this.abort = () => {}; }
+    const V = load(undefined, {webkitSpeechRecognition:FakeRec});
+    const said = (r, t) => { r.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:true})]}); };
+    const got = [];
+    V.listen(() => {}, t => got.push(t)); await new Promise(r => setTimeout(r, 50)); said(all[0], "nearest toilet");
+    await new Promise(r => setTimeout(r, 1300));
+    V.listen(() => {}, t => got.push(t)); await new Promise(r => setTimeout(r, 1700));      // ignored: a fresh recogniser takes over
+    const second = all[all.length - 1]; said(second, "cheap noodles"); await new Promise(r => setTimeout(r, 1300));
+    const c = V.listen(() => {}, t => got.push(t)); await new Promise(r => setTimeout(r, 50));
+    const third = all[all.length - 1]; third.onresult({resultIndex:0, results:[Object.assign([{transcript:"atm"}], {isFinal:false})]});
+    c.stop(); await new Promise(r => setTimeout(r, 1400));                                    // tapping the mic again always finishes
+    test("voice search works every time: a phone that ignores a second start gets a fresh microphone, and stopping always finishes", () => {
+      eq(got, ["nearest toilet", "cheap noodles", "atm"]); ok(all.length >= 2);
+    });
+  }
   // asking once: a recent position is shared instead of asking the phone again, and one microphone recogniser is reused
   {
     let asks = 0, made = 0;

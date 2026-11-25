@@ -8,7 +8,7 @@
   show();
   renderLabButton();                    // the Design Lab's palette tab (Settings can hide it)
   if (tested){ updateMe(); }
-  else locate(false);                    // the phone's position (asks the first time); the country only follows it in automatic mode
+  else locateIfAllowed();               // the phone's position, only if it's already allowed: no question when the app opens (Dylan, 25 Nov 2026)
   Places.ready();                       // fetch the small index of the places database in the background
   // feel like an app, not a web page: no pinch-zoom of the page on iPhone (the map handles its own pinch)
   document.addEventListener("gesturestart", e => { if (!e.target.closest || !e.target.closest("#map, .tmap")) e.preventDefault(); }, {passive:false});

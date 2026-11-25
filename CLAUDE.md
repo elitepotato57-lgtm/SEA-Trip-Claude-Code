@@ -30,7 +30,7 @@ The repo root **is** the live GitHub Pages site (https://elitepotato57-lgtm.gith
   IMPROVEMENTS.md is the running log. Only the **owner** (`owner/` in Firebase: Dylan's phone, claimed once in Tools › Developer) can
   delete a split group or take someone out; the rules enforce it.
 - Asking once: every location request goes through `geoLast` (js/shell.js; a fix under 2 minutes old is reused, the map's and
-  Friends' GPS watches keep it fresh) and voice search reuses one recogniser (`recOne`). Settings explains the iPhone settings that make it permanent.
+  Friends' GPS watches keep it fresh) and voice search reuses one recogniser (`recOne`). Settings explains the iPhone settings that make it permanent. On opening, location is used only if already allowed (`locateIfAllowed`, Permissions API; iPhone home-screen apps forget the answer on close), else asked when something needs it. `listen` returns {stop, abort} that always finishes, makes a fresh recogniser if a reused one doesn't start within 1.5 s, and gives up after 15 s.
 - `js/design.js`: the Design Lab (floating panel, palette tab on the left edge). Applies `S.design` as CSS custom
   properties on `<html>` and live map paint. Look codes start `SEALOOK:` (see below).
 - `js/places.js`: the places model, OpenStreetMap tiles, opening hours, Thai romaniser (`thaiRom`), chips.

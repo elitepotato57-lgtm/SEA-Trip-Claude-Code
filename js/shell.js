@@ -153,6 +153,12 @@ const GEO_FRESH_MS = 120e3;
 function geoKeep(c){ if (c && isFinite(c.latitude)) geoLast = {lat:c.latitude, lng:c.longitude, acc:c.accuracy, at:Date.now()}; }
 const geoFresh = () => geoLast && Date.now() - geoLast.at < GEO_FRESH_MS ? geoLast : null;
 // done (optional) runs once the answer is in, whatever it is: used by "take me to the nearest …"
+/* On opening, find the phone only if location is already allowed. Home-screen apps on iPhone forget the answer every time they're
+   closed, so asking on opening meant a question every launch; now it's asked only when something needs it (the location button,
+   "near me", nearest). */
+async function locateIfAllowed(){
+  try { const p = navigator.permissions && await navigator.permissions.query({name:"geolocation"}); if (p && p.state === "granted") return locate(false); } catch(e){}
+}
 function locate(prompted, done, quiet){
   const fin = () => { if (done) done(locStatus); };
   if (applyTestLocation()){
