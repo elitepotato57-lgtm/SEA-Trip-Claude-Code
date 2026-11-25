@@ -1254,6 +1254,11 @@ test("transport: fares added 23 Nov 2026 are sourced; a flight's lowest-seen far
     eq([A.ptTurn(5), A.ptTurn(45), A.ptTurn(-90), A.ptTurn(170)], ["Straight ahead", "Bear right", "Turn left", "Turn around"]);
     eq([A.ptDist(0.234), A.ptDist(3.21), A.ptDist(42.4)], ["230 m", "3.2 km", "42 km"]);
   });
+  test("documents: in each journey, sorted by whose they are, then what they are", () => {
+    const s = A.DOC_SECTIONS.find(x => x.id === "flight"), t = "LHR → BKK, 26 Nov";
+    const g = A.docTrips(s, [{name:`E-ticket · Dylan Murphy · ${t}`, trip:t}, {name:`Boarding pass · Sam Jones · ${t}`, trip:t}, {name:`Boarding pass · Dylan Murphy · ${t}`, trip:t}]);
+    eq(g[0][1].map(d => d.name.split(" · ").slice(0, 2).join(" · ")), ["Boarding pass · Dylan Murphy", "E-ticket · Dylan Murphy", "Boarding pass · Sam Jones"]);
+  });
   // asking once: a recent position is shared instead of asking the phone again, and one microphone recogniser is reused
   {
     let asks = 0, made = 0;

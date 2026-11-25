@@ -236,7 +236,7 @@ async function addDocFile(file, onStage){
     else { onStage && onStage("Reading the text in the picture"); thumb = await thumbFrom(file); text = await ocrImage(file); }
   } catch(e){ /* couldn't read it: it's still kept, sorted by its file name */ }
   const c = classifyDoc(text, file.name);
-  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:c.name, trip:c.trip || "", v:2, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
+  const doc = {id:"d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:c.name, trip:c.trip || "", person:c.person || "", kind:c.kind || "", v:2, section:c.section, mime:file.type || (isPdf ? "application/pdf" : "image/jpeg"),
     size:file.size, added:new Date().toISOString(), date:c.date, text:text.slice(0, 4000), thumb, blob:file};
   await Docs.put(doc);
   return doc;
@@ -247,7 +247,7 @@ async function docsUpgrade(list){
   for (const d of list){
     if (d.v === 2) continue;
     d.v = 2;
-    if (!d.own && /^(flight|bus|train|ferry)$/.test(d.section) && d.text){ const c = classifyDoc(d.text, ""); if (c.section === d.section){ d.name = c.name; d.trip = c.trip; } }
+    if (!d.own && /^(flight|bus|train|ferry)$/.test(d.section) && d.text){ const c = classifyDoc(d.text, ""); if (c.section === d.section){ d.name = c.name; d.trip = c.trip; d.person = c.person; d.kind = c.kind; } }
     try { await Docs.put(d); } catch(e){}
   }
 }
@@ -295,11 +295,21 @@ async function paintDocs(){
   el.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => openDoc(b.dataset.doc));
 }
 // flights (and buses, trains, ferries) in groups, one per journey (LHR → BKK, 26 Nov), soonest first; other sections in one group
+// sorted by whose it is, then what it is (Dylan, 25 Nov 2026): "Boarding pass · Dylan", "E-ticket · Dylan", "Boarding pass · Sam"…
+const DOC_KIND_ORDER = ["Boarding pass", "E-ticket", "Booking confirmation", "Flight", "Bus ticket", "Train ticket", "Ferry ticket", "Ticket"];
+function docSortKey(d){
+  const parts = String(d.name || "").split(" · ");
+  const kind = d.kind || (DOC_KIND_ORDER.includes(parts[0]) ? parts[0] : "");
+  const person = d.person || (kind && parts[1] ? parts[1] : (d.text ? docPerson(d.text) : "")) || "";
+  const ki = kind ? DOC_KIND_ORDER.indexOf(kind) : 99;
+  return [foldText(person || "~"), String(ki).padStart(2, "0"), foldText(d.name || "")].join("|");
+}
+const docSort = ds => ds.slice().sort((a, b) => docSortKey(a).localeCompare(docSortKey(b)));
 function docTrips(s, ds){
-  if (!/^(flight|bus|train|ferry)$/.test(s.id)) return [["", ds]];
+  if (!/^(flight|bus|train|ferry)$/.test(s.id)) return [["", docSort(ds)]];
   const by = new Map();
   ds.slice().sort((a, b) => String(a.date || "9").localeCompare(String(b.date || "9"))).forEach(d => { const k = d.trip || ""; (by.get(k) || by.set(k, []).get(k)).push(d); });
-  return [...by.entries()];
+  return [...by.entries()].map(([k, dd]) => [k, docSort(dd)]);
 }
 const docFileName = d => d.name.replace(/[\\/:*?"<>|]+/g, " ").trim() + (/pdf/.test(d.mime) ? ".pdf" : "." + ((d.mime.split("/")[1] || "jpg").replace("jpeg", "jpg")));
 async function openDoc(id){
@@ -337,11 +347,18 @@ async function openDoc(id){
     if (navigator.canShare && navigator.canShare({files:[file]})){ try { await navigator.share({files:[file], title:d.name}); } catch(e){} }
     else window.open(url, "_blank", "noopener");
   };
-  $("#docSave").onclick = async () => {
-    const nn = ($("#docName").value || "").trim().slice(0, 80); if (nn && nn !== d.name) d.own = true;      // a name you typed is never renamed
+  // changes are kept on the phone as soon as they're made: no need to press Save before closing (Dylan, 25 Nov 2026)
+  const keep = async () => {
+    const nn = ($("#docName").value || "").trim().slice(0, 80);
+    if (nn && nn !== d.name){ d.own = true; d.kind = ""; d.person = ""; }                                  // a name you typed is never renamed
     d.name = nn || d.name; d.section = DOC_BY_ID[$("#docSec").value] ? $("#docSec").value : d.section; d.date = $("#docDateIn").value || null;
-    await Docs.put(d); toast("Saved"); closeDetail(); paintDocs();
+    await Docs.put(d);
+    const h = $("#docTitle"); if (h) h.textContent = d.name;
   };
+  let kt = null;
+  $("#docName").oninput = () => { clearTimeout(kt); kt = setTimeout(() => keep().then(paintDocs).catch(() => {}), 500); };
+  $("#docName").onchange = $("#docSec").onchange = $("#docDateIn").onchange = () => { clearTimeout(kt); keep().then(paintDocs).catch(() => toast("Couldn't save that change")); };
+  $("#docSave").onclick = async () => { clearTimeout(kt); try { await keep(); toast("Saved"); } catch(e){ toast("Couldn't save that change"); } closeDetail(); paintDocs(); };
   $("#docDel").onclick = async () => {
     if (!confirm(`Delete “${d.name}” from this phone? This can't be undone.`)) return;
     await Docs.del(d.id); URL.revokeObjectURL(url); toast("Deleted"); closeDetail(); paintDocs();
