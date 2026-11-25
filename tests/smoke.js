@@ -350,8 +350,11 @@ const ok = (cond, msg) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!
   // renaming: typed, then closed with the X (no Save pressed), and still there after the app restarts
   await page.fill("#docName", "Dylan's return flight"); await page.waitForTimeout(900);
   await page.click("#sheetRoot button[data-close]"); await page.waitForTimeout(400);
-  await page.reload(); await page.waitForTimeout(1500); await page.goto(BASE + "#tools/docs"); await page.waitForTimeout(1500);
-  ok(await page.evaluate(() => /Dylan's return flight/.test(document.querySelector("#docList").textContent)), "a renamed document keeps its new name after the app restarts, without pressing Save");
+  {                                                     // the app opened again (a second window on the same phone storage)
+    const p2 = await page.context().newPage(); await p2.goto(BASE + "#tools/docs"); await p2.waitForTimeout(2500);
+    ok(await p2.evaluate(() => /Dylan's return flight/.test(document.querySelector("#docList").textContent)), "a renamed document keeps its new name after the app restarts, without pressing Save");
+    await p2.close();
+  }
 
   // Camera translator: switched off (it needed a paid Google service); Tools has no tile, an old link asks for nothing and explains the free phone apps
   await page.goto(BASE + "#tools"); await page.waitForTimeout(600);
